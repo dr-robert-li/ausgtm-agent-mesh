@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Aligned with `agentic-mesh-reference-arch` `v0.1.3`
+  ([624afb7](https://github.com/dr-robert-li/agentic-mesh-reference-arch/commit/624afb7),
+  [b8f9ecc](https://github.com/dr-robert-li/agentic-mesh-reference-arch/commit/b8f9ecc)).
+- `packages/contracts/intake.py` — canonical `Intake` artifact and
+  `FeasibilityCheck` with S-tier-only feasibility verdicts
+  (`feasible | ambiguous | infeasible`). Feasibility is decided once at
+  intake, not mid-stream; ambiguity carries a single disambiguating question.
+- `packages/contracts/knowledge_layer.py` — `KnowledgeLayerEntry`,
+  `EvidencePointer`, `Freshness`, plus the `ClaimEvidenceMap` / `Claim` /
+  `Evidence` sidecar (schema version `knowledge-layer/v0.1.3`). The
+  Knowledge Layer is a tenant-scoped cache + index + evidence-pointer
+  substrate; it is **not** a system of record.
+- `packages/contracts/egress.py` — `EgressCheckRecord`, `ProposedEgress`,
+  `EgressGuardResult`, and the canonical `GUARD_ORDER` of eight
+  deterministic guards: `schema`, `claim_evidence_map`,
+  `evidence_resolvable`, `freshness`, `source_authority`, `tenancy`,
+  `tier_and_policy`, `budget`. Verification is egress-only.
+- `Task` extended with optional `intake_id`, `correlation_id`,
+  `claim_evidence_map_ref`; provenance gains typed `ProvenanceRef`
+  entries with kinds `intake | evidence | egress_check | routine |
+  release | other`.
+- `PolicyBudgets` extended with `evidence_fetch_budget`
+  (`max_reads`, `max_refetches`, `max_stale_acceptance`).
+- Contract tests for `Intake`, `KnowledgeLayerEntry`, `ClaimEvidenceMap`,
+  `EgressCheckRecord`, the new `Task` ref fields, and the new
+  `EvidenceFetchBudget` (`tests/contract/`).
+
+### Changed
+
+- `CLAUDE.md` — added §2.5 Knowledge Layer, §2.6 Intake/S-tier
+  feasibility, §2.7 Egress-only verification with the eight guards, §2.8
+  Edge vs mesh separation; extended the non-negotiable boundaries list
+  with KL-is-not-SoR, egress-only verification, refs-not-payloads,
+  guard-order, correlation-IDs, and edge-controls-out-of-scope.
+- `README.md` — describes the Context and Evidence Knowledge Layer, the
+  intake contract, and the edge security/governance vs mesh execution
+  separation (with Floodplain `rli-0.01` named as one possible — not
+  required — edge implementation).
+- Reference arch version bumped from `v0.1.2` to `v0.1.3` in `README.md`,
+  `CLAUDE.md`, and `packages/contracts/__init__.py`.
+
 ## [0.1.0] — 2026-05-16
 
 ### Added

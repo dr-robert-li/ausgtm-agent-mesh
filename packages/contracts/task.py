@@ -4,7 +4,7 @@ The Task is the bus of the system. The Orchestrator (Temporal workflow) is
 the only mutator of `state`. Slack / MCP / API readers consume Tasks but
 do not transition them.
 
-Modeled on agentic-mesh-reference-arch v0.1.2 `docs/task-contract.md`.
+Modeled on agentic-mesh-reference-arch v0.1.3 `docs/task-contract.md`.
 """
 
 from __future__ import annotations
@@ -48,6 +48,24 @@ class TaskDedup(BaseModel):
     suppression_expires_at: datetime | None = None
 
 
+class ProvenanceKind(str, Enum):
+    intake = "intake"
+    evidence = "evidence"
+    egress_check = "egress_check"
+    routine = "routine"
+    release = "release"
+    other = "other"
+
+
+class ProvenanceRef(BaseModel):
+    """One typed pointer to a prior artifact (intake, evidence, egress check)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: ProvenanceKind
+    ref: str  # intake_…, kl:…, cem_…, egc_…, rm_…
+
+
 class TaskProvenance(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -56,6 +74,7 @@ class TaskProvenance(BaseModel):
     routine_id: str | None = None
     routine_version: str | None = None
     release_manifest_id: str | None = None
+    refs: list[ProvenanceRef] = Field(default_factory=list)
     notes: str | None = None
 
 
@@ -74,6 +93,12 @@ class Task(BaseModel):
 
     inputs: dict[str, Any] = Field(default_factory=dict)
     idempotency_key: str | None = None
+
+    # v0.1.3 — entry-plane and evidence-layer pointers. Workflow state
+    # carries refs, never raw payloads.
+    intake_id: str | None = None
+    correlation_id: str | None = None
+    claim_evidence_map_ref: str | None = None
 
     state: TaskState = TaskState.PENDING
     state_reason: str | None = None

@@ -2,7 +2,7 @@
 
 Local-first Python POC runtime for the **Agentic Mesh** described in
 [`dr-robert-li/agentic-mesh-reference-arch`](https://github.com/dr-robert-li/agentic-mesh-reference-arch)
-(currently tracking `v0.1.2`).
+(currently tracking `v0.1.3`).
 
 This repository is the **implementation** of the architecture. The reference
 repo defines contracts, planes, and invariants; this repo wires them into a
@@ -27,7 +27,15 @@ testable system with:
   AWS Bedrock and GCP Vertex AI adapters as fallbacks.
 - **Slack** as the primary end-user surface.
 - **MCP** as the entrypoint for external agents and self-loopback.
-- **Postgres + pgvector** as the system of record and vector store from day one.
+- **Postgres + pgvector** as the system of record **for mesh state** (Tasks,
+  SpawnLedger, log streams, routines/releases) and the vector store from day one.
+- **Context and Evidence Knowledge Layer** — a tenant-scoped cache + index +
+  evidence-pointer layer in front of external tools. **Not** a system of
+  record; ground truth stays in the external tools.
+- **Intake contract** with a cheap S-tier feasibility check at the entry plane.
+- **Egress-only verification** with eight deterministic guards (schema,
+  claim-evidence map, evidence resolvable, freshness, source authority,
+  tenancy, tier/policy, budget) — no LLM in the verification loop.
 - **Swarm Supervisor** with wave-based dynamic spawning, conservative recursion,
   policy / budget / risk / marginal-utility gates, an append-only spawn ledger,
   HITL escalation, kill switch, and DLQ.
@@ -69,7 +77,8 @@ apps/
   workers/      Temporal worker process(es) that host workflows + activities.
 packages/
   contracts/    Pydantic models: Task, Policy, Routine, SpawnLedger,
-                HITLDecision, EvaluationRecord, etc.
+                HITLDecision, EvaluationRecord, Intake, KnowledgeLayerEntry,
+                ClaimEvidenceMap, EgressCheckRecord, etc.
   workflows/    Temporal workflow definitions (deterministic; orchestration only).
   activities/   Temporal activities. Agent SDK calls live here.
   model_gateway/  Anthropic (primary) + Bedrock + Vertex adapters.
@@ -222,6 +231,79 @@ See [`CLAUDE.md`](./CLAUDE.md). The non-negotiables:
 - **No unledgered spawns.** SpawnLedger row is written before a child runs.
 - **Archive before delete.** Routines, releases, and tasks are soft-archived
   first; hard delete is a separate, audited operation.
+- **Knowledge Layer is a cache, not a source of truth.** Ground truth lives
+  in the external tools/systems of record.
+- **Verification is egress-only.** Sufficiency and claim/evidence checks
+  happen at output/action boundaries, not continuously mid-stream.
+- **Workflow state carries refs, not raw payloads.** `intake_id`,
+  `claim_evidence_map_ref`, KL entry IDs, `payload_ref: blob://…`.
+
+---
+
+## Context and Evidence Knowledge Layer
+
+A tenant-scoped substrate that gives agents sufficient, governed,
+source-aware context for more capable reasoning. KL provides:
+
+- **Cache** of recent reads from external tools, keyed by
+  `(tenant_id, source_system, source_id)`, with optional `content_hash`.
+- **Index** for fast retrieval of relevant prior context.
+- **Evidence pointers** — every entry carries `evidence_pointer` back to
+  the system of record it came from, plus a `freshness` verdict.
+- **Append-only versioned writes.** Entries are addressed as
+  `kl:{tenant}:{source}/{path}#v{n}`.
+
+LLMs never write KL entries directly. KL is consumed at read time and
+referenced at egress through a **`ClaimEvidenceMap`** sidecar that binds
+each output claim to one or more evidence refs. The mesh's eight
+**deterministic egress guards** then enforce schema, evidence presence,
+freshness, source authority, tenancy, tier/policy, and budget — no LLM
+in the verification loop.
+
+See `packages/contracts/knowledge_layer.py` and
+`packages/contracts/egress.py` for the canonical Pydantic shapes.
+
+---
+
+## Intake contract and S-tier feasibility
+
+Inbound requests from the entry plane produce an **`Intake`** artifact
+*before* the Orchestrator creates a Task. Intake runs three cheap checks:
+
+1. **Schema parse** of the canonical intake payload.
+2. **Tool-plan lookup** against the routine/release registry.
+3. **One S-tier classifier call** producing `feasible | ambiguous |
+   infeasible`.
+
+Ambiguous intents produce one disambiguating question. Silent escalation
+above S-tier at intake is a bug. Feasibility is decided once at intake —
+not re-run mid-stream. The Task references the intake via
+`Task.intake_id`.
+
+See `packages/contracts/intake.py`.
+
+---
+
+## Edge security/governance vs mesh execution
+
+The mesh **does not** implement enterprise edge controls. It expects a
+generic **edge control contract** in front of it.
+
+| Concern | Owner |
+|---|---|
+| Identity binding, OAuth/OIDC, session | **Edge layer** |
+| Ingress/egress normalization | **Edge layer** |
+| Policy preflight, safety, DLP, classification | **Edge layer** |
+| Approval UX, audit envelope | **Edge layer** |
+| Task decomposition, durable orchestration | **Mesh (this repo)** |
+| Knowledge Layer, swarm supervision | **Mesh (this repo)** |
+| Routines, releases, evaluator, eight egress guards | **Mesh (this repo)** |
+| Tool gateway, credentials, budgets | **Mesh (this repo)** |
+
+[Floodplain](https://github.com/SirFreud/floodplain/tree/rli-0.01)
+(branch `rli-0.01`) is **one possible** edge implementation. It is *not*
+a required dependency of this POC, and the mesh's egress guards run
+defense-in-depth regardless of which edge is in front.
 
 ---
 

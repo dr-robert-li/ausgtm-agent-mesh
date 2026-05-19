@@ -34,6 +34,20 @@ class PolicyLimits(BaseModel):
     external_write_tier_limit: ToolTrustTier = ToolTrustTier.write_revocable
 
 
+class EvidenceFetchBudget(BaseModel):
+    """Autonomy budget for Knowledge-Layer reads / refetches.
+
+    Propagated to children as a fraction of the parent's remaining budget,
+    not a fresh copy. Enforced by the `budget` egress guard (guard 8).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    max_reads: int = 50
+    max_refetches: int = 10
+    max_stale_acceptance: int = 5
+
+
 class PolicyBudgets(BaseModel):
     """Soft budgets — exhausting any triggers HITL, not abort."""
 
@@ -44,6 +58,9 @@ class PolicyBudgets(BaseModel):
     max_model_calls: int = 50
     max_token_budget: int = 500_000
     min_confidence_to_spawn: float = 0.6
+    evidence_fetch_budget: EvidenceFetchBudget = Field(
+        default_factory=EvidenceFetchBudget
+    )
 
 
 class Policy(BaseModel):
