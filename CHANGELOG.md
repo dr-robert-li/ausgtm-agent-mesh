@@ -37,7 +37,8 @@ invariants are unchanged — only the implementation substrate changed.
 - **LLM egress → Cloudflare AI Gateway.** All model traffic routes through the
   gateway using Cloudflare's documented base URL pattern. LLM egress and tool
   egress are now explicitly separate boundaries (gateway for models, Tool
-  Gateway for tools).
+  Gateway for tools). The model client is the **Claude Agent SDK + Anthropic
+  API**, called through the gateway's Anthropic route.
 - **Slack ingress hardened.** HMAC signing-secret verification over the raw
   body, timestamp, and versioned basestring with a ≤ 5-minute replay window,
   before any parsing or workflow start.
@@ -66,14 +67,6 @@ invariants are unchanged — only the implementation substrate changed.
   `EgressCheckRecord` with the eight-guard `GUARD_ORDER`, `SpawnLedger`,
   `Policy` / `PolicyBudgets` with `evidence_fetch_budget`, `Routine`,
   `HITLDecision`, `EvaluationRecord`.
-
-### Pending
-
-- **LLM provider binding.** Cloudflare AI Gateway is the fixed egress boundary;
-  the specific model client behind it (Anthropic-native vs OpenAI-compatible vs
-  multi-provider) is awaiting provider documentation from the repo owner. Until
-  then, code is written provider-neutral against the gateway base URL. See the
-  single PENDING marker in the `README.md` stack table.
 
 ## [0.1.0] — 2026-05-16
 

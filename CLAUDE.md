@@ -21,17 +21,19 @@ Stack: Python 3.11+, **LangGraph** (cognitive control plane), **Temporal**
 (durable execution boundary, local Python SDK), **FastAPI** + **FastMCP**
 (ingress), **PostgreSQL + pgvector** (mesh state of record, evidence index,
 *and* LangGraph checkpoints), **Cloudflare AI Gateway** (default LLM egress
-proxy), **OpenTelemetry** (traces/metrics). Slack enters over signed HTTP
+proxy, Anthropic route), **OpenTelemetry** (traces/metrics). Model calls use
+the **Claude Agent SDK** + **Anthropic API**. Slack enters over signed HTTP
 endpoints on FastAPI.
 
 First non-local deployment target: **AWS ECS Fargate**. Not Temporal Cloud.
 
-> **Provider binding is pluggable and currently PENDING.** Cloudflare AI
-> Gateway is the fixed LLM egress boundary; the specific model client behind
-> it (Anthropic-native vs OpenAI-compatible vs multi-provider) is supplied by
-> the repo owner's forthcoming provider documentation. Until then, write
-> provider-neutral code against the gateway. See the stack table in
-> `README.md` for the single source of this PENDING marker.
+> **LLM provider: Claude Agent SDK + Anthropic API.** Cloudflare AI Gateway is
+> the fixed LLM egress boundary; the model client behind it is the **Claude
+> Agent SDK** calling the **Anthropic API** through the gateway's Anthropic
+> route. Worker nodes invoke the Claude Agent SDK / Anthropic Messages API
+> (e.g. via `langchain-anthropic`'s `ChatAnthropic` or the raw `anthropic`
+> client) with the `base_url` pointed at the gateway. No worker node calls the
+> Anthropic API directly without going through the gateway.
 
 ### 1.1 Why this is a pivot from v0.1.x
 
@@ -117,7 +119,8 @@ Temporal handles.
 - **LLM egress** routes through **Cloudflare AI Gateway** (observability,
   rate controls, logging, gateway policy). Worker nodes never call a provider
   base URL directly. The model tier (`S`/`M`/`L`) is chosen by **policy**, not
-  by the calling node. Provider binding is PENDING (see §1).
+  by the calling node. The provider is the **Claude Agent SDK + Anthropic API**
+  behind the gateway's Anthropic route (see §1).
 - **Tool egress** routes through the **Tool Gateway** (`packages/tool_gateway/`),
   the **only** code that holds tool credentials and the **only** code that
   calls external tool APIs (Slack write, Monday, Sheets, tl;dv, etc.). MCP

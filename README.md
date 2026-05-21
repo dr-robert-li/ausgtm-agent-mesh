@@ -75,8 +75,8 @@ verifiable on the OSS stack — not to ship every routine.
 | Mesh state of record | Postgres 16 + `pgvector` | Tasks, SpawnLedger, log streams, evidence index |
 | DB driver | `asyncpg` + SQLAlchemy 2.x | — |
 | Contracts | Pydantic v2 | Reference-arch `v0.1.3` shapes |
-| LLM egress | **Cloudflare AI Gateway** | Default proxy for all model traffic |
-| LLM provider | **PENDING** | <!-- PENDING: LLM provider binding — Anthropic-native vs OpenAI-compatible vs multi-provider. Awaiting provider documentation from repo owner. Until supplied, write provider-neutral code against the Cloudflare AI Gateway base URL. --> See marker. |
+| LLM egress | **Cloudflare AI Gateway** (Anthropic route) | Default proxy for all model traffic |
+| LLM provider | **Claude Agent SDK + Anthropic API** | Model client behind the gateway; `langchain-anthropic` / `anthropic` with `base_url` at the gateway |
 | Observability | OpenTelemetry (traces/metrics) + Grafana stack | Correlated traces across ingress/workflow/graph |
 | Tests | `pytest`, `pytest-asyncio`, Temporal test harness | — |
 
@@ -118,7 +118,7 @@ HubSpot, Clockify, and Bitscale as additional tool packs.
           │                           │                           │
           └───────────────────────────┴───────────────┬───────────┘
                                                       ▼
-                          LLM egress → [ Cloudflare AI Gateway ] → providers
+                          LLM egress → [ Cloudflare AI Gateway ] → Anthropic API
                           Tool egress → [ Tool Gateway ] → external tool APIs
 ```
 
@@ -173,8 +173,8 @@ tests/
 
 - Python 3.11+
 - Docker + Docker Compose
-- A Cloudflare AI Gateway (account id + gateway id) and the API key for the
-  provider behind it (provider binding PENDING — see the stack table)
+- A Cloudflare AI Gateway (account id + gateway id) and an Anthropic API key
+  for the Claude Agent SDK / Anthropic API behind the gateway's Anthropic route
 - Optional: Slack app (bot token + signing secret), Monday API token, Google
   service account, tl;dv API key
 
