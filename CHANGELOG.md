@@ -7,48 +7,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+## [0.2.0] — 2026-05-21
 
-- Aligned with `agentic-mesh-reference-arch` `v0.1.3`
-  ([624afb7](https://github.com/dr-robert-li/agentic-mesh-reference-arch/commit/624afb7),
-  [b8f9ecc](https://github.com/dr-robert-li/agentic-mesh-reference-arch/commit/b8f9ecc)).
-- `packages/contracts/intake.py` — canonical `Intake` artifact and
-  `FeasibilityCheck` with S-tier-only feasibility verdicts
-  (`feasible | ambiguous | infeasible`). Feasibility is decided once at
-  intake, not mid-stream; ambiguity carries a single disambiguating question.
-- `packages/contracts/knowledge_layer.py` — `KnowledgeLayerEntry`,
-  `EvidencePointer`, `Freshness`, plus the `ClaimEvidenceMap` / `Claim` /
-  `Evidence` sidecar (schema version `knowledge-layer/v0.1.3`). The
-  Knowledge Layer is a tenant-scoped cache + index + evidence-pointer
-  substrate; it is **not** a system of record.
-- `packages/contracts/egress.py` — `EgressCheckRecord`, `ProposedEgress`,
-  `EgressGuardResult`, and the canonical `GUARD_ORDER` of eight
-  deterministic guards: `schema`, `claim_evidence_map`,
-  `evidence_resolvable`, `freshness`, `source_authority`, `tenancy`,
-  `tier_and_policy`, `budget`. Verification is egress-only.
-- `Task` extended with optional `intake_id`, `correlation_id`,
-  `claim_evidence_map_ref`; provenance gains typed `ProvenanceRef`
-  entries with kinds `intake | evidence | egress_check | routine |
-  release | other`.
-- `PolicyBudgets` extended with `evidence_fetch_budget`
-  (`max_reads`, `max_refetches`, `max_stale_acceptance`).
-- Contract tests for `Intake`, `KnowledgeLayerEntry`, `ClaimEvidenceMap`,
-  `EgressCheckRecord`, the new `Task` ref fields, and the new
-  `EvidenceFetchBudget` (`tests/contract/`).
+Architecture pivot to off-the-shelf open-source primitives. The runtime is no
+longer a bespoke four-plane scaffold maintained in-tree; orchestration logic
+moves into **LangGraph**, wrapped by **Temporal** as a thin durable shell. The
+reference-arch (`agentic-mesh-reference-arch` `v0.1.3`) contracts and
+invariants are unchanged — only the implementation substrate changed.
 
 ### Changed
 
-- `CLAUDE.md` — added §2.5 Knowledge Layer, §2.6 Intake/S-tier
-  feasibility, §2.7 Egress-only verification with the eight guards, §2.8
-  Edge vs mesh separation; extended the non-negotiable boundaries list
-  with KL-is-not-SoR, egress-only verification, refs-not-payloads,
-  guard-order, correlation-IDs, and edge-controls-out-of-scope.
-- `README.md` — describes the Context and Evidence Knowledge Layer, the
-  intake contract, and the edge security/governance vs mesh execution
-  separation (with Floodplain `rli-0.01` named as one possible — not
-  required — edge implementation).
-- Reference arch version bumped from `v0.1.2` to `v0.1.3` in `README.md`,
-  `CLAUDE.md`, and `packages/contracts/__init__.py`.
+- **Control plane → LangGraph.** The agent state machine, dynamic `Send`
+  fan-out, deterministic reducers, the collector fan-in node, the egress
+  guards, and interrupt-driven HITL now live in LangGraph.
+- **Durable boundary → Temporal shell.** Temporal workflows are deterministic
+  shells that invoke a single activity (`run_langgraph_activity`) which runs
+  the compiled LangGraph engine. No LLM client or LangGraph import in any
+  workflow module. This preserves the reference-arch "no model calls in the
+  orchestrator" invariant: the old rule *"agent SDKs run inside activities"*
+  becomes *"LangGraph (and all LLM/tool calls) runs inside the activity."*
+- **Ingress → FastAPI + FastMCP only.** FastAPI is ingress only; durable work
+  moves to Temporal (no `BackgroundTasks` for orchestration). FastMCP is
+  mounted on FastAPI. Slack enters over signed HTTP endpoints rather than a
+  long-running Socket Mode process.
+- **Checkpointing → Postgres `AsyncPostgresSaver`.** LangGraph thread state is
+  persisted so interrupts and HITL pause and resume across restarts. This is
+  cognitive working memory, kept distinct from the authoritative mesh-state
+  schema in the same Postgres instance.
+- **LLM egress → Cloudflare AI Gateway.** All model traffic routes through the
+  gateway using Cloudflare's documented base URL pattern. LLM egress and tool
+  egress are now explicitly separate boundaries (gateway for models, Tool
+  Gateway for tools).
+- **Slack ingress hardened.** HMAC signing-secret verification over the raw
+  body, timestamp, and versioned basestring with a ≤ 5-minute replay window,
+  before any parsing or workflow start.
+- **Deterministic fan-in.** Typed reducers plus a collector node merge parallel
+  worker outputs and centralize cost/evidence aggregation before guard
+  evaluation.
+
+### Removed
+
+- Custom scaffold superseded by the OSS components above: `apps/`, `packages/`
+  (`contracts`, `workflows`, `activities`, `model_gateway`, `tool_gateway`,
+  `policy`, `registry`, `observability`), `tests/`, `infra/`, `pyproject.toml`,
+  and `.env.example`. To be reconstructed on the new stack — see
+  [`CLAUDE.md`](./CLAUDE.md) §4 for the build order.
+- Direct provider adapters (`anthropic_adapter`, `bedrock_adapter`,
+  `vertex_adapter`) superseded by Cloudflare AI Gateway as the egress proxy;
+  provider selection is now a gateway/route concern.
+
+### Retained (contract shapes carried into the new stack)
+
+- Reference-arch `v0.1.3` contract shapes survive the pivot and will be
+  re-implemented on the OSS stack: `Task` (with `intake_id`, `correlation_id`,
+  `claim_evidence_map_ref`, typed `ProvenanceRef`), `Intake` /
+  `FeasibilityCheck` (S-tier-only verdicts), `KnowledgeLayerEntry` /
+  `EvidencePointer` / `Freshness`, `ClaimEvidenceMap` / `Claim` / `Evidence`,
+  `EgressCheckRecord` with the eight-guard `GUARD_ORDER`, `SpawnLedger`,
+  `Policy` / `PolicyBudgets` with `evidence_fetch_budget`, `Routine`,
+  `HITLDecision`, `EvaluationRecord`.
+
+### Pending
+
+- **LLM provider binding.** Cloudflare AI Gateway is the fixed egress boundary;
+  the specific model client behind it (Anthropic-native vs OpenAI-compatible vs
+  multi-provider) is awaiting provider documentation from the repo owner. Until
+  then, code is written provider-neutral against the gateway base URL. See the
+  single PENDING marker in the `README.md` stack table.
 
 ## [0.1.0] — 2026-05-16
 
@@ -90,5 +115,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   contract, workflow, integration, dynamic swarm, system, chaos,
   observability reconstruction).
 
-[Unreleased]: https://github.com/dr-robert-li/ausgtm-agent-mesh/compare/v0.1.0...HEAD
+> Note: the `v0.1.2`→`v0.1.3` alignment work (Intake, Knowledge Layer,
+> egress-guard, and `Task` ref-field contracts) was implemented on the custom
+> scaffold and then superseded by the `v0.2.0` pivot. Those contract *shapes*
+> are retained — see the `v0.2.0` "Retained" section.
+
+[Unreleased]: https://github.com/dr-robert-li/ausgtm-agent-mesh/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/dr-robert-li/ausgtm-agent-mesh/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/dr-robert-li/ausgtm-agent-mesh/releases/tag/v0.1.0
