@@ -1,0 +1,106 @@
+{
+  "$defs": {
+    "ApprovalDecision": {
+      "enum": [
+        "pending",
+        "approved",
+        "rejected",
+        "expired"
+      ],
+      "title": "ApprovalDecision",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Decision on an approval request. POC stores these in ``approval_records``;\nproduction hardens this into an append-only tamper-evident ledger.",
+  "properties": {
+    "approval_record_id": {
+      "title": "Approval Record Id",
+      "type": "string"
+    },
+    "approval_request_id": {
+      "title": "Approval Request Id",
+      "type": "string"
+    },
+    "approver_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Approver Id"
+    },
+    "channel": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "slack | mcp | api",
+      "title": "Channel"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "decided_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Decided At"
+    },
+    "decision": {
+      "$ref": "#/$defs/ApprovalDecision",
+      "default": "pending"
+    },
+    "payload_hash": {
+      "title": "Payload Hash",
+      "type": "string"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "tenant_id": {
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "tool_call_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tool Call Id"
+    }
+  },
+  "required": [
+    "approval_request_id",
+    "task_id",
+    "tenant_id",
+    "payload_hash"
+  ],
+  "title": "ApprovalRecord",
+  "type": "object"
+}

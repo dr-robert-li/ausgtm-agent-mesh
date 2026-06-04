@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Retrieval document / tool evidence chunk with embedding and freshness\nmetadata. Deliberately separate from session summaries and task metadata.",
+  "properties": {
+    "client_slug": {
+      "title": "Client Slug",
+      "type": "string"
+    },
+    "content": {
+      "title": "Content",
+      "type": "string"
+    },
+    "embedding": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "pgvector embedding; populated at ingestion time.",
+      "title": "Embedding"
+    },
+    "evidence_id": {
+      "title": "Evidence Id",
+      "type": "string"
+    },
+    "freshness_at": {
+      "format": "date-time",
+      "title": "Freshness At",
+      "type": "string"
+    },
+    "metadata": {
+      "additionalProperties": true,
+      "title": "Metadata",
+      "type": "object"
+    },
+    "source": {
+      "description": "Origin, e.g. 'google_drive', 'tool:hubspot'.",
+      "title": "Source",
+      "type": "string"
+    },
+    "source_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Document id / URL / item id.",
+      "title": "Source Ref"
+    },
+    "task_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Task Id"
+    },
+    "tenant_id": {
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "tenant_id",
+    "client_slug",
+    "source",
+    "content"
+  ],
+  "title": "EvidenceChunk",
+  "type": "object"
+}

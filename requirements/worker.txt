@@ -1,0 +1,7 @@
+-r base.txt
+# Worker (Cloud Run Jobs / Worker Pools): AG2 mesh + model gateway + telemetry.
+google-cloud-pubsub>=2.21
+psycopg[binary]>=3.1
+litellm>=1.40
+langfuse>=2.0
+ag2>=0.4

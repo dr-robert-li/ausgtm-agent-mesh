@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Approval prompt delivered to a requester (Slack and/or MCP), mirrored to\nSlack where available.",
+  "properties": {
+    "approval_request_id": {
+      "title": "Approval Request Id",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "deliver_to_mcp": {
+      "default": true,
+      "title": "Deliver To Mcp",
+      "type": "boolean"
+    },
+    "deliver_to_slack": {
+      "default": true,
+      "title": "Deliver To Slack",
+      "type": "boolean"
+    },
+    "evidence_pointers": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence Pointers",
+      "type": "array"
+    },
+    "payload_hash": {
+      "description": "Hash of the exact action to be approved.",
+      "title": "Payload Hash",
+      "type": "string"
+    },
+    "requester_id": {
+      "title": "Requester Id",
+      "type": "string"
+    },
+    "summary": {
+      "description": "Human-readable description of the write action.",
+      "title": "Summary",
+      "type": "string"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "tenant_id": {
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "tool_call_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tool Call Id"
+    }
+  },
+  "required": [
+    "task_id",
+    "tenant_id",
+    "requester_id",
+    "summary",
+    "payload_hash"
+  ],
+  "title": "ApprovalRequest",
+  "type": "object"
+}

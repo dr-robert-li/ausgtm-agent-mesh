@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "monday_create_item.output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["item_id", "status"],
+  "properties": {
+    "item_id": { "type": "string", "description": "Created Monday.com item id." },
+    "board_id": { "type": "string" },
+    "status": { "type": "string", "description": "Outcome status of the create call." },
+    "url": { "type": "string", "format": "uri" }
+  }
+}

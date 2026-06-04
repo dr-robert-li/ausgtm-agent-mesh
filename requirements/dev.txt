@@ -1,0 +1,4 @@
+-r api.txt
+-r worker.txt
+pytest>=8.0
+ruff>=0.4

@@ -4,6 +4,15 @@
 - **Context:** Define a reusable, governed autonomous agent mesh pattern for small consultancies or client delivery teams. The concrete SaaS resources and tool adapters may vary by deployment, but the core agent fleet architecture, ingress model, task contract, execution plane, memory layer, approval model, and observability approach remain stable.
 - **Solution Intent:** Use AG2 as the reusable multi-agent execution layer, Cloud Run services as Slack/MCP/API ingress, Cloud Run Jobs or Worker Pools as the long-running execution plane, Cloud SQL for PostgreSQL with `pgvector` as the durable memory and audit store, LiteLLM for model routing/budgets/cascades, Cloudflare AI Gateway for model-traffic visibility, auditability, DLP/query blocking, guardrails, and rate controls, and Langfuse/OpenTelemetry for mesh-level trace, cost, and token telemetry. SaaS integrations are packaged as replaceable client-specific tool packs behind a consistent Tool Gateway contract.
 
+> **Implementation status (POC scaffold).** This document is the normative
+> design pattern. A runnable Python-first scaffold of it lives in `src/agent_mesh/`
+> and is exercised by `make test` / `make smoke` with no cloud dependencies — see
+> [README.md](./README.md) for clone-and-run readiness and the scaffolded-vs-needs-development
+> matrix, [docs/language-decision.md](./docs/language-decision.md) for the
+> Python-first/TS-at-edge rationale, [RUNBOOK.md](./RUNBOOK.md) for local smoke
+> checks and deployment, and [docs/production-readiness-caveats.md](./docs/production-readiness-caveats.md)
+> for the hardening required before production. The POC is not production-ready.
+
 ## 2. Refined Engineering Requirements
 - **Functional Requirements:**
   - Provide a redeployable reference architecture where the agent fleet, task lifecycle, memory layer, approval workflow, and telemetry model are reusable across clients.

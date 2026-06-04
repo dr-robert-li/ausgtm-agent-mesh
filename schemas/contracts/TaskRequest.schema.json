@@ -1,0 +1,165 @@
+{
+  "$defs": {
+    "Entrypoint": {
+      "description": "How a task entered the mesh. Slack and MCP are mirrored capabilities.",
+      "enum": [
+        "slack",
+        "mcp",
+        "api",
+        "internal"
+      ],
+      "title": "Entrypoint",
+      "type": "string"
+    },
+    "RequesterIdentity": {
+      "additionalProperties": false,
+      "description": "Normalized requester identity. Slack and MCP contexts are mapped onto\nthis shared shape so approvals can be routed back to the originating\nrequester regardless of entrypoint.",
+      "properties": {
+        "display_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Display Name"
+        },
+        "email": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Email"
+        },
+        "entrypoint": {
+          "$ref": "#/$defs/Entrypoint"
+        },
+        "mcp_subject": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "MCP auth subject / principal, when entrypoint is MCP.",
+          "title": "Mcp Subject"
+        },
+        "requester_id": {
+          "description": "Stable mesh-internal requester id.",
+          "title": "Requester Id",
+          "type": "string"
+        },
+        "slack_channel_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slack Channel Id"
+        },
+        "slack_user_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slack User Id"
+        }
+      },
+      "required": [
+        "requester_id",
+        "entrypoint"
+      ],
+      "title": "RequesterIdentity",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Inbound request shape accepted by every ingress (Slack, MCP, API).\n\nIngress services translate their native payloads into this contract before\nhanding off to the shared task service, so capabilities stay mirrored.",
+  "properties": {
+    "client_slug": {
+      "title": "Client Slug",
+      "type": "string"
+    },
+    "entrypoint": {
+      "$ref": "#/$defs/Entrypoint"
+    },
+    "idempotency_key": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional client-supplied key to dedupe retried submissions.",
+      "title": "Idempotency Key"
+    },
+    "metadata": {
+      "additionalProperties": true,
+      "title": "Metadata",
+      "type": "object"
+    },
+    "model_route_profile": {
+      "default": "mixed-cascade",
+      "title": "Model Route Profile",
+      "type": "string"
+    },
+    "prompt": {
+      "description": "Natural-language task instruction.",
+      "title": "Prompt",
+      "type": "string"
+    },
+    "requester": {
+      "$ref": "#/$defs/RequesterIdentity"
+    },
+    "session_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Existing session to continue; new one created if absent.",
+      "title": "Session Id"
+    },
+    "tenant_id": {
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "tenant_id",
+    "client_slug",
+    "entrypoint",
+    "requester",
+    "prompt"
+  ],
+  "title": "TaskRequest",
+  "type": "object"
+}

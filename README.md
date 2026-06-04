@@ -10,8 +10,43 @@ AI Gateway for model-traffic governance.
   reusable platform boundary, task contract, execution plane, memory/evidence
   layer, approval model, and observability approach. This is the operating
   manual for any agent or engineer working in this repo.
+- **[docs/language-decision.md](./docs/language-decision.md)** — why the core is
+  Python-first with TypeScript only at the edge, with pros/cons and the repo
+  layout implication.
 - **[RUNBOOK.md](./RUNBOOK.md)** — repeatable deployment runbook: provisioning,
   verification, rollback, and audit checks for a client rollout.
+
+## Clone-and-run readiness
+
+This repo ships a **runnable POC scaffold**. The contract layer, shared task
+service, ingress, worker, approval gating, and prompt-to-code sandbox are
+importable and exercised by tests without any cloud dependencies — heavy deps
+(`ag2`, `google-cloud-pubsub`, `mcp`) are lazy-imported and degrade to in-process
+stubs.
+
+```bash
+make install-dev   # editable install + dev extras (pytest, ruff)
+make schemas       # export JSON Schema from the Pydantic contracts -> schemas/contracts/
+make test          # 37 tests: contracts, approval gating, importability, slack verify
+make lint          # ruff
+make smoke         # end-to-end: write-gated Slack task + read-only MCP task, in-process
+make run-api       # uvicorn FastAPI ingress (Slack/MCP/API) on localhost
+make run-worker    # in-process worker draining the dispatch queue
+```
+
+`make smoke` runs the full ingress → task service → dispatch → worker →
+approval-pause → decision → resume → completion loop in a single process, proving
+the write-approval gate and the read path without GCP.
+
+### Scaffolded vs. needs development
+
+| Status | Component |
+| :--- | :--- |
+| **Scaffolded & tested** | Pydantic contracts + JSON Schema export, lifecycle state machine, in-memory repository, in-process dispatch, task service, FastAPI ingress (health/tasks/Slack/MCP/approvals), Slack signature verify, MCP server stub, approval gating with payload-hash binding, AG2 orchestration stub, budget tracker, prompt-to-code sandbox skeleton, tool-pack loader. |
+| **Needs development** | Real AG2 multi-agent orchestration, Postgres-backed repository (migrations are provided; the repo layer is in-memory), Pub/Sub wiring at runtime, live LiteLLM + Cloudflare AI Gateway integration, real SaaS tool adapters, Langfuse/OTLP telemetry, hardened sandbox isolation. See [docs/production-readiness-caveats.md](./docs/production-readiness-caveats.md). |
+
+The POC is **not production-ready**; do not overclaim. See the caveats doc for the
+full hardening list.
 - **[docs/production-readiness-caveats.md](./docs/production-readiness-caveats.md)**
   — remaining production hardening requirements (secure sandbox prompt-to-code
   execution, durable orchestration, tenant isolation, immutable approval ledger,
@@ -26,6 +61,16 @@ AI Gateway for model-traffic governance.
 
 | Path | Purpose |
 | :--- | :--- |
+| `src/agent_mesh/contracts/` | Pydantic v2 task/approval/tool/evidence/AI-BOM/budget models, lifecycle state machine, JSON Schema export. |
+| `src/agent_mesh/services/` | Repository, dispatch, sessions, shared task service, approval gating. |
+| `src/agent_mesh/api/` | FastAPI ingress (health, tasks, Slack events + signature verify, MCP server, approvals). |
+| `src/agent_mesh/worker/` | AG2 orchestration stub, task runner with approval pause/resume, budget tracker, worker entrypoint. |
+| `src/agent_mesh/sandbox/` | Prompt-to-code executor skeleton (isolated subprocess, resource limits; production needs hardened isolation). |
+| `src/agent_mesh/tools/` | Tool gateway + per-client tool-pack manifest loader. |
+| `schemas/` | Exported contract JSON Schema (`contracts/`) and sample read/write tool schemas. |
+| `migrations/` | Cloud SQL PostgreSQL + `pgvector` SQL (tasks, sessions, memory/evidence chunks kept separate, tool calls, approvals, AI-BOM, budget, gateway events). |
+| `config/litellm.config.yaml` | LiteLLM routing/cascades/budgets, routed through the Cloudflare AI Gateway wrapper. |
+| `docker/` | Dockerfiles for api / worker / code-executor. |
 | `manifests/deployment.manifest.yaml` | Per-environment deployment manifest (tenant, region, model routes, retention). |
 | `manifests/tool_pack_manifest.yaml` | Per-client tool pack manifest for replaceable SaaS adapters. |
 | `scripts/gcp_bootstrap.sh` | Idempotent GCP bootstrap (APIs, service accounts, Cloud SQL, Artifact Registry, Secret Manager). |

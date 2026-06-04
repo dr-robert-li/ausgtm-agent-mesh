@@ -1,0 +1,70 @@
+{
+  "$defs": {
+    "TaskState": {
+      "description": "Canonical task lifecycle. Kept Temporal-ready: states map cleanly onto\ndurable-workflow signals if Temporal is introduced post-POC.",
+      "enum": [
+        "received",
+        "queued",
+        "planning",
+        "running",
+        "awaiting_approval",
+        "approved",
+        "rejected",
+        "completed",
+        "failed",
+        "cancelled"
+      ],
+      "title": "TaskState",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Append-only lifecycle event. One row per state transition or notable\noccurrence; the ordered stream is the task's audit trail.",
+  "properties": {
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "event_id": {
+      "title": "Event Id",
+      "type": "string"
+    },
+    "note": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Note"
+    },
+    "payload": {
+      "additionalProperties": true,
+      "title": "Payload",
+      "type": "object"
+    },
+    "state": {
+      "$ref": "#/$defs/TaskState"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "tenant_id": {
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "tenant_id",
+    "state"
+  ],
+  "title": "TaskEvent",
+  "type": "object"
+}

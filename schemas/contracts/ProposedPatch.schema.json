@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A prompt-to-code artifact: a proposed change that is NOT applied until\napproved. Generated in the sandbox, returned for review.",
+  "properties": {
+    "approval_required": {
+      "default": true,
+      "title": "Approval Required",
+      "type": "boolean"
+    },
+    "artifact_paths": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Artifact Paths",
+      "type": "array"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "description": {
+      "title": "Description",
+      "type": "string"
+    },
+    "diff": {
+      "description": "Unified diff or artifact content.",
+      "title": "Diff",
+      "type": "string"
+    },
+    "patch_id": {
+      "title": "Patch Id",
+      "type": "string"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "tenant_id": {
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "tenant_id",
+    "description",
+    "diff"
+  ],
+  "title": "ProposedPatch",
+  "type": "object"
+}

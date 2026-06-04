@@ -1,0 +1,123 @@
+{
+  "$defs": {
+    "ToolCallStatus": {
+      "enum": [
+        "requested",
+        "awaiting_approval",
+        "approved",
+        "rejected",
+        "executed",
+        "failed"
+      ],
+      "title": "ToolCallStatus",
+      "type": "string"
+    },
+    "ToolCategory": {
+      "description": "Tool risk classification. Anything that mutates external state is a write\nand requires approval; reads do not.",
+      "enum": [
+        "read",
+        "write",
+        "external_send",
+        "financial",
+        "publishing",
+        "code",
+        "admin"
+      ],
+      "title": "ToolCategory",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A single tool invocation request and its outcome. Write-category calls\nare gated: they enter ``AWAITING_APPROVAL`` and cannot execute until an\n``ApprovalRecord`` approves them.",
+  "properties": {
+    "approval_record_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Approval Record Id"
+    },
+    "approval_required": {
+      "title": "Approval Required",
+      "type": "boolean"
+    },
+    "category": {
+      "$ref": "#/$defs/ToolCategory"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "model_route": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Route"
+    },
+    "parameters": {
+      "additionalProperties": true,
+      "title": "Parameters",
+      "type": "object"
+    },
+    "requester_id": {
+      "title": "Requester Id",
+      "type": "string"
+    },
+    "result": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Result"
+    },
+    "status": {
+      "$ref": "#/$defs/ToolCallStatus",
+      "default": "requested"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "tenant_id": {
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "tool_call_id": {
+      "title": "Tool Call Id",
+      "type": "string"
+    },
+    "tool_name": {
+      "title": "Tool Name",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "tenant_id",
+    "tool_name",
+    "category",
+    "approval_required",
+    "requester_id"
+  ],
+  "title": "ToolCall",
+  "type": "object"
+}

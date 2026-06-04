@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "AI Bill of Materials: the approved capability bundle for a deployment at a\npoint in time. Generated from the deployment + tool pack manifests.",
+  "properties": {
+    "agents": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Agents",
+      "type": "array"
+    },
+    "client_slug": {
+      "title": "Client Slug",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "model_routes": {
+      "additionalProperties": true,
+      "title": "Model Routes",
+      "type": "object"
+    },
+    "prompts": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Prompts",
+      "type": "array"
+    },
+    "skills": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Skills",
+      "type": "array"
+    },
+    "snapshot_id": {
+      "title": "Snapshot Id",
+      "type": "string"
+    },
+    "tenant_id": {
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "tools": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Tools",
+      "type": "array"
+    },
+    "version": {
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "tenant_id",
+    "client_slug",
+    "version"
+  ],
+  "title": "AIBOMSnapshot",
+  "type": "object"
+}

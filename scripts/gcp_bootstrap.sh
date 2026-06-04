@@ -67,6 +67,36 @@ for topic in agent-mesh-tasks agent-mesh-approvals agent-mesh-dlq; do
     gcloud pubsub topics create "${topic}"
 done
 
+echo "Creating Pub/Sub subscriptions with dead-letter wiring if missing"
+# Worker pulls tasks from agent-mesh-tasks; poison messages route to the DLQ
+# after max delivery attempts. The DLQ has its own subscription for inspection.
+DLQ_TOPIC_PATH="projects/${PROJECT_ID}/topics/agent-mesh-dlq"
+gcloud pubsub subscriptions describe agent-mesh-tasks-worker >/dev/null 2>&1 || \
+  gcloud pubsub subscriptions create agent-mesh-tasks-worker \
+    --topic=agent-mesh-tasks \
+    --ack-deadline=600 \
+    --dead-letter-topic="${DLQ_TOPIC_PATH}" \
+    --max-delivery-attempts=5
+
+gcloud pubsub subscriptions describe agent-mesh-approvals-worker >/dev/null 2>&1 || \
+  gcloud pubsub subscriptions create agent-mesh-approvals-worker \
+    --topic=agent-mesh-approvals \
+    --ack-deadline=60
+
+gcloud pubsub subscriptions describe agent-mesh-dlq-inspect >/dev/null 2>&1 || \
+  gcloud pubsub subscriptions create agent-mesh-dlq-inspect \
+    --topic=agent-mesh-dlq \
+    --ack-deadline=60
+
+# The Pub/Sub service agent needs publish rights on the DLQ topic and subscribe
+# rights on the source subscription for dead-lettering to work.
+PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
+PUBSUB_SA="serviceAccount:service-${PROJECT_NUMBER}@gcp-sa-pubsub.iam.gserviceaccount.com"
+gcloud pubsub topics add-iam-policy-binding agent-mesh-dlq \
+  --member="${PUBSUB_SA}" --role=roles/pubsub.publisher >/dev/null || true
+gcloud pubsub subscriptions add-iam-policy-binding agent-mesh-tasks-worker \
+  --member="${PUBSUB_SA}" --role=roles/pubsub.subscriber >/dev/null || true
+
 echo "Creating service accounts if missing"
 for sa in agent-mesh-api agent-mesh-worker agent-mesh-code-executor; do
   gcloud iam service-accounts describe "${sa}@${PROJECT_ID}.iam.gserviceaccount.com" >/dev/null 2>&1 || \

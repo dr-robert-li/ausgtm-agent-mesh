@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "google_drive_search.output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["results"],
+  "properties": {
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file_id", "name"],
+        "properties": {
+          "file_id": { "type": "string" },
+          "name": { "type": "string" },
+          "mime_type": { "type": "string" },
+          "snippet": { "type": "string" },
+          "modified_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  }
+}

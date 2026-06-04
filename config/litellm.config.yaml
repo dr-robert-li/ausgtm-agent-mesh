@@ -1,0 +1,67 @@
+# LiteLLM proxy configuration for the agent mesh POC.
+#
+# Responsibility split (kept deliberately separate from Cloudflare AI Gateway):
+#   * LiteLLM = model CONTROL plane: routing, cascades/fallbacks, per-user and
+#     per-task budgets, token/output limits, routing profiles, provider abstraction.
+#   * Cloudflare AI Gateway = model-traffic GOVERNANCE/observability plane:
+#     logging, DLP, query blocking, guardrails, audit visibility, rate limiting.
+#
+# LiteLLM routes ALL upstream calls through the Cloudflare AI Gateway wrapper
+# (api_base below points at the worker), so no provider is called directly.
+#
+# No real secrets here. Values like os.environ/... are resolved at runtime from
+# environment variables wired from Secret Manager.
+
+model_list:
+  # --- low-complexity tier ---
+  - model_name: low-complexity
+    litellm_params:
+      model: gemini/gemini-1.5-flash
+      api_base: os.environ/CF_AIG_WRAPPER_URL   # Cloudflare AI Gateway wrapper
+      api_key: os.environ/GEMINI_API_KEY
+      extra_headers:
+        x-litellm-shared-secret: os.environ/LITELLM_SHARED_SECRET
+
+  # --- medium-complexity tier ---
+  - model_name: medium-complexity
+    litellm_params:
+      model: gemini/gemini-1.5-pro
+      api_base: os.environ/CF_AIG_WRAPPER_URL
+      api_key: os.environ/GEMINI_API_KEY
+      extra_headers:
+        x-litellm-shared-secret: os.environ/LITELLM_SHARED_SECRET
+
+  # --- high-complexity / prompt-to-code review tier ---
+  - model_name: high-complexity
+    litellm_params:
+      model: anthropic/claude-sonnet-4-6
+      api_base: os.environ/CF_AIG_WRAPPER_URL
+      api_key: os.environ/ANTHROPIC_API_KEY
+      extra_headers:
+        x-litellm-shared-secret: os.environ/LITELLM_SHARED_SECRET
+
+# Cascades / fallbacks: if the preferred model for a tier errors, fall back.
+router_settings:
+  fallbacks:
+    - low-complexity: ["medium-complexity"]
+    - medium-complexity: ["high-complexity"]
+    - high-complexity: ["medium-complexity"]
+  num_retries: 2
+  timeout: 120
+
+litellm_settings:
+  drop_params: true
+  # Token / output ceilings applied across requests.
+  max_tokens: 4096
+  # Emit OpenTelemetry spans so Langfuse can ingest token/cost/latency telemetry.
+  success_callback: ["otel"]
+  failure_callback: ["otel"]
+
+# Per-user and per-task budgets. Default monthly cap is USD 50 and is
+# user-configurable per deployment (see manifests/deployment.manifest.yaml).
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  # Budget enforcement: LiteLLM hard-stops a key once max_budget is reached.
+  # The durable budget_ledger table mirrors this for audit and cross-run totals.
+  max_budget: 50
+  budget_duration: 30d

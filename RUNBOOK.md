@@ -38,6 +38,35 @@ export CREATE_PROJECT="false"
 export REUSE_EXISTING_CLOUDFLARE_GATEWAY="true"
 ```
 
+## Local Smoke Checks (before cloud provisioning)
+
+The POC scaffold runs end-to-end in a single process with no GCP, Cloudflare, or
+SaaS dependencies. Run these first to confirm the contract, ingress, worker, and
+approval gate are healthy before provisioning anything.
+
+```bash
+make install-dev   # editable install + dev extras
+make schemas       # export 12 contract JSON Schemas -> schemas/contracts/
+make lint          # ruff
+make test          # 37 tests (contracts, approval gating, importability, slack verify)
+make smoke         # full ingress -> service -> dispatch -> worker -> approval -> resume loop
+```
+
+Expected: `make test` reports `37 passed`, and `make smoke` prints `SMOKE OK`
+after exercising a write-gated Slack task (pauses for approval, approved,
+completed) and a read-only MCP task (completes without approval).
+
+To exercise the HTTP ingress locally:
+
+```bash
+make run-api       # uvicorn FastAPI on localhost; GET /healthz, POST /v1/tasks, /slack/events, /v1/approvals
+make run-worker    # in a second shell: in-process worker draining the dispatch queue
+```
+
+Heavy deps (`ag2`, `google-cloud-pubsub`, `mcp`) are optional; without them the
+package still imports and the in-process dispatcher/worker run. Install the
+`runtime` and `agents` extras for the full stack before building images.
+
 ## Deployment Sequence
 
 ### Prepare manifests
