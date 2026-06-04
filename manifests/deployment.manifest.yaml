@@ -1,0 +1,85 @@
+# Reusable Autonomous Agent Mesh deployment manifest.
+# Copy this file per client/environment, then fill values before running scripts.
+
+deployment:
+  client_slug: "example-client"
+  tenant_id: "tenant-example"
+  environment: "poc"
+  region: "australia-southeast1"
+  project_id: "REPLACE_WITH_GCP_PROJECT_ID"
+  create_project_if_missing: false
+  billing_account_id: "OPTIONAL_REPLACE_IF_CREATE_PROJECT_TRUE"
+  retention_profile: "12_month_audit"
+
+budgets:
+  model_monthly_usd: 50
+  infra_guardrail_monthly_usd: 65
+
+gcp:
+  artifact_registry_repo: "agent-mesh"
+  cloud_sql:
+    instance_name: "agent-mesh-poc"
+    database_name: "agent_mesh"
+    tier: "db-g1-small"
+    ha_enabled: false
+    storage_gb: 20
+    backup_enabled: true
+  cloud_run:
+    ingress_service_name: "agent-mesh-api"
+    slack_service_name: "agent-mesh-slack"
+    mcp_service_name: "agent-mesh-mcp"
+    worker_job_name: "agent-mesh-worker"
+    prompt_to_code_job_name: "agent-mesh-code-executor"
+  pubsub:
+    task_topic: "agent-mesh-tasks"
+    approval_topic: "agent-mesh-approvals"
+    dead_letter_topic: "agent-mesh-dlq"
+
+cloudflare:
+  account_id: "REPLACE_WITH_CLOUDFLARE_ACCOUNT_ID"
+  wrangler_env: "poc"
+  ai_gateway_id: "agent-mesh-poc"
+  reuse_existing_gateway: true
+  ai_gateway_wrapper_worker_name: "agent-mesh-ai-gateway-wrapper"
+  zero_trust_dlp_profile: "agent-mesh-ai-dlp"
+  collect_log_payload_default: false
+  guardrails:
+    enabled: true
+    evaluate_prompts: true
+    evaluate_responses: true
+    block_on_match: true
+
+model_routes:
+  default_profile: "mixed-cascade"
+  profiles:
+    mixed-cascade:
+      low_complexity:
+        preferred: "google/gemini-flash"
+        fallback: "anthropic/claude-haiku"
+      medium_complexity:
+        preferred: "google/gemini-pro"
+        fallback: "anthropic/claude-sonnet"
+      high_complexity:
+        preferred: "anthropic/claude-sonnet"
+        fallback: "google/gemini-pro"
+
+ingress:
+  slack:
+    enabled: true
+    signing_secret_secret_name: "SLACK_SIGNING_SECRET"
+    bot_token_secret_name: "SLACK_BOT_TOKEN"
+  mcp:
+    enabled: true
+    server_base_url: "https://mcp.example.com/mcp"
+    auth_mode: "oauth_resource_server"
+
+tool_packs:
+  manifest_path: "manifests/tool_pack_manifest.yaml"
+
+observability:
+  langfuse_enabled: true
+  cloudflare_ai_gateway_enabled: true
+  otel_service_name: "agent-mesh"
+  log_payloads:
+    model_payloads: false
+    tool_payloads: true

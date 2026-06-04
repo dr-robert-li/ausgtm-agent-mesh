@@ -1,0 +1,60 @@
+# Replaceable SaaS tool pack manifest.
+# This file changes per client while the core mesh architecture remains stable.
+
+tool_pack:
+  name: "example-consultancy-tool-pack"
+  version: "0.1.0"
+  owner: "platform-team@example.com"
+  tenant_id: "tenant-example"
+
+tools:
+  - name: "monday_create_item"
+    provider: "monday"
+    category: "write"
+    description: "Create a Monday.com board item from an approved mesh task."
+    approval_required: true
+    credential_secret_name: "MONDAY_API_TOKEN"
+    resource_bindings:
+      board_id: "REPLACE_WITH_BOARD_ID"
+      group_id: "REPLACE_WITH_GROUP_ID"
+      columns:
+        item: "name"
+        status: "status"
+        timeline: "timeline"
+        dependencies: "dependencies"
+    input_schema_ref: "schemas/monday_create_item.input.schema.json"
+    output_schema_ref: "schemas/monday_create_item.output.schema.json"
+    freshness_sla: "live"
+    rate_limit_notes: "Use provider limits from the connected Monday.com plan."
+
+  - name: "google_drive_search"
+    provider: "google_workspace"
+    category: "read"
+    description: "Search approved Google Drive folders for retrieval evidence."
+    approval_required: false
+    credential_secret_name: "GOOGLE_WORKSPACE_OAUTH"
+    resource_bindings:
+      allowed_drive_ids:
+        - "REPLACE_WITH_SHARED_DRIVE_ID"
+      allowed_folder_ids:
+        - "REPLACE_WITH_FOLDER_ID"
+    input_schema_ref: "schemas/google_drive_search.input.schema.json"
+    output_schema_ref: "schemas/google_drive_search.output.schema.json"
+    freshness_sla: "15m"
+    rate_limit_notes: "Cache evidence chunks and store freshness metadata."
+
+  - name: "hubspot_lookup_company"
+    provider: "hubspot"
+    category: "read"
+    description: "Read company/contact context for task grounding."
+    approval_required: false
+    credential_secret_name: "HUBSPOT_PRIVATE_APP_TOKEN"
+    resource_bindings:
+      allowed_objects:
+        - "companies"
+        - "contacts"
+    input_schema_ref: "schemas/hubspot_lookup_company.input.schema.json"
+    output_schema_ref: "schemas/hubspot_lookup_company.output.schema.json"
+    freshness_sla: "15m"
+    rate_limit_notes: "Respect HubSpot app rate limits."
+

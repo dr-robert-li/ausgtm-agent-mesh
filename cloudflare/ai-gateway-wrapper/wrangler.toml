@@ -1,0 +1,17 @@
+name = "agent-mesh-ai-gateway-wrapper"
+main = "src/index.ts"
+compatibility_date = "2026-06-01"
+
+[vars]
+CF_ACCOUNT_ID = "REPLACE_WITH_CLOUDFLARE_ACCOUNT_ID"
+CF_AIG_GATEWAY_ID = "agent-mesh-poc"
+COLLECT_LOG_PAYLOAD = "false"
+
+[env.poc]
+name = "agent-mesh-ai-gateway-wrapper-poc"
+
+[env.poc.vars]
+CF_ACCOUNT_ID = "REPLACE_WITH_CLOUDFLARE_ACCOUNT_ID"
+CF_AIG_GATEWAY_ID = "agent-mesh-poc"
+COLLECT_LOG_PAYLOAD = "false"
+
