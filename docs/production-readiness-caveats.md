@@ -143,6 +143,42 @@ Production hardening should not collapse these responsibilities into one layer.
   alerting, error budgets, and on-call coverage. Langfuse/OpenTelemetry telemetry
   feeds these; alerting thresholds and escalation paths must be configured.
 
+## Governance Alignment Crosswalk
+
+The production hardening items above are not just engineering tasks — each one
+maps to a governance theme in the
+[`org-ai-maturity-assessment`](https://github.com/dr-robert-li/org-ai-maturity-assessment/tree/main)
+framework, which draws on NIST AI RMF 1.0, ISO/IEC 42001:2023, the EU AI Act,
+OWASP Top 10 for LLM Applications, MITRE ATLAS, OAIC Australian Privacy
+Principles, APRA CPS 230/234, and related standards.
+
+This crosswalk is **implementation-facing**: it aligns each caveat to framework
+*themes* and agent/technical security standards rather than asserting specific
+control IDs or maturity-tier numbers. Use it to connect production go-live gating
+to the assessment's intake, risk-register, and operational-governance workflows.
+
+| Production hardening caveat | Aligns to governance framework themes / standards |
+| :--- | :--- |
+| Secure prompt-to-code sandboxing (§1) | Agent & technical security standards, OWASP LLM controls, tool/code execution governance |
+| Durable orchestration and resumability (§2) | Operational resilience, auditability, incident recovery |
+| Tenant isolation (§3) | Data governance, access control, privacy/tenancy controls |
+| Immutable approval ledger (§4) | Human accountability, approval evidence, ADM/decision logs |
+| Externalized audit retention (§5) | Audit trails, AI-BOM evidence, board/management review readiness |
+| Egress controls (§6) | Data-leakage prevention, SaaS/tool boundary control |
+| Scoped / rotating credentials (§7) | Identity and access management, credential governance |
+| CI/CD, signed images, SBOM, dependency scanning (§8) | Technical security standards and supply-chain assurance |
+| Automated evals / regression testing (§9) | Evaluation templates, red-team scope, model/system card evidence |
+| Kill switches and incident response (§10) | Operational risk, pilot stop criteria, incident controls |
+| Memory / vector retrieval governance (§11) | Evidence management, provenance, retention/deletion policy |
+| Data retention / deletion policy (§12) | Privacy, records management, audit retention |
+| Multi-region / HA decision (§13) | Reliability and business continuity proportional to criticality |
+| Operational SLOs and monitoring (§14) | Success-metrics dashboard and operational monitoring |
+
+Mappings are indicative alignment to framework themes; consult the
+[`org-ai-maturity-assessment`](https://github.com/dr-robert-li/org-ai-maturity-assessment/tree/main)
+repository for the authoritative control catalogue, maturity tiers, and SEV
+scoring before treating any item as a satisfied control.
+
 ---
 
 **Summary:** The POC proves the pattern. Production go-live is contingent on the

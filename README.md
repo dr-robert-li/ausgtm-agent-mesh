@@ -17,7 +17,10 @@ AI Gateway for model-traffic governance.
   execution, durable orchestration, tenant isolation, immutable approval ledger,
   externalized audit retention, egress controls, credential rotation, CI/CD &
   signed images, evals, kill switches, and more). The POC is not production-ready
-  until these are owned and verified.
+  until these are owned and verified. Includes a **Governance Alignment
+  Crosswalk** mapping each hardening caveat to the
+  [`org-ai-maturity-assessment`](https://github.com/dr-robert-li/org-ai-maturity-assessment/tree/main)
+  framework themes and agent/technical security standards.
 
 ## Layout
 
