@@ -12,6 +12,12 @@ AI Gateway for model-traffic governance.
   manual for any agent or engineer working in this repo.
 - **[RUNBOOK.md](./RUNBOOK.md)** — repeatable deployment runbook: provisioning,
   verification, rollback, and audit checks for a client rollout.
+- **[docs/production-readiness-caveats.md](./docs/production-readiness-caveats.md)**
+  — remaining production hardening requirements (secure sandbox prompt-to-code
+  execution, durable orchestration, tenant isolation, immutable approval ledger,
+  externalized audit retention, egress controls, credential rotation, CI/CD &
+  signed images, evals, kill switches, and more). The POC is not production-ready
+  until these are owned and verified.
 
 ## Layout
 

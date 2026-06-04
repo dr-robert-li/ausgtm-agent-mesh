@@ -39,6 +39,12 @@
 
 ## 3. Target Cloud Architecture
 - **Generative AI Layer:** 
+  - **Model Gateway Separation of Responsibilities (explicit for the POC):**
+    - **LiteLLM owns model control-plane logic:** model routing, model cascades/fallbacks, per-user and per-task budget enforcement, token/max-output limits, model policy and routing profiles (`MODEL_ROUTE_PROFILE`), cost attribution, and provider abstraction. LiteLLM presents Cloudflare AI Gateway as its upstream rather than calling model providers directly.
+    - **Cloudflare AI Gateway owns model-traffic governance and observability:** AI/model traffic logging, DLP matching, query blocking, prompt/response guardrails, AI Gateway audit visibility, request/response metadata and payload logging controls, and rate limiting/caching where applicable.
+    - **Flow:** AG2 agents → LiteLLM (routing/budgets/cascades) → Cloudflare AI Gateway (logging/DLP/blocking/guardrails) → upstream model providers.
+    - LiteLLM MUST route all upstream model calls through Cloudflare AI Gateway; agents and workers never call providers directly.
+    - Neither gateway governs SaaS tool writes; tool-write governance stays in the Tool Gateway approval ledger.
   - Use LiteLLM as the model routing and budget gateway for Vertex Gemini, Claude, and optional local/open model cascades.
   - Route LiteLLM upstream calls through Cloudflare AI Gateway before reaching model providers.
   - Use Cloudflare AI Gateway for:
@@ -101,6 +107,7 @@
     - `REUSE_EXISTING_CLOUDFLARE_GATEWAY`
 
 - **Cloudflare AI Gateway Layer:** 
+  - Cloudflare AI Gateway is the model-traffic governance/observability plane (logging, DLP, query blocking, guardrails, audit visibility, metadata/payload logging controls, rate limiting/caching); LiteLLM remains the model control plane (routing, cascades/fallbacks, budgets, token limits, routing profiles, provider abstraction). The two are deliberately separated.
   - Use Cloudflare AI Gateway between LiteLLM and upstream model providers.
   - Manage the Cloudflare worker/wrapper and environment bindings with `wrangler`.
   - Prefer a new dedicated Cloudflare AI Gateway per client/environment, but support reusing an existing AI Gateway by setting `CLOUDFLARE_AI_GATEWAY_ID`.
@@ -116,8 +123,8 @@
     - AG2 agent fleet roles and orchestration loop.
     - Cloud Run Jobs or Worker Pools execution pattern.
     - Cloud SQL schema families for tasks, sessions, memory, evidence, approvals, AI-BOM, budgets, and tool calls.
-    - LiteLLM model gateway contract.
-    - Cloudflare AI Gateway model-traffic governance contract.
+    - LiteLLM model control-plane contract (routing, cascades/fallbacks, budgets, token limits, routing profiles, provider abstraction).
+    - Cloudflare AI Gateway model-traffic governance contract (logging, DLP, query blocking, guardrails, audit visibility, metadata/payload logging controls, rate limiting/caching).
     - Langfuse/OpenTelemetry trace schema.
     - Approval ledger and write-action gating contract.
   - Keep the following components deployment-specific:
@@ -228,6 +235,9 @@
 
 - **Risk/Limitation:** Slack and MCP identity contexts can diverge.
   - *Mitigation:* Normalize all ingress into a shared requester identity, task record, approval ledger, and audit envelope.
+
+- **Risk/Limitation:** Overlapping model-gateway responsibilities (e.g. attempting routing/budgets in Cloudflare or logging/DLP/guardrails in LiteLLM) can create gaps, double-counting, or unenforced policy.
+  - *Mitigation:* Keep the two planes explicitly separated: LiteLLM owns routing, cascades/fallbacks, budgets, token limits, and routing profiles; Cloudflare AI Gateway owns logging, DLP, query blocking, guardrails, audit visibility, metadata/payload logging controls, and rate limiting/caching. LiteLLM always routes upstream calls through Cloudflare AI Gateway, and neither plane substitutes for Tool Gateway write-approval gates.
 
 ## 5. AWS Well-Architected Validation
 - **Security:** 
