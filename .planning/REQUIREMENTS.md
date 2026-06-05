@@ -11,9 +11,9 @@ platform end-to-end and validate deploy-readiness. Each maps to a roadmap phase.
 
 ### Durability
 
-- [ ] **DUR-01**: Postgres-backed repository replaces the in-memory singleton; tasks, sessions, approvals, and tool-calls survive a worker restart
-- [ ] **DUR-02**: All repository read paths are tenant-scoped (e.g. `list_events`, `list_evaluations` require `tenant_id`); a cross-tenant read returns nothing
-- [ ] **DUR-03**: Pub/Sub dispatch is wired at runtime with the in-process dispatcher retained as fallback
+- [x] **DUR-01**: Postgres-backed repository replaces the in-memory singleton; tasks, sessions, approvals, and tool-calls survive a worker restart
+- [x] **DUR-02**: All repository read paths are tenant-scoped (e.g. `list_events`, `list_evaluations` require `tenant_id`); a cross-tenant read returns nothing
+- [x] **DUR-03**: Pub/Sub dispatch is wired at runtime with the in-process dispatcher retained as fallback
 
 ### Security
 
