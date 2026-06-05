@@ -1,23 +1,36 @@
-"""Subprocess code executor with conservative limits.
+"""Hardened prompt-to-code executor (Docker cgroup isolation).
 
-Runs a snippet of generated Python in an isolated, ephemeral working directory
-with CPU/memory/time caps applied via ``resource`` limits in a preexec hook
-(POSIX). Captures stdout/stderr/exit code and any files written to the work dir
-as artifacts.
+Runs a snippet of generated Python inside a short-lived, hardened Docker
+container: cgroup memory cap (equal ``--memory``/``--memory-swap``), no network,
+read-only rootfs, non-root user, all capabilities dropped. The snippet is mounted
+read-only and the only writable surface is an ephemeral ``/work`` tmpfs.
 
-This is the POC executor. It is deliberately simple and is NOT a production
-isolation boundary — see the package docstring and production caveats §1.
+D-03 (refuse-to-run-unbounded): the executor NEVER runs unbounded. When Docker is
+absent it raises :class:`SandboxUnavailable` rather than falling back to an uncapped
+native subprocess — closing the previous fail-open ``RLIMIT_AS`` bug. Docker Desktop
+on macOS runs a Linux VM, so ``--memory`` cgroup enforcement works on macOS too when
+Docker is running; the refuse path is only for when Docker is truly absent.
+
+This is the POC executor — see the package docstring and production caveats §1.
 """
 
 from __future__ import annotations
 
+import shutil
 import subprocess
-import sys
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from agent_mesh.contracts.models import ProposedPatch
+
+
+class SandboxUnavailable(RuntimeError):
+    """Raised when no hardened isolation boundary is available.
+
+    The executor refuses to run unbounded (D-03): when Docker is absent it raises
+    this rather than falling back to an uncapped native subprocess.
+    """
 
 
 @dataclass
@@ -37,39 +50,71 @@ class CodeExecutionResult:
     timed_out: bool = False
 
 
-def _preexec(limits: SandboxLimits):  # pragma: no cover - POSIX-only, exercised at runtime
-    def _apply() -> None:
-        import resource
+_SANDBOX_IMAGE = "python:3.11-slim"
 
-        cpu = limits.max_cpu_seconds
-        resource.setrlimit(resource.RLIMIT_CPU, (cpu, cpu))
-        mem = limits.max_memory_mb * 1024 * 1024
-        try:
-            resource.setrlimit(resource.RLIMIT_AS, (mem, mem))
-        except (ValueError, OSError):
-            # Some platforms reject RLIMIT_AS; fail open on the memory cap only.
-            pass
 
-    return _apply
+def _docker_run_argv(snippet_dir: str, limits: SandboxLimits) -> list[str]:
+    """Build the hardened ``docker run`` argv for ``snippet_dir/snippet.py``.
+
+    ``--memory`` and ``--memory-swap`` are set equal (Pitfall 2: an unequal/unset
+    swap limit defeats the memory cap). The snippet is bind-mounted read-only at
+    ``/snippet`` (a path distinct from the writable ``/work`` tmpfs — mounting both
+    a tmpfs and a bind at the same path is rejected by Docker).
+    """
+    mem = f"{limits.max_memory_mb}m"
+    return [
+        "docker",
+        "run",
+        "--rm",
+        f"--memory={mem}",
+        f"--memory-swap={mem}",  # MUST equal --memory or the cap is a no-op (Pitfall 2)
+        "--network=none",
+        "--read-only",
+        "--tmpfs",
+        "/work:rw,size=64m",
+        "--user",
+        "65534:65534",
+        "--cap-drop=ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--pids-limit=128",
+        "--workdir",
+        "/work",
+        "-v",
+        f"{snippet_dir}:/snippet:ro",
+        _SANDBOX_IMAGE,
+        "python",
+        "-I",
+        "/snippet/snippet.py",
+    ]
 
 
 def execute_code(code: str, limits: SandboxLimits | None = None) -> CodeExecutionResult:
-    """Execute ``code`` in an isolated temp dir. No writes are applied to the
-    repo or any external system; only the ephemeral work dir is touched."""
+    """Execute ``code`` inside a hardened Docker container.
+
+    No writes are applied to the repo or any external system; the only writable
+    surface inside the container is the ephemeral ``/work`` tmpfs.
+
+    Raises :class:`SandboxUnavailable` when Docker is absent — the executor NEVER
+    falls back to an uncapped native subprocess (D-03).
+    """
     limits = limits or SandboxLimits()
+
+    if shutil.which("docker") is None:
+        raise SandboxUnavailable(
+            "Docker required for sandbox execution; refusing to run unbounded"
+        )
+
     with tempfile.TemporaryDirectory(prefix="agent-mesh-sbx-") as workdir:
         script = Path(workdir) / "snippet.py"
         script.write_text(code)
-        preexec = _preexec(limits) if sys.platform != "win32" else None
         try:
             proc = subprocess.run(
-                [sys.executable, "-I", str(script)],
-                cwd=workdir,
+                _docker_run_argv(workdir, limits),
                 capture_output=True,
                 text=True,
                 timeout=limits.timeout_s,
-                preexec_fn=preexec,  # noqa: S603 - controlled args, isolated workdir
-                check=False,
+                check=False,  # noqa: S603 - controlled argv; snippet mounted read-only
             )
         except subprocess.TimeoutExpired as exc:
             raw = exc.stdout or ""
@@ -81,14 +126,14 @@ def execute_code(code: str, limits: SandboxLimits | None = None) -> CodeExecutio
                 timed_out=True,
             )
 
-        artifacts = [
-            str(p.name) for p in Path(workdir).iterdir() if p.name != "snippet.py"
-        ]
+        # Artifacts written inside the container land on the ephemeral /work tmpfs
+        # and do NOT survive --rm back to the host; artifact_paths is empty on the
+        # Docker path (known limitation — see SUMMARY).
         return CodeExecutionResult(
             exit_code=proc.returncode,
             stdout=proc.stdout[: limits.max_output_bytes],
             stderr=proc.stderr[: limits.max_output_bytes],
-            artifact_paths=artifacts,
+            artifact_paths=[],
         )
 
 
