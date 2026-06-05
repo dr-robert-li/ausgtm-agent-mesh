@@ -9,6 +9,7 @@ target schema. ``get_repository`` chooses based on ``DATABASE_URL``.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from enum import Enum
 from threading import RLock
 from typing import Protocol
 
@@ -188,6 +189,18 @@ class InMemoryRepository:
 # make migrate); this class never self-applies them (keeps the LangGraph
 # checkpointer's CONCURRENTLY/autocommit concern out of Phase 1). All value
 # parameters use %s placeholders only — no string interpolation of values.
+
+
+def _enum_value(value: object) -> str:
+    """Return the string value for an Enum-or-str field (Pitfall 6).
+
+    ``use_enum_values=True`` coerces enums to their values during *validation*,
+    but a model constructed with an enum *default* (e.g. ``TaskState.RECEIVED``)
+    keeps the bare enum. ``str(TaskState.RECEIVED)`` yields
+    ``'TaskState.RECEIVED'`` for a str-mixin Enum, which would write garbage into
+    a TEXT column and break Pydantic re-validation on read. Prefer ``.value``.
+    """
+    return value.value if isinstance(value, Enum) else str(value)
 
 
 def _row_to_task(row: tuple) -> TaskRecord:
@@ -481,12 +494,12 @@ class RepositorySQL:
                     task.task_id,
                     task.tenant_id,
                     task.client_slug,
-                    str(task.entrypoint),
+                    _enum_value(task.entrypoint),
                     task.session_id,
                     task.requester.requester_id,
                     Jsonb(task.requester.model_dump(mode="json")),
                     task.prompt,
-                    str(task.state),
+                    _enum_value(task.state),
                     task.model_route_profile,
                     task.result_summary,
                     task.error,
@@ -515,7 +528,7 @@ class RepositorySQL:
                     task.session_id,
                     task.tenant_id,
                     task.client_slug,
-                    str(task.entrypoint),
+                    _enum_value(task.entrypoint),
                     task.requester.requester_id,
                     task.task_id,
                 ),
@@ -538,9 +551,9 @@ class RepositorySQL:
         if current is None:
             raise KeyError(task_id)
         assert_transition(current.state, target)
-        # Coerce a bare TaskState enum to its string value (Pitfall 6). str() on a
+        # Coerce a bare TaskState enum to its string value (Pitfall 6): str() on a
         # str-mixin enum yields 'TaskState.RUNNING', so use .value when available.
-        target_value = target.value if isinstance(target, TaskState) else str(target)
+        target_value = _enum_value(target)
         # Single transaction: UPDATE state AND append the audit event atomically
         # (Pitfall 7) so a crash cannot advance state without the audit row.
         with self._pool.connection() as conn:
@@ -569,7 +582,7 @@ class RepositorySQL:
                     event.event_id,
                     event.task_id,
                     event.tenant_id,
-                    str(event.state),
+                    _enum_value(event.state),
                     event.note,
                     Jsonb(event.payload),
                     event.created_at,
@@ -605,9 +618,9 @@ class RepositorySQL:
                     call.task_id,
                     call.tenant_id,
                     call.tool_name,
-                    str(call.category),
+                    _enum_value(call.category),
                     call.approval_required,
-                    str(call.status),
+                    _enum_value(call.status),
                     Jsonb(call.parameters),
                     Jsonb(call.result) if call.result is not None else None,
                     call.requester_id,
@@ -652,7 +665,7 @@ class RepositorySQL:
                     record.task_id,
                     record.tenant_id,
                     record.tool_call_id,
-                    str(record.decision),
+                    _enum_value(record.decision),
                     record.approver_id,
                     record.channel,
                     record.payload_hash,
@@ -705,9 +718,9 @@ class RepositorySQL:
                     proposal.task_id,
                     proposal.session_id,
                     proposal.agent_id,
-                    str(proposal.proposal_type),
-                    str(proposal.risk_level),
-                    str(proposal.status),
+                    _enum_value(proposal.proposal_type),
+                    _enum_value(proposal.risk_level),
+                    _enum_value(proposal.status),
                     proposal.title,
                     proposal.rationale,
                     proposal.proposed_patch,
