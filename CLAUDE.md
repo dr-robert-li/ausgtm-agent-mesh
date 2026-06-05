@@ -171,8 +171,8 @@
 17. A GUI admin/operator console and CLI/code administration both exist; the console covers tasks, approvals, toolpacks, MCP, AI-BOM, budget/routing, memory, self-improvement, deployment checks, and Langfuse observability.
 18. Deployment is idempotent and redeployable across new or existing GCP projects / Cloudflare AI Gateways, with the platform/client boundary preserved; the POC is ready for MVP/POC deployment configuration after local validation and is not claimed production-ready.
 
-## 7. Implementation Roadmap & Monday.com Tasks
-*Exact task strings ready for import/syncing to Monday.com boards.*
+## 7. Implementation Roadmap & Tasks
+*Exact task strings ready for import/syncing into a project board / work management system (task-board columns: Item, Status, Timeline, Dependencies).*
 
 | Task Name / Action Item | Target Component | Estimated Effort | Dependencies |
 | :--- | :--- | :--- | :--- |

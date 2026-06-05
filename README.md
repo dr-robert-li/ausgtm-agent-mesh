@@ -25,8 +25,9 @@ model-traffic governance.
 
 - **[CLAUDE.md](./CLAUDE.md)** — the normative architectural design pattern:
   reusable platform boundary, task contract, execution plane, memory/evidence
-  layer, approval model, observability, acceptance criteria, and the Monday.com-ready
-  roadmap. This is the operating manual for any agent or engineer working in this repo.
+  layer, approval model, observability, acceptance criteria, and the project-board-ready
+  roadmap (task import/sync schema). This is the operating manual for any agent or
+  engineer working in this repo.
 - **[docs/ecosystem-decision.md](./docs/ecosystem-decision.md)** — why the stack is
   LangChain/LangGraph/Deep Agents/Langfuse and why the core is Python-first with
   TypeScript only at the edge.
