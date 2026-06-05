@@ -63,6 +63,7 @@ class Worker:
             return str(updated.state)
 
         # Gate each proposed write behind an approval.
+        issued_tokens: dict[str, str] = {}
         for proposed in result.proposed_writes:
             call = ToolCall(
                 task_id=task_id,
@@ -78,9 +79,24 @@ class Worker:
             request = approvals.build_approval_request(
                 call, summary=f"Approve write: {call.tool_name}", evidence=result.evidence
             )
-            record = approvals.open_approval(self._repo, request)
+            # Live issuance path: unpack (record, token) and carry the token to
+            # the requester. The scaffold has no Slack/MCP postback channel yet,
+            # so we stash the token durably on the task metadata keyed by record
+            # id (round-trips via task_metadata). The approval callback presents
+            # this exact token; real-time Slack/MCP delivery is deferred.
+            record, token = approvals.open_approval(self._repo, request)
+            issued_tokens[record.approval_record_id] = token
             call = call.model_copy(update={"approval_record_id": record.approval_record_id})
             self._repo.upsert_tool_call(call)
+
+        if issued_tokens:
+            current = self._repo.get_task(task_id)
+            assert current is not None
+            metadata = dict(current.metadata)
+            tokens = dict(metadata.get("approval_tokens", {}))
+            tokens.update(issued_tokens)
+            metadata["approval_tokens"] = tokens
+            self._repo.create_task(current.model_copy(update={"metadata": metadata}))  # upsert
 
         self._repo.transition_task(
             task_id, TaskState.AWAITING_APPROVAL, note="paused for write approval"

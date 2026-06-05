@@ -8,7 +8,10 @@ so an approval cannot be replayed against a mutated payload.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
+import os
+import time
 from datetime import UTC, datetime
 
 from agent_mesh.contracts.enums import WRITE_CATEGORIES, ApprovalDecision, ToolCategory
@@ -47,8 +50,110 @@ def build_approval_request(
     )
 
 
-def open_approval(repo: Repository, request: ApprovalRequest) -> ApprovalRecord:
-    """Persist a pending approval record for a request."""
+_DEFAULT_TOKEN_TTL_S = 3600
+
+
+def _approval_secret(secret: str | None) -> str:
+    """Resolve the signing secret: explicit arg wins, else the environment.
+
+    Returns the empty string when nothing is configured. Issuance tolerates the
+    empty secret (it just mints a token that cannot verify); verification FAILS
+    CLOSED on it (see ``verify_approval_token``)."""
+    if secret is not None:
+        return secret
+    return os.getenv("APPROVAL_SIGNING_SECRET", "")
+
+
+def _sign_approval(
+    secret: str, *, record_id: str, payload_hash: str, requester_id: str, exp: int
+) -> str:
+    basestring = f"{record_id}:{payload_hash}:{requester_id}:{exp}".encode()
+    return hmac.new(secret.encode(), basestring, hashlib.sha256).hexdigest()
+
+
+def issue_approval_token(
+    record: ApprovalRecord,
+    requester_id: str,
+    *,
+    ttl_s: int = _DEFAULT_TOKEN_TTL_S,
+    secret: str | None = None,
+) -> str:
+    """Mint an HMAC-signed approval token binding the approver to exactly this
+    approval record / task / payload, with an expiry.
+
+    Format: ``{record_id}.{requester_id}.{exp}.{sig}`` where
+    ``sig = HMAC-SHA256(secret, "{record_id}:{payload_hash}:{requester_id}:{exp}")``.
+
+    Issuance NEVER raises when no secret is configured: it signs with the empty
+    string, producing a token that ``verify_approval_token`` will reject (fail
+    closed lives in verify). This keeps the live ``open_approval`` pause path —
+    and the existing gating tests that exercise it without a secret — working.
+    """
+    secret_val = _approval_secret(secret)
+    exp = int(time.time()) + int(ttl_s)
+    sig = _sign_approval(
+        secret_val,
+        record_id=record.approval_record_id,
+        payload_hash=record.payload_hash,
+        requester_id=requester_id,
+        exp=exp,
+    )
+    return f"{record.approval_record_id}.{requester_id}.{exp}.{sig}"
+
+
+def verify_approval_token(
+    token: str,
+    record: ApprovalRecord,
+    *,
+    secret: str | None = None,
+) -> str | None:
+    """Verify an approval token against a loaded approval record.
+
+    Returns the token's ``requester_id`` (the ONLY trusted approver identity) on
+    success, else ``None``. FAILS CLOSED: returns ``None`` when no signing secret
+    is configured — the deliberate divergence from ``slack_verify`` (which fails
+    open in dev). Also returns ``None`` on a malformed token, a record-id
+    mismatch (binds the token to exactly one approval record/task → cross-task
+    replay defense), expiry, or an HMAC mismatch.
+    """
+    secret_val = _approval_secret(secret)
+    if not secret_val:
+        return None  # FAIL CLOSED — no secret, no approval.
+    if not token:
+        return None
+    try:
+        head, exp_str, sig = token.rsplit(".", 2)
+        record_id, requester_id = head.split(".", 1)
+    except ValueError:
+        return None
+    if record_id != record.approval_record_id:
+        return None  # SEC-02b: a token for task A cannot approve task B.
+    try:
+        exp = int(exp_str)
+    except ValueError:
+        return None
+    if time.time() > exp:
+        return None  # Expired.
+    expected = _sign_approval(
+        secret_val,
+        record_id=record.approval_record_id,
+        payload_hash=record.payload_hash,
+        requester_id=requester_id,
+        exp=exp,
+    )
+    if not hmac.compare_digest(expected, sig):
+        return None
+    return requester_id
+
+
+def open_approval(
+    repo: Repository, request: ApprovalRequest
+) -> tuple[ApprovalRecord, str]:
+    """Persist a pending approval record and issue its approval token.
+
+    Returns ``(record, token)``. The token binds the requester to exactly this
+    record/task/payload; callers thread it to the requester so the approval
+    callback can present it. Both callers MUST unpack the tuple."""
     record = ApprovalRecord(
         approval_request_id=request.approval_request_id,
         task_id=request.task_id,
@@ -57,7 +162,9 @@ def open_approval(repo: Repository, request: ApprovalRequest) -> ApprovalRecord:
         decision=ApprovalDecision.PENDING,
         payload_hash=request.payload_hash,
     )
-    return repo.upsert_approval(record)
+    stored = repo.upsert_approval(record)
+    token = issue_approval_token(stored, request.requester_id)
+    return stored, token
 
 
 def record_decision(

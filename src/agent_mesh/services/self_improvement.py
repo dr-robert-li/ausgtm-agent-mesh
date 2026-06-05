@@ -216,7 +216,11 @@ def open_promotion_approval(
         payload_hash=proposal.patch_hash or "",
         evidence_pointers=proposal.evidence_pointers,
     )
-    record = approvals.open_approval(repo, request)
+    # open_approval now returns (record, token). Token DELIVERY for the
+    # self-improvement promotion path is deferred this phase: no /v1/approvals or
+    # MCP submit_approval ingress delivers it yet. Unpack-and-discard so the
+    # tuple is consumed (no TypeError on a stale single-assign).
+    record, _token = approvals.open_approval(repo, request)
     updated = proposal.model_copy(
         update={
             "status": ProposalStatus.AWAITING_APPROVAL.value,
