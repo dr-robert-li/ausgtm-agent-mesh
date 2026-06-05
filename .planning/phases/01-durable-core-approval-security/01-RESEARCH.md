@@ -470,20 +470,24 @@ export USE_PUBSUB=true PROJECT_ID=local-test TASK_TOPIC=agent-mesh-tasks
 
 **If verifying A2/A3/A5 changes the plan, surface to the planner before locking the affected plan.**
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should `RepositorySQL` self-apply migrations on first connect, or rely on external `psql`/migration tooling?**
    - What we know: `0001`/`0002` are idempotent (`IF NOT EXISTS`); `scripts/` has a deploy path.
    - What's unclear: whether Phase 1 wants `make migrate` / a runner, or assumes the DB is pre-migrated.
    - Recommendation: keep migration application **external** to the repo (a `make migrate` target running `psql -f`), so the repo stays free of the CONCURRENTLY/autocommit concern. Document the local-Postgres bring-up in the plan.
+   - RESOLVED: 01-01 Task 2 (c) keeps migration application EXTERNAL — `RepositorySQL` does NOT self-apply on connect; 01-01 Task 3's pg conftest fixture applies `0001`/`0002` via psycopg, keeping the CONCURRENTLY/autocommit concern out of Phase 1.
 
 2. **`TaskRecord.metadata` → `task_metadata` rows, or documented drop for the POC?**
    - Recommendation: write non-empty metadata to `task_metadata` for round-trip fidelity; it's a few lines and the table already exists. If deferred, document explicitly (Pitfall 5).
+   - RESOLVED: 01-01 Task 2 (a) upserts non-empty `TaskRecord.metadata` keys into `task_metadata` rows (no silent drop); 01-01 Task 3's round-trip behavior asserts metadata survives re-read.
 
 3. **Does `sessions.ensure_session` need a real `sessions`-table upsert for DUR-01?**
    - DUR-01 names "sessions … survive a worker restart." `ensure_session` currently mints an id only. Recommendation: in the SQL path, upsert a `sessions` row so session survival is real; keep in-mem path as-is.
+   - RESOLVED: 01-01 Task 2 (b) adds a SQL `sessions` upsert path; 01-01 Task 3's restart-survival behavior now asserts a session row written before the pool drop is readable after reopen (one of the four DUR-01 state families).
 
 4. **Approver-routing model (A5):** does any deployment route a write approval to someone other than the original requester? If yes, the token must bind that approver id, not `requester_id`. For the POC, requester-approves-own-write is assumed.
+   - RESOLVED: POC adopts requester-approves-own-write — 01-03 binds `requester_id` into the token (`open_approval` returns `(record, token)` minted from `request.requester_id`) and derives the recorded `approver_id` from the verified token, not the request body. Re-routing to a distinct approver is out of scope this phase.
 
 ## Environment Availability
 
