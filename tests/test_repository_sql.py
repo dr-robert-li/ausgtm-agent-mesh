@@ -121,6 +121,9 @@ def test_restart_survival_all_four_state_families(pg_dsn: str):
 
 
 def test_cross_tenant_reads_return_empty(sql_repo: RepositorySQL):
+    from agent_mesh.contracts.enums import ProposalRiskLevel, ProposalType
+    from agent_mesh.contracts.models import EvaluationResult, SelfImprovementProposal
+
     task = _task(tenant_id="t1")
     sql_repo.create_task(task)
     sql_repo.transition_task(task.task_id, TaskState.QUEUED, note="enqueued")
@@ -131,13 +134,42 @@ def test_cross_tenant_reads_return_empty(sql_repo: RepositorySQL):
         payload_hash="abc",
     )
     sql_repo.upsert_approval(record)
+    call = ToolCall(
+        task_id=task.task_id,
+        tenant_id="t1",
+        tool_name="hubspot.create_deal",
+        category=ToolCategory.WRITE,
+        approval_required=True,
+        status=ToolCallStatus.AWAITING_APPROVAL,
+        parameters={"name": "kickoff"},
+        requester_id="slack:U1",
+    )
+    sql_repo.upsert_tool_call(call)
+    proposal = SelfImprovementProposal(
+        tenant_id="t1",
+        client_slug="c",
+        proposal_type=ProposalType.PROMPT_PATCH,
+        risk_level=ProposalRiskLevel.LOW,
+        title="t",
+        rationale="r",
+        proposed_patch="p",
+    )
+    sql_repo.upsert_proposal(proposal)
+    sql_repo.upsert_evaluation(
+        EvaluationResult(proposal_id=proposal.proposal_id, tenant_id="t1", passed=True)
+    )
 
-    # Same task_id, wrong tenant -> empty (DUR-02 application-layer isolation).
+    # Same id, wrong tenant -> empty across all four scoped reads (DUR-02
+    # application-layer isolation): events, approvals, tool_calls, evaluations.
     assert sql_repo.list_events(task.task_id, "t2") == []
     assert sql_repo.list_approvals(task.task_id, "t2") == []
+    assert sql_repo.list_tool_calls(task.task_id, "t2") == []
+    assert sql_repo.list_evaluations(proposal.proposal_id, "t2") == []
     # Correct tenant still sees the rows.
     assert sql_repo.list_events(task.task_id, "t1") != []
     assert sql_repo.list_approvals(task.task_id, "t1") != []
+    assert sql_repo.list_tool_calls(task.task_id, "t1") != []
+    assert sql_repo.list_evaluations(proposal.proposal_id, "t1") != []
 
 
 def test_resume_executes_approved_write_against_sql(sql_repo: RepositorySQL):
