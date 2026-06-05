@@ -38,8 +38,8 @@ GCP-ready — without provisioning any live cloud resources.
 **Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: Postgres-backed repository (`RepositorySQL` over `0001`/`0002` migrations) with tenant-scoped read methods (DUR-01, DUR-02)
-- [ ] 01-02: Runtime Pub/Sub dispatch with in-process fallback retained (DUR-03)
+- [x] 01-01: Postgres-backed repository (`RepositorySQL` over `0001`/`0002` migrations) with tenant-scoped read methods (DUR-01, DUR-02)
+- [x] 01-02: Runtime Pub/Sub dispatch with in-process fallback retained (DUR-03)
 - [ ] 01-03: Signed approval-token auth on `/v1/approvals` + replay/mutation test suite (SEC-01, SEC-02)
 
 ### Phase 2: Real Orchestration Engine
