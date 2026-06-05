@@ -113,7 +113,7 @@
   - Use separate logical tables/collections for: `tasks`, `sessions`, `memory_chunks`, `evidence_chunks`, `tool_calls`, `approval_records`, `ai_bom_snapshots`, `budget_ledger`, and `gateway_events`. Keep evidence chunks separate from session summaries and task metadata. Also persist LangGraph checkpoints and self-improvement proposals/evaluations/promotions.
 
 - **Tool Pack Contract:**
-  - Each client deployment supplies a tool pack manifest that declares: tool name and semantic description; tool category (read, write, external_send, financial, publishing, code, or admin); integration style (`direct_api`, `mcp_server`, `aggregate_mcp`, or `nango_aggregator`); required OAuth scopes or API credentials; approval requirement; input/output JSON schema; freshness expectations; rate-limit assumptions; SaaS resource identifiers; owner and support contact.
+  - Each client deployment supplies a tool pack manifest that declares: tool name and semantic description; tool category (read, write, external_send, financial, publishing, code, or admin); integration style (`direct_api`, `mcp_server`, `aggregate_mcp`, `nango_aggregator`, or `composio_aggregator`); required OAuth scopes or API credentials; approval requirement; input/output JSON schema; freshness expectations; rate-limit assumptions; SaaS resource identifiers; owner and support contact.
   - Reference toolpacks (extensible): Xero, HubSpot, Webflow, Bitscale, Cal.com, Clockify, Beehiiv, and Google Workspace (Gmail/Calendar/Drive/Sheets/Docs/Presentations).
   - The reusable platform loads tool manifests into the AI-BOM snapshot and exposes only approved tools to the agents. Agents never receive raw credentials; the Tool Gateway resolves credentials at execution time.
 
@@ -164,7 +164,7 @@
 10. A canonical Task contract and lifecycle state machine normalize all ingress into one task record and audit envelope.
 11. All write-class tools (write, external_send, financial, publishing, admin) require approval, gated through the shared approval ledger with payload-hash binding.
 12. The toolpack manifest declares the required providers (Xero, HubSpot, Webflow, Bitscale, Cal.com, Clockify, Beehiiv, Google Workspace) each with an integration style.
-13. Toolpacks support direct API, individual MCP, aggregate MCP, and Nango-aggregator integration styles.
+13. Toolpacks support direct API, individual MCP, aggregate MCP, Nango-aggregator, and Composio-aggregator integration styles. Nango (open-source unified-API) and Composio (MCP-native single Tool Router endpoint) are peer aggregator options; either may serve as the generic MCP aggregator with the other as fallback.
 14. The memory/context layer separates retrieval/evidence, session, task metadata, long-term memory, Deep Agents context, and Langfuse links, on Cloud SQL + pgvector.
 15. The self-improvement loop (Option C) is proposal → evaluation → HITL approval → versioned promotion → AI-BOM update, with rollback and no runtime mutation of active instructions, permissions, or routing.
 16. Observability is Langfuse-centered (traces, prompt/version management, datasets/evals, token/cost telemetry, audit dashboards).

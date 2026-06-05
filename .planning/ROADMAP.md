@@ -86,6 +86,8 @@ Plans:
   4. Promotion produces an AI-BOM snapshot and a versioned promotion record with rollback; no live instructions/permissions/routing are mutated at runtime
 **Plans**: 2 plans
 
+**Aggregator note**: The generic MCP-aggregator integration style has two peer options — `nango_aggregator` (open-source unified-API, ~838 providers, self-hostable) and `composio_aggregator` (MCP-native single Tool Router endpoint, ~982 toolkits / 20k tools), either serving as fallback to the other. TOOL-04 (aggregator integration styles, currently in v2 scope) must exercise both. Evidence: Spike 001 (`.planning/spikes/001-composio-vs-nango-coverage/`) — Composio wins on MCP-nativeness, near parity on raw connector count.
+
 Plans:
 - [ ] 04-01: Real SaaS tool adapter behind Tool Gateway + JSON-Schema input/output validation (TOOL-01, TOOL-02)
 - [ ] 04-02: Real eval harness + AI-BOM-on-promotion + controlled versioned promotion wiring (SI-01, SI-02)

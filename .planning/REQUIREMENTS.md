@@ -74,7 +74,7 @@ Deferred to future milestones. Tracked, not in current roadmap.
 ### Tool Coverage
 
 - **TOOL-03**: Remaining reference tool adapters (Xero, Webflow, Bitscale, Cal.com, Clockify, Beehiiv) functional
-- **TOOL-04**: Aggregate-MCP and Nango-aggregator integration styles exercised end-to-end
+- **TOOL-04**: Aggregate-MCP, Nango-aggregator, and Composio-aggregator (MCP-native fallback) integration styles exercised end-to-end. Composio and Nango are peer aggregator options (MCP-native single-endpoint vs open-source unified-API); see Spike 001 (`.planning/spikes/001-composio-vs-nango-coverage/`)
 
 ## Out of Scope
 
