@@ -17,8 +17,8 @@ platform end-to-end and validate deploy-readiness. Each maps to a roadmap phase.
 
 ### Security
 
-- [ ] **SEC-01**: `/v1/approvals` verifies a signed approval token (HMAC/JWT) issued at request time; a forged or self-asserted `approver_id` is rejected
-- [ ] **SEC-02**: The approval gate has replay and payload-mutation tests proving a mutated payload invalidates a prior approval and an approval cannot be reused across tasks
+- [x] **SEC-01**: `/v1/approvals` verifies a signed approval token (HMAC/JWT) issued at request time; a forged or self-asserted `approver_id` is rejected
+- [x] **SEC-02**: The approval gate has replay and payload-mutation tests proving a mutated payload invalidates a prior approval and an approval cannot be reused across tasks
 
 ### Orchestration
 

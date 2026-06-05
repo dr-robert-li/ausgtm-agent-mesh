@@ -66,7 +66,11 @@ Closed the Critical write-gate bypass (CONCERNS.md #1): `/v1/approvals` and the 
 
 ### Auto-fixed Issues
 
-None — all three tasks executed as written. The plan explicitly resolved the under-specified "attach the token" seam by deferring real-time delivery; the chosen no-model-change home (`TaskRecord.metadata`) is within `files_modified` (no `models.py` edit) and round-trips via Wave 1's `task_metadata` persistence.
+None — no bugs/missing-functionality/blockers were auto-fixed.
+
+### Deliberate clarification of an under-specified seam
+
+The plan's Task 1 action said the worker should "attach the token to the approval prompt/ToolCall the worker hands off," but (a) `files_modified` excludes `models.py` (no new token field) and (b) the scaffold has no Slack/MCP postback channel. Resolved deliberately: the worker carries the issued token on `TaskRecord.metadata['approval_tokens'][record_id]` (round-trips via Wave 1's `task_metadata`, no model change), and real-time delivery is deferred. This satisfies the must-have "live issuance wired — tests exercise the worker-issued token, not a hand-minted one" (`_pause_on_write` reads the token back from metadata after the `transition_task`). Recorded in `decisions:` frontmatter for traceability.
 
 ### Test-environment setup (not a code deviation)
 
