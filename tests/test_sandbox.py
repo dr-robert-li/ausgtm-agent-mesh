@@ -9,11 +9,17 @@ Two tests (D-03a):
 
 The Docker skip is INLINE here (no conftest fixture) to keep this file self-contained
 and avoid any overlap with other plans in the wave.
+
+- ``test_timeout_kills_container`` (Docker-gated, CR-01): a snippet that outlives the
+  wall-clock timeout is force-stopped — the daemon-owned container does NOT survive the
+  ``docker run`` client's SIGKILL. Closes the containment hole the OOM-only test missed.
 """
 
 from __future__ import annotations
 
 import shutil
+import subprocess
+import types
 
 import pytest
 
@@ -23,6 +29,18 @@ from agent_mesh.sandbox.executor import (
     SandboxUnavailable,
     execute_code,
 )
+
+
+def _container_exists(name: str) -> bool:
+    """True if a container named ``name`` exists (any state) on the daemon."""
+    out = subprocess.run(
+        ["docker", "ps", "-a", "--filter", f"name=^{name}$", "--format", "{{.Names}}"],
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    return name in out.stdout.split()
 
 
 def test_refuses_unbounded(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -53,3 +71,36 @@ def test_oom_enforced() -> None:
         f"expected OOM exit 137, got {result.exit_code} "
         f"(stdout={result.stdout!r}, stderr={result.stderr!r})"
     )
+
+
+@pytest.mark.skipif(
+    shutil.which("docker") is None, reason="docker not available"
+)
+def test_timeout_kills_container(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Wall-clock timeout force-stops the daemon-owned container (CR-01).
+
+    A ``subprocess`` timeout SIGKILLs only the ``docker run`` client; the container
+    keeps running unless the executor explicitly kills it. We pin the container name
+    so we can assert it is gone after the timed-out call returns.
+    """
+    name = "agent-mesh-sbx-pytestcontainment"
+    # Pin the uuid so the executor's container name is predictable.
+    monkeypatch.setattr(
+        executor.uuid, "uuid4", lambda: types.SimpleNamespace(hex="pytestcontainment")
+    )
+    # Defensive cleanup: never leak a container even if the assertion fails.
+    subprocess.run(["docker", "rm", "-f", name], capture_output=True, check=False)
+
+    try:
+        # Snippet sleeps far longer than the timeout; container must be up, then killed.
+        limits = SandboxLimits(timeout_s=5)
+        result = execute_code("import time\ntime.sleep(120)\n", limits=limits)
+
+        assert result.timed_out is True
+        assert result.exit_code == 124
+        assert not _container_exists(name), (
+            "container survived the timeout — CR-01 containment hole is open: "
+            "the docker-run client was killed but the daemon-owned container kept running"
+        )
+    finally:
+        subprocess.run(["docker", "rm", "-f", name], capture_output=True, check=False)

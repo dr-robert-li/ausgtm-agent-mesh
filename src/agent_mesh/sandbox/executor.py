@@ -19,6 +19,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import tempfile
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -53,21 +54,29 @@ class CodeExecutionResult:
 _SANDBOX_IMAGE = "python:3.11-slim"
 
 
-def _docker_run_argv(snippet_dir: str, limits: SandboxLimits) -> list[str]:
+def _docker_run_argv(snippet_dir: str, limits: SandboxLimits, container_name: str) -> list[str]:
     """Build the hardened ``docker run`` argv for ``snippet_dir/snippet.py``.
 
     ``--memory`` and ``--memory-swap`` are set equal (Pitfall 2: an unequal/unset
     swap limit defeats the memory cap). The snippet is bind-mounted read-only at
     ``/snippet`` (a path distinct from the writable ``/work`` tmpfs — mounting both
     a tmpfs and a bind at the same path is rejected by Docker).
+
+    ``--name`` makes the daemon-owned container addressable so a wall-clock timeout
+    can ``docker kill`` it (CR-01: a SIGKILL to the foreground ``docker run`` client
+    does NOT stop the container, and ``--rm`` only reaps it on exit). ``--ulimit cpu``
+    enforces ``max_cpu_seconds`` as a hard RLIMIT_CPU inside the container so a
+    busy-loop is contained on CPU time independently of the wall clock (WR-01).
     """
     mem = f"{limits.max_memory_mb}m"
     return [
         "docker",
         "run",
         "--rm",
+        f"--name={container_name}",  # addressable for docker kill on timeout (CR-01)
         f"--memory={mem}",
         f"--memory-swap={mem}",  # MUST equal --memory or the cap is a no-op (Pitfall 2)
+        f"--ulimit=cpu={limits.max_cpu_seconds}",  # hard CPU-seconds cap (WR-01)
         "--network=none",
         "--read-only",
         "--tmpfs",
@@ -89,6 +98,25 @@ def _docker_run_argv(snippet_dir: str, limits: SandboxLimits) -> list[str]:
     ]
 
 
+def _force_remove_container(container_name: str) -> None:
+    """Best-effort ``docker rm -f`` to stop+reap a container the timeout abandoned.
+
+    A ``subprocess`` timeout SIGKILLs only the ``docker run`` client; the
+    daemon-owned container keeps running (CR-01). ``docker rm -f`` both kills and
+    removes it in one call. Bounded and swallow-all: cleanup must never mask the
+    original timeout outcome.
+    """
+    try:
+        subprocess.run(  # noqa: S603,S607 - fixed argv, container_name is a uuid hex
+            ["docker", "rm", "-f", container_name],
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
 def execute_code(code: str, limits: SandboxLimits | None = None) -> CodeExecutionResult:
     """Execute ``code`` inside a hardened Docker container.
 
@@ -105,18 +133,22 @@ def execute_code(code: str, limits: SandboxLimits | None = None) -> CodeExecutio
             "Docker required for sandbox execution; refusing to run unbounded"
         )
 
+    container_name = f"agent-mesh-sbx-{uuid.uuid4().hex}"
     with tempfile.TemporaryDirectory(prefix="agent-mesh-sbx-") as workdir:
         script = Path(workdir) / "snippet.py"
         script.write_text(code)
         try:
             proc = subprocess.run(
-                _docker_run_argv(workdir, limits),
+                _docker_run_argv(workdir, limits, container_name),
                 capture_output=True,
                 text=True,
                 timeout=limits.timeout_s,
                 check=False,  # noqa: S603 - controlled argv; snippet mounted read-only
             )
         except subprocess.TimeoutExpired as exc:
+            # The subprocess timeout killed only the `docker run` client; the
+            # daemon-owned container is still running. Force-stop+reap it (CR-01).
+            _force_remove_container(container_name)
             raw = exc.stdout or ""
             stdout = raw.decode() if isinstance(raw, bytes) else raw
             return CodeExecutionResult(
