@@ -94,11 +94,11 @@ Explicitly excluded. Documented to prevent scope creep.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DUR-01 | Phase 1 | Pending |
-| DUR-02 | Phase 1 | Pending |
-| DUR-03 | Phase 1 | Pending |
-| SEC-01 | Phase 1 | Pending |
-| SEC-02 | Phase 1 | Pending |
+| DUR-01 | Phase 1 | Complete |
+| DUR-02 | Phase 1 | Complete |
+| DUR-03 | Phase 1 | Complete |
+| SEC-01 | Phase 1 | Complete |
+| SEC-02 | Phase 1 | Complete |
 | ORCH-01 | Phase 2 | Pending |
 | ORCH-02 | Phase 2 | Pending |
 | ORCH-03 | Phase 2 | Pending |
