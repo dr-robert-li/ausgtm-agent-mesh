@@ -221,3 +221,50 @@
 | Produce POC operations runbook and known limitations register | Operations | 1 Day | Run failure test: model fallback, job retry, and budget-limit halt |
 | Review cost telemetry against USD 65 infra guardrail and USD 50 model guardrail | FinOps | 0.5 Day | Produce POC operations runbook and known limitations register |
 | Package redeployment checklist and sample client configuration templates | Platform Handoff | 1 Day | Review cost telemetry against USD 65 infra guardrail and USD 50 model guardrail |
+
+---
+
+## 8. GSD Workflow (Planning & Execution)
+
+> This section is **process guidance** for any agent/engineer driving delivery via the
+> GSD (Get Shit Done) workflow. It does not alter the normative architecture above
+> (§1–§7) — that remains the operating manual for *what* to build. This governs *how*
+> work is planned, executed, and tracked.
+
+**Source of truth for delivery state** lives in `.planning/`:
+
+| File | Role |
+| :--- | :--- |
+| `.planning/PROJECT.md` | Living project context: What This Is, Core Value, Validated/Active/Out-of-Scope requirements, constraints, key decisions. Evolves at phase/milestone boundaries. |
+| `.planning/REQUIREMENTS.md` | Checkable v1 requirements with REQ-IDs (DUR/SEC/ORCH/SBX/GW/OBS/TOOL/SI/E2E/DEP), v2 deferrals, out-of-scope, and phase traceability. |
+| `.planning/ROADMAP.md` | 5 coarse phases (horizontal layers), each with goal, dependencies, mapped REQ-IDs, observable success criteria, and plan stubs. |
+| `.planning/STATE.md` | Project memory: current position, velocity, decisions, blockers, deferred items, session continuity. |
+| `.planning/config.json` | Workflow config: YOLO mode, coarse granularity, parallel execution, quality model profile, research+plan-check+verifier on. |
+| `.planning/codebase/` | Mapped brownfield analysis (ARCHITECTURE/CONCERNS/CONVENTIONS/STACK/STRUCTURE/TESTING). |
+
+**Milestone goal** (this cycle): complete the runnable scaffold — replace every stubbed
+component with a real, locally-validated implementation, then prove the platform
+end-to-end and validate deploy-readiness. **Scope = full-vertical** (finish all stubs);
+**structure = horizontal layers** (durability → orchestration → model/observability →
+tools/self-improvement → E2E+deploy-readiness). Deploy-ready only — **no live GCP
+provisioning** this milestone.
+
+**Phase order:** 1 → 2 → 3 → 4 → 5, each depending on the prior. See `ROADMAP.md` for
+per-phase goals, REQ mappings, and success criteria.
+
+**Driving the workflow (slash commands):**
+- `/gsd:plan-phase <N>` — create the detailed `PLAN.md` for phase N (spawns gsd-planner + gsd-plan-checker).
+- `/gsd:discuss-phase <N>` — gather context before planning (optional).
+- `/gsd:execute-phase <N>` — execute all plans in the phase (wave-based, parallel per config).
+- `/gsd:progress` — situational status / advance the workflow.
+
+**Prerequisite:** GSD subagents (`gsd-planner`, `gsd-plan-checker`, `gsd-phase-researcher`,
+`gsd-verifier`, …) are **not** in `~/.claude/agents/`. Install them before planning:
+`npx get-shit-done-cc@latest --global`. Without them, `/gsd:plan-phase` will fail to
+spawn its planner subagent.
+
+**Guardrails that survive every phase** (do not let planning regress these):
+- The human-in-the-loop **write-approval gate** holds for every write-class tool (payload-hash bound).
+- **No runtime autonomous self-modification** of active instructions, permissions, or routing (Option C).
+- **Deep Agents roster stays bounded and declared** (planner, researcher/tool-router, code-writer, reviewer) — no uncontrolled self-spawning.
+- **LangChain + LangGraph + Deep Agents + Langfuse** remain REQUIRED; LangSmith never a dependency.
