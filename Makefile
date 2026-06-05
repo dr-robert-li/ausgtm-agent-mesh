@@ -1,4 +1,4 @@
-.PHONY: help install install-dev schemas test lint fmt smoke run-api run-worker
+.PHONY: help install install-dev schemas test lint fmt smoke run-api run-worker run-gui
 
 PY ?= python
 PYTHONPATH := src
@@ -14,6 +14,7 @@ help:
 	@echo "  smoke        Run the local end-to-end smoke check (no DB, no network)"
 	@echo "  run-api      Run the FastAPI ingress locally"
 	@echo "  run-worker   Drain the in-process task queue once"
+	@echo "  run-gui      Run the Streamlit admin/operator console locally"
 
 install:
 	$(PY) -m pip install -r requirements/base.txt
@@ -44,3 +45,6 @@ run-api:
 
 run-worker:
 	PYTHONPATH=$(PYTHONPATH) $(PY) -m agent_mesh.worker.main
+
+run-gui:
+	PYTHONPATH=$(PYTHONPATH) $(PY) -m streamlit run src/agent_mesh/gui/admin_app.py

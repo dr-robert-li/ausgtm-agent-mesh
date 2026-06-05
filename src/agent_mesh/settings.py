@@ -39,16 +39,39 @@ class Settings:
     )
     dlq_topic: str = field(default_factory=lambda: os.getenv("DLQ_TOPIC", "agent-mesh-dlq"))
 
-    # Model gateway. LiteLLM is the control plane; it routes upstream through the
-    # Cloudflare AI Gateway wrapper. Agents/workers never call providers directly.
-    litellm_base_url: str = field(
-        default_factory=lambda: os.getenv("LITELLM_BASE_URL", "http://localhost:4000")
+    # Model gateway. A LiteLLM-compatible gateway is the model control plane
+    # (routing/cascades/budgets/token caps/provider abstraction); it can route
+    # upstream through the Cloudflare AI Gateway wrapper. Agents/workers never
+    # call providers directly. Both Anthropic-direct and Vertex AI paths are
+    # first class — selected per route, not per code path.
+    model_gateway_base_url: str = field(
+        default_factory=lambda: os.getenv(
+            "MODEL_GATEWAY_BASE_URL", os.getenv("LITELLM_BASE_URL", "http://localhost:4000")
+        )
+    )
+    # "anthropic" | "vertex_ai" | "mixed" — informational default provider posture.
+    model_provider_mode: str = field(
+        default_factory=lambda: os.getenv("MODEL_PROVIDER_MODE", "mixed")
     )
     model_route_profile: str = field(
         default_factory=lambda: os.getenv("MODEL_ROUTE_PROFILE", "mixed-cascade")
     )
+    model_max_tokens: int = field(
+        default_factory=lambda: int(os.getenv("MODEL_MAX_TOKENS", "4096"))
+    )
     model_monthly_budget_usd: float = field(
         default_factory=lambda: float(os.getenv("MODEL_MONTHLY_BUDGET_USD", "50"))
+    )
+
+    # Langfuse observability (default required platform for this variant).
+    langfuse_public_key: str = field(
+        default_factory=lambda: os.getenv("LANGFUSE_PUBLIC_KEY", "")
+    )
+    langfuse_secret_key: str = field(
+        default_factory=lambda: os.getenv("LANGFUSE_SECRET_KEY", "")
+    )
+    langfuse_host: str = field(
+        default_factory=lambda: os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
     )
 
     # Slack signature verification window (seconds).

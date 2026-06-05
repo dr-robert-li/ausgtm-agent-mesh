@@ -31,7 +31,7 @@ wrangler deploy --env "${WRANGLER_ENV}"
 
 echo "Set secrets with:"
 echo "  wrangler secret put CF_AIG_AUTH_TOKEN --env ${WRANGLER_ENV}"
-echo "  wrangler secret put LITELLM_SHARED_SECRET --env ${WRANGLER_ENV}"
+echo "  wrangler secret put MODEL_GATEWAY_SHARED_SECRET --env ${WRANGLER_ENV}"
 echo
 echo "Configure Cloudflare AI Gateway, Guardrails, and DLP profiles in Cloudflare dashboard or API."
 echo "Gateway ID expected by this worker: ${CLOUDFLARE_AI_GATEWAY_ID}"

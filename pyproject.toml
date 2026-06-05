@@ -1,7 +1,7 @@
 [project]
 name = "agent-mesh"
-version = "0.2.0"
-description = "Reusable, governed autonomous agent mesh POC (AG2 on GCP, Cloudflare AI Gateway, LiteLLM)."
+version = "0.3.0"
+description = "Reusable, governed autonomous agent mesh POC (LangChain/LangGraph/Deep Agents/Langfuse on GCP, Cloudflare AI Gateway, LiteLLM-compatible model gateway)."
 requires-python = ">=3.11"
 license = { text = "Proprietary" }
 dependencies = [
@@ -21,12 +21,20 @@ runtime = [
     "mcp>=1.2",
     "slack-bolt>=1.18",
     "litellm>=1.40",
+    "langchain-litellm>=0.1",
     "langfuse>=2.0",
 ]
-# AG2 multi-agent layer. Pinned loosely; the orchestration adapter degrades to a
-# stub when ag2 is not installed so the POC stays importable.
+# Default REQUIRED agent stack for this variant: LangChain + LangGraph +
+# Deep Agents. The orchestration adapter degrades to a deterministic stub when
+# these are not installed so the POC stays importable and testable.
 agents = [
-    "ag2>=0.4",
+    "langchain>=0.3",
+    "langgraph>=0.2",
+    "deepagents>=0.0.2",
+]
+# GUI admin / operator app.
+gui = [
+    "streamlit>=1.36",
 ]
 dev = [
     "pytest>=8.0",

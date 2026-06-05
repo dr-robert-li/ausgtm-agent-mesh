@@ -1,7 +1,12 @@
 -r base.txt
-# Worker (Cloud Run Jobs / Worker Pools): AG2 mesh + model gateway + telemetry.
+# Worker (Cloud Run Jobs / Worker Pools): the default required agent stack plus
+# the model gateway client and telemetry.
 google-cloud-pubsub>=2.21
 psycopg[binary]>=3.1
-litellm>=1.40
+# Default REQUIRED stack for this variant.
+langchain>=0.3
+langgraph>=0.2
+deepagents>=0.0.2
+langchain-litellm>=0.1
 langfuse>=2.0
-ag2>=0.4
+litellm>=1.40

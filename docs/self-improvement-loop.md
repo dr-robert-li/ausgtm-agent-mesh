@@ -9,8 +9,8 @@
 > deliberate, separate, human-owned step that the POC does not automate.
 
 This document records the design decision for how the agent mesh improves itself
-over time, why **Option C** was selected, how it maps onto AG2, and the safety
-boundaries, approval-gated promotion, rollback, and AI-BOM implications.
+over time, why **Option C** was selected, how it maps onto LangGraph + Deep Agents,
+and the safety boundaries, approval-gated promotion, rollback, and AI-BOM implications.
 
 It is the normative reference for the scaffolded implementation in
 `src/agent_mesh/services/self_improvement.py`, the contract models in
@@ -45,48 +45,48 @@ Option C lets the mesh learn from its own run telemetry without ever ceding the
 control plane: humans stay in the loop on anything that changes behaviour, and
 every change is evaluated, versioned, and reversible.
 
-## 3. AG2 compatibility
+## 3. LangGraph + Deep Agents compatibility
 
-**Option C is compatible with AG2 and maps cleanly onto AG2's primitives.** It is
-implemented as a *workflow pattern* on top of AG2 rather than requiring any AG2
-internals to change.
+**Option C is compatible with the LangGraph + Deep Agents stack and maps cleanly
+onto its primitives.** It is implemented as a *workflow pattern* on top of the
+supervisor graph rather than requiring any framework internals to change.
 
-AG2 provides the building blocks Option C needs:
+The stack provides the building blocks Option C needs:
 
-- **Group chat / tool functions / context variables and target handoffs** — a
-  dedicated **reflection / governance agent** participates in the group chat and,
-  at the end of a run, emits a structured proposal via a tool function, then
-  **hands off** to the evaluation/approval/promotion components.
-- **Human-in-the-loop hooks** (AG2 Beta) — the approval gate is exactly an HITL
-  pause: the proposal sits in `awaiting_approval` until a human decides, mirroring
-  how the mesh already pauses write actions.
+- **Bounded subagent roster + tools** — a dedicated **reflection / governance
+  subagent** (or a reviewer-role step) in the Deep Agents roster emits a structured
+  proposal via a tool, then the supervisor graph **routes** to the
+  evaluation/approval/promotion nodes. No new, unbounded agent is spawned for this.
+- **LangGraph `interrupt` for human-in-the-loop** — the approval gate is exactly a
+  graph interrupt: the proposal sits in `awaiting_approval` until a human decides,
+  resuming from the checkpoint, mirroring how the mesh already pauses write actions.
 - **Structured output** — proposals are emitted as structured artifacts
   (`SelfImprovementProposal`), not free text, so they are machine-checkable and
   auditable.
-- **OpenTelemetry tracing** — reflection, evaluation, approval, and promotion are
-  spans, joinable with the originating task/session/agent for audit.
-- **Persistent backends for history/streams + knowledge store / persistent
-  memory + state externalization** — proposals, evaluations, and promotions are
-  externalized to Postgres (`migrations/0002_self_improvement.sql`), so the loop
-  survives restarts and is durable for the 12-month retention profile.
-- **Middleware for retries / token limits / history management** — evaluation and
-  promotion are ordinary steps that inherit the same middleware budget/retry
-  controls as the rest of the mesh.
+- **Langfuse / OpenTelemetry tracing** — reflection, evaluation, approval, and
+  promotion are spans, joinable with the originating task/session/agent for audit;
+  Langfuse also versions the prompts a `prompt_patch` would touch.
+- **LangGraph checkpointer (Postgres in prod)** — proposals, evaluations, and
+  promotions are externalized to Postgres (`migrations/0002_self_improvement.sql`)
+  and the graph state is checkpointed, so the loop survives restarts and is durable
+  for the 12-month retention profile.
+- **Budget/retry controls** — evaluation and promotion are ordinary graph nodes
+  that inherit the same gateway budget/retry controls as the rest of the mesh.
 
 Mapping summary:
 
 ```
-AG2 group chat run
-  └─ reflection/governance agent (AG2 agent + tool function)
+LangGraph supervisor run (Deep Agents roster)
+  └─ reflection/governance subagent (Deep Agents role + tool)
         emits → SelfImprovementProposal   (structured output; inert artifact)
-        hand off →
+        graph routes →
             evaluate_proposal()            (deterministic checks / eval harness)
-            open_promotion_approval()      (AG2 HITL hook → shared approval ledger)
+            open_promotion_approval()      (LangGraph interrupt → shared approval ledger)
             promote_proposal()             (versioned, AI-BOM-traceable, rollback-able)
 ```
 
-Because the proposal is just structured output handed off to governance
-components, **no AG2 feature is bypassed or overridden** — the loop is additive.
+Because the proposal is just structured output routed to governance nodes,
+**no framework feature is bypassed or overridden** — the loop is additive.
 
 ## 4. The pipeline and its states
 
@@ -173,6 +173,7 @@ appear in the AI-BOM:
   marks `pending`. Production needs a real evaluation/eval-set harness.
 - No automatic AI-BOM snapshot generation on promotion (the link field exists; the
   generator is future work, tracked alongside the existing AI-BOM roadmap item).
-- No live AG2 reflection agent — the orchestration stub does not yet emit
-  proposals automatically; `reflect_on_task` is the seam a real AG2 reflection
-  agent calls. See [production-readiness-caveats.md](./production-readiness-caveats.md).
+- No live reflection subagent — the orchestration stub does not yet emit
+  proposals automatically; `reflect_on_task` is the seam a real LangGraph + Deep
+  Agents reflection subagent calls. See
+  [production-readiness-caveats.md](./production-readiness-caveats.md).

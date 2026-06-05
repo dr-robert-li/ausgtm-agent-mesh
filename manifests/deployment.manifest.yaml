@@ -1,4 +1,5 @@
-# Reusable Autonomous Agent Mesh deployment manifest.
+# Reusable Autonomous Agent Mesh deployment manifest
+# (LangChain + LangGraph + Deep Agents + Langfuse variant).
 # Copy this file per client/environment, then fill values before running scripts.
 
 deployment:
@@ -28,6 +29,7 @@ gcp:
     ingress_service_name: "agent-mesh-api"
     slack_service_name: "agent-mesh-slack"
     mcp_service_name: "agent-mesh-mcp"
+    gui_service_name: "agent-mesh-admin"
     worker_job_name: "agent-mesh-worker"
     prompt_to_code_job_name: "agent-mesh-code-executor"
   pubsub:
@@ -49,19 +51,41 @@ cloudflare:
     evaluate_responses: true
     block_on_match: true
 
+# Default required agent + observability stack for this variant. The agent
+# fleet logic is provider-agnostic; routes select Anthropic-direct or Vertex AI
+# without changing agent code.
+stack:
+  agent_framework: "langchain+langgraph+deepagents"   # REQUIRED default
+  observability: "langfuse"                            # REQUIRED default
+  langsmith: "optional-alternative-only"
+  model_gateway: "litellm-compatible"                  # routing/budgets/cascades
+  cloudflare_ai_gateway: "integration-ready"           # model-traffic governance
+
 model_routes:
   default_profile: "mixed-cascade"
+  # provider_mode: anthropic | vertex_ai | mixed. Both paths are first class.
+  provider_mode: "mixed"
   profiles:
     mixed-cascade:
       low_complexity:
-        preferred: "google/gemini-flash"
-        fallback: "anthropic/claude-haiku"
+        preferred: "vertex_ai/gemini-1.5-flash"
+        fallback: "vertex_ai/gemini-1.5-pro"
       medium_complexity:
-        preferred: "google/gemini-pro"
-        fallback: "anthropic/claude-sonnet"
+        preferred: "vertex_ai/gemini-1.5-pro"
+        fallback: "anthropic/claude-sonnet-4-6"
       high_complexity:
-        preferred: "anthropic/claude-sonnet"
-        fallback: "google/gemini-pro"
+        preferred: "anthropic/claude-sonnet-4-6"
+        fallback: "vertex_ai/claude-sonnet-4-6"
+    anthropic-direct:
+      low_complexity:
+        preferred: "anthropic/claude-haiku-4-5"
+        fallback: "anthropic/claude-sonnet-4-6"
+      medium_complexity:
+        preferred: "anthropic/claude-sonnet-4-6"
+        fallback: "anthropic/claude-haiku-4-5"
+      high_complexity:
+        preferred: "anthropic/claude-sonnet-4-6"
+        fallback: "anthropic/claude-sonnet-4-6"
 
 ingress:
   slack:
@@ -72,12 +96,32 @@ ingress:
     enabled: true
     server_base_url: "https://mcp.example.com/mcp"
     auth_mode: "oauth_resource_server"
+    # MCP clients with mirrored capabilities. Claude Desktop / Claude Code first;
+    # Codex, OpenCode, and Pi connect later via the same MCP/tool boundary.
+    clients:
+      claude_desktop: true
+      claude_code: true
+      codex: false
+      opencode: false
+      pi: false
+  gui_admin:
+    enabled: true
+    # Streamlit operator console: tasks, approvals, toolpack/MCP registries,
+    # AI-BOM, budget/model routing, memory/context, self-improvement proposals,
+    # deployment checks, Langfuse trace links/health.
+    auth_mode: "iap"
 
 tool_packs:
   manifest_path: "manifests/tool_pack_manifest.yaml"
+  # Integration styles supported per tool: direct API, individual MCP server,
+  # aggregate MCP server, or integration aggregator (e.g. Nango).
+  integration_styles: ["direct_api", "mcp_server", "aggregate_mcp", "nango_aggregator"]
 
 observability:
+  platform: "langfuse"            # REQUIRED default for this variant
   langfuse_enabled: true
+  langfuse_self_hosted: false     # set true to self-host Langfuse
+  langsmith_enabled: false        # optional alternative only; not required
   cloudflare_ai_gateway_enabled: true
   otel_service_name: "agent-mesh"
   log_payloads:

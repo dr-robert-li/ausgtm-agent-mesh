@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "hubspot_create_deal.input",
+  "description": "Input for the HubSpot create-deal write tool. This is a WRITE-category tool: approval_required is true and execution is gated behind an approval record.",
+  "type": "object",
+  "x-tool-category": "write",
+  "x-approval-required": true,
+  "additionalProperties": false,
+  "required": ["deal_name", "stage"],
+  "properties": {
+    "deal_name": {
+      "type": "string",
+      "description": "Human-readable deal name.",
+      "minLength": 1
+    },
+    "stage": {
+      "type": "string",
+      "description": "HubSpot deal pipeline stage internal id."
+    },
+    "amount": {
+      "type": "number",
+      "description": "Optional deal amount."
+    },
+    "associated_company_id": {
+      "type": "string",
+      "description": "Optional HubSpot company id to associate."
+    }
+  }
+}

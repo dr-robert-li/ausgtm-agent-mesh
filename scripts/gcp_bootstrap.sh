@@ -145,7 +145,8 @@ gcloud sql databases describe "${SQL_DATABASE}" --instance="${SQL_INSTANCE}" >/d
   gcloud sql databases create "${SQL_DATABASE}" --instance="${SQL_INSTANCE}"
 
 echo "Create required secrets manually or via CI before deploy:"
-echo "  SLACK_SIGNING_SECRET, SLACK_BOT_TOKEN, CLOUDFLARE_API_TOKEN, LITELLM_MASTER_KEY,"
-echo "  LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, provider keys, and SaaS tool credentials."
+echo "  SLACK_SIGNING_SECRET, SLACK_BOT_TOKEN, CLOUDFLARE_API_TOKEN, MODEL_GATEWAY_MASTER_KEY,"
+echo "  MODEL_GATEWAY_SHARED_SECRET, ANTHROPIC_API_KEY, VERTEX_PROJECT_ID, LANGFUSE_PUBLIC_KEY,"
+echo "  LANGFUSE_SECRET_KEY, provider keys, and SaaS tool credentials."
 
 echo "Bootstrap complete."

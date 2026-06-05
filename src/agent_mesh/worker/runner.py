@@ -2,7 +2,7 @@
 
 Execution model:
 1. Move task RECEIVED/QUEUED -> RUNNING.
-2. Run the AG2 orchestration adapter.
+2. Run the LangGraph + Deep Agents orchestration adapter.
 3. For each *proposed write*, create a gated ToolCall + open an approval. The
    task pauses in AWAITING_APPROVAL and the worker returns — the run resumes
    when an approval decision is dispatched back (durable, survives restart).

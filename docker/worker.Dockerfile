@@ -1,4 +1,5 @@
-# Worker image: long-running AG2 mesh execution for Cloud Run Jobs / Worker Pools.
+# Worker image: long-running LangGraph + Deep Agents mesh execution for
+# Cloud Run Jobs / Worker Pools.
 FROM python:3.12-slim AS base
 
 ENV PYTHONUNBUFFERED=1 \

@@ -1,8 +1,10 @@
 """Per-user monthly model budget tracking.
 
-LiteLLM is the enforcement point in production (it can hard-stop a request). This
-module is the durable ledger + a local check the worker uses to halt a run when a
-budget owner exceeds their configured monthly cap (default USD 50).
+The LiteLLM-compatible model gateway is the enforcement point in production (it
+can hard-stop a request once a key exceeds its cap), and Langfuse surfaces the
+token/cost telemetry. This module is the durable ledger + a local check the
+worker uses to halt a run when a budget owner exceeds their configured monthly
+cap (default USD 50).
 """
 
 from __future__ import annotations

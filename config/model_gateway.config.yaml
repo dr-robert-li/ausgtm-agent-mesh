@@ -1,0 +1,85 @@
+# Model gateway configuration for the agent mesh POC (LiteLLM-compatible proxy).
+#
+# Responsibility split (kept deliberately separate from Cloudflare AI Gateway):
+#   * The gateway (LiteLLM or equivalent) = model CONTROL plane: routing,
+#     cascades/fallbacks, per-user and per-task budgets, token/output limits,
+#     routing profiles, and provider abstraction (Anthropic direct + Vertex AI).
+#   * Cloudflare AI Gateway = model-traffic GOVERNANCE/observability plane:
+#     logging, DLP, query blocking, guardrails, audit visibility, rate limiting.
+#
+# The gateway routes ALL upstream calls through the Cloudflare AI Gateway wrapper
+# (api_base below points at the worker) when configured, so no provider is called
+# directly. Observability flows to Langfuse via OpenTelemetry / the LangChain
+# callback handler. LangChain / LangGraph / Deep Agents reach these routes via
+# langchain_litellm.ChatLiteLLM (see src/agent_mesh/worker/model_gateway.py).
+#
+# No real secrets here. os.environ/... values resolve at runtime from Secret
+# Manager-wired environment variables.
+
+model_list:
+  # --- low-complexity tier (Vertex AI Gemini) ---
+  - model_name: low-complexity
+    litellm_params:
+      model: vertex_ai/gemini-1.5-flash
+      api_base: os.environ/CF_AIG_WRAPPER_URL   # Cloudflare AI Gateway wrapper
+      vertex_project: os.environ/VERTEX_PROJECT_ID
+      vertex_location: os.environ/VERTEX_LOCATION
+      extra_headers:
+        x-gateway-shared-secret: os.environ/MODEL_GATEWAY_SHARED_SECRET
+
+  # --- medium-complexity tier (Vertex AI Gemini) ---
+  - model_name: medium-complexity
+    litellm_params:
+      model: vertex_ai/gemini-1.5-pro
+      api_base: os.environ/CF_AIG_WRAPPER_URL
+      vertex_project: os.environ/VERTEX_PROJECT_ID
+      vertex_location: os.environ/VERTEX_LOCATION
+      extra_headers:
+        x-gateway-shared-secret: os.environ/MODEL_GATEWAY_SHARED_SECRET
+
+  # --- high-complexity / prompt-to-code review tier (Anthropic direct) ---
+  - model_name: high-complexity
+    litellm_params:
+      model: anthropic/claude-sonnet-4-6
+      api_base: os.environ/CF_AIG_WRAPPER_URL
+      api_key: os.environ/ANTHROPIC_API_KEY
+      extra_headers:
+        x-gateway-shared-secret: os.environ/MODEL_GATEWAY_SHARED_SECRET
+
+  # --- optional: Claude on Vertex AI (partner endpoint) ---
+  # Swap high-complexity to this route to keep model traffic inside Vertex AI.
+  - model_name: high-complexity-vertex
+    litellm_params:
+      model: vertex_ai/claude-sonnet-4-6
+      api_base: os.environ/CF_AIG_WRAPPER_URL
+      vertex_project: os.environ/VERTEX_PROJECT_ID
+      vertex_location: os.environ/VERTEX_LOCATION
+      extra_headers:
+        x-gateway-shared-secret: os.environ/MODEL_GATEWAY_SHARED_SECRET
+
+# Cascades / fallbacks: if the preferred model for a tier errors, fall back.
+router_settings:
+  fallbacks:
+    - low-complexity: ["medium-complexity"]
+    - medium-complexity: ["high-complexity"]
+    - high-complexity: ["high-complexity-vertex", "medium-complexity"]
+  num_retries: 2
+  timeout: 120
+
+litellm_settings:
+  drop_params: true
+  # Token / output ceilings applied across requests.
+  max_tokens: 4096
+  # Emit telemetry. Langfuse ingests via the langfuse callback and/or OTel; the
+  # LangChain callback handler is attached on the LangGraph run side.
+  success_callback: ["langfuse", "otel"]
+  failure_callback: ["langfuse", "otel"]
+
+# Per-user and per-task budgets. Default monthly cap is USD 50 and is
+# user-configurable per deployment (see manifests/deployment.manifest.yaml).
+general_settings:
+  master_key: os.environ/MODEL_GATEWAY_MASTER_KEY
+  # Budget enforcement: the gateway hard-stops a key once max_budget is reached.
+  # The durable budget_ledger table mirrors this for audit and cross-run totals.
+  max_budget: 50
+  budget_duration: 30d

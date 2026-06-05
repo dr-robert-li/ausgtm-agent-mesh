@@ -15,13 +15,16 @@ verification step before any production go-live.
 The POC already separates the two model-gateway planes, and production MUST keep
 them separate:
 
-- **LiteLLM** — model control plane: routing, cascades/fallbacks, budget
-  enforcement, token/output limits, routing profiles, provider abstraction.
+- **LiteLLM-compatible gateway** — model control plane: routing, cascades/fallbacks,
+  budget enforcement, token/output limits, routing profiles, provider abstraction
+  (Anthropic direct + Vertex AI).
 - **Cloudflare AI Gateway** — model-traffic governance/observability plane:
   AI traffic logging, DLP, query blocking, guardrails, audit visibility,
   request/response metadata and payload logging controls, rate limiting/caching.
-- LiteLLM routes all upstream model calls through Cloudflare AI Gateway; neither
+- The gateway routes all upstream model calls through Cloudflare AI Gateway; neither
   plane governs SaaS tool writes (that stays in the Tool Gateway approval ledger).
+- Observability is Langfuse-centered (tracing, prompt/version management,
+  datasets/evals, token/cost telemetry); LangSmith is an optional alternative only.
 
 Production hardening should not collapse these responsibilities into one layer.
 
@@ -157,8 +160,9 @@ is intentionally inert in the POC. Before it carries weight in production:
 - **AI-BOM snapshot generation on promotion** must be implemented so every promoted
   change is reflected in the approved capability bundle (the `ai_bom_snapshot_id`
   link field exists; the generator is future work).
-- The **reflection/governance agent** must be wired into the live AG2 group chat so
-  proposals are emitted from real run telemetry via the `reflect_on_task` seam.
+- The **reflection/governance subagent** must be wired into the live LangGraph +
+  Deep Agents supervisor so proposals are emitted from real run telemetry via the
+  `reflect_on_task` seam.
 - Retain the **hard boundary**: no runtime autonomous self-modification of active
   instructions; high/critical proposals always require human approval.
 

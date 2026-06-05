@@ -1,4 +1,5 @@
 -r api.txt
 -r worker.txt
+-r gui.txt
 pytest>=8.0
 ruff>=0.4

@@ -28,7 +28,7 @@ def main() -> None:
     task = svc.create_task(
         request_from_slack(
             tenant_id="t", client_slug="c", slack_user_id="U1", slack_channel_id="C1",
-            text="create a monday item for kickoff",
+            text="create a hubspot deal for kickoff",
         )
     )
     assert worker.process(task.task_id) == "awaiting_approval"

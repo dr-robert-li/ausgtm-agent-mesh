@@ -1,60 +1,189 @@
 # Replaceable SaaS tool pack manifest.
 # This file changes per client while the core mesh architecture remains stable.
+#
+# Integration styles per tool (declare one):
+#   direct_api        - call the SaaS REST/GraphQL API directly
+#   mcp_server        - a dedicated MCP server for that SaaS
+#   aggregate_mcp     - one MCP server fronting several SaaS tools
+#   nango_aggregator  - an integration aggregator (e.g. Nango) brokering auth
+#
+# Categories: read | write | external_send | financial | publishing | code | admin
+# Write/external_send/financial/publishing/admin tools MUST set approval_required: true.
 
 tool_pack:
-  name: "example-consultancy-tool-pack"
+  name: "ausgtm-default-tool-pack"
   version: "0.1.0"
   owner: "platform-team@example.com"
   tenant_id: "tenant-example"
 
 tools:
-  - name: "monday_create_item"
-    provider: "monday"
-    category: "write"
-    description: "Create a Monday.com board item from an approved mesh task."
-    approval_required: true
-    credential_secret_name: "MONDAY_API_TOKEN"
-    resource_bindings:
-      board_id: "REPLACE_WITH_BOARD_ID"
-      group_id: "REPLACE_WITH_GROUP_ID"
-      columns:
-        item: "name"
-        status: "status"
-        timeline: "timeline"
-        dependencies: "dependencies"
-    input_schema_ref: "schemas/monday_create_item.input.schema.json"
-    output_schema_ref: "schemas/monday_create_item.output.schema.json"
-    freshness_sla: "live"
-    rate_limit_notes: "Use provider limits from the connected Monday.com plan."
-
+  # ---------------- Google Workspace (read + write) ----------------
   - name: "google_drive_search"
     provider: "google_workspace"
+    integration_style: "direct_api"
     category: "read"
     description: "Search approved Google Drive folders for retrieval evidence."
     approval_required: false
     credential_secret_name: "GOOGLE_WORKSPACE_OAUTH"
     resource_bindings:
-      allowed_drive_ids:
-        - "REPLACE_WITH_SHARED_DRIVE_ID"
-      allowed_folder_ids:
-        - "REPLACE_WITH_FOLDER_ID"
+      allowed_drive_ids: ["REPLACE_WITH_SHARED_DRIVE_ID"]
+      allowed_folder_ids: ["REPLACE_WITH_FOLDER_ID"]
     input_schema_ref: "schemas/google_drive_search.input.schema.json"
     output_schema_ref: "schemas/google_drive_search.output.schema.json"
     freshness_sla: "15m"
     rate_limit_notes: "Cache evidence chunks and store freshness metadata."
 
+  - name: "gmail_send"
+    provider: "google_workspace"
+    integration_style: "direct_api"
+    category: "external_send"
+    description: "Send an email from an approved Gmail mailbox."
+    approval_required: true
+    credential_secret_name: "GOOGLE_WORKSPACE_OAUTH"
+    resource_bindings:
+      allowed_from_addresses: ["REPLACE_WITH_SENDER"]
+    freshness_sla: "live"
+    rate_limit_notes: "Respect Gmail send quotas."
+
+  - name: "google_sheets_append"
+    provider: "google_workspace"
+    integration_style: "direct_api"
+    category: "write"
+    description: "Append rows to an approved Google Sheet."
+    approval_required: true
+    credential_secret_name: "GOOGLE_WORKSPACE_OAUTH"
+    resource_bindings:
+      allowed_spreadsheet_ids: ["REPLACE_WITH_SHEET_ID"]
+    freshness_sla: "live"
+    rate_limit_notes: "Respect Sheets API quotas."
+
+  # ---------------- HubSpot (read + write) ----------------
   - name: "hubspot_lookup_company"
     provider: "hubspot"
+    integration_style: "direct_api"
     category: "read"
     description: "Read company/contact context for task grounding."
     approval_required: false
     credential_secret_name: "HUBSPOT_PRIVATE_APP_TOKEN"
     resource_bindings:
-      allowed_objects:
-        - "companies"
-        - "contacts"
+      allowed_objects: ["companies", "contacts"]
     input_schema_ref: "schemas/hubspot_lookup_company.input.schema.json"
     output_schema_ref: "schemas/hubspot_lookup_company.output.schema.json"
     freshness_sla: "15m"
     rate_limit_notes: "Respect HubSpot app rate limits."
 
+  - name: "hubspot_create_deal"
+    provider: "hubspot"
+    integration_style: "direct_api"
+    category: "write"
+    description: "Create a HubSpot deal from an approved mesh task."
+    approval_required: true
+    credential_secret_name: "HUBSPOT_PRIVATE_APP_TOKEN"
+    resource_bindings:
+      pipeline_id: "REPLACE_WITH_PIPELINE_ID"
+    input_schema_ref: "schemas/hubspot_create_deal.input.schema.json"
+    output_schema_ref: "schemas/hubspot_create_deal.output.schema.json"
+    freshness_sla: "live"
+    rate_limit_notes: "Respect HubSpot app rate limits."
+
+  # ---------------- Xero (financial) ----------------
+  - name: "xero_read_invoices"
+    provider: "xero"
+    integration_style: "nango_aggregator"
+    category: "read"
+    description: "Read invoices/contacts for financial context."
+    approval_required: false
+    credential_secret_name: "XERO_OAUTH"
+    resource_bindings:
+      tenant_id: "REPLACE_WITH_XERO_TENANT_ID"
+    freshness_sla: "1h"
+    rate_limit_notes: "Respect Xero API rate limits."
+
+  - name: "xero_create_invoice"
+    provider: "xero"
+    integration_style: "nango_aggregator"
+    category: "financial"
+    description: "Create a draft Xero invoice (never auto-finalised)."
+    approval_required: true
+    credential_secret_name: "XERO_OAUTH"
+    resource_bindings:
+      tenant_id: "REPLACE_WITH_XERO_TENANT_ID"
+      account_code: "REPLACE_WITH_ACCOUNT_CODE"
+    freshness_sla: "live"
+    rate_limit_notes: "Respect Xero API rate limits."
+
+  # ---------------- Webflow (publishing) ----------------
+  - name: "webflow_create_cms_item"
+    provider: "webflow"
+    integration_style: "direct_api"
+    category: "publishing"
+    description: "Create a Webflow CMS collection item (draft)."
+    approval_required: true
+    credential_secret_name: "WEBFLOW_API_TOKEN"
+    resource_bindings:
+      site_id: "REPLACE_WITH_SITE_ID"
+      collection_id: "REPLACE_WITH_COLLECTION_ID"
+    freshness_sla: "live"
+    rate_limit_notes: "Respect Webflow API rate limits."
+
+  # ---------------- Bitscale (read) ----------------
+  - name: "bitscale_enrich"
+    provider: "bitscale"
+    integration_style: "direct_api"
+    category: "read"
+    description: "Enrich lead/account data for grounding."
+    approval_required: false
+    credential_secret_name: "BITSCALE_API_KEY"
+    resource_bindings:
+      workspace_id: "REPLACE_WITH_BITSCALE_WORKSPACE_ID"
+    freshness_sla: "1h"
+    rate_limit_notes: "Respect Bitscale workspace limits."
+
+  # ---------------- Cal.com (read + write) ----------------
+  - name: "calcom_list_bookings"
+    provider: "calcom"
+    integration_style: "direct_api"
+    category: "read"
+    description: "List upcoming bookings for scheduling context."
+    approval_required: false
+    credential_secret_name: "CALCOM_API_KEY"
+    freshness_sla: "15m"
+    rate_limit_notes: "Respect Cal.com API limits."
+
+  - name: "calcom_create_booking"
+    provider: "calcom"
+    integration_style: "direct_api"
+    category: "write"
+    description: "Create a Cal.com booking from an approved task."
+    approval_required: true
+    credential_secret_name: "CALCOM_API_KEY"
+    resource_bindings:
+      event_type_id: "REPLACE_WITH_EVENT_TYPE_ID"
+    freshness_sla: "live"
+    rate_limit_notes: "Respect Cal.com API limits."
+
+  # ---------------- Clockify (read) ----------------
+  - name: "clockify_read_time_entries"
+    provider: "clockify"
+    integration_style: "direct_api"
+    category: "read"
+    description: "Read tracked time entries for reporting context."
+    approval_required: false
+    credential_secret_name: "CLOCKIFY_API_KEY"
+    resource_bindings:
+      workspace_id: "REPLACE_WITH_CLOCKIFY_WORKSPACE_ID"
+    freshness_sla: "1h"
+    rate_limit_notes: "Respect Clockify API limits."
+
+  # ---------------- Beehiiv (publishing) ----------------
+  - name: "beehiiv_create_post"
+    provider: "beehiiv"
+    integration_style: "direct_api"
+    category: "publishing"
+    description: "Create a Beehiiv newsletter post draft (never auto-published)."
+    approval_required: true
+    credential_secret_name: "BEEHIIV_API_KEY"
+    resource_bindings:
+      publication_id: "REPLACE_WITH_PUBLICATION_ID"
+    freshness_sla: "live"
+    rate_limit_notes: "Respect Beehiiv API limits."

@@ -45,27 +45,29 @@ SaaS dependencies. Run these first to confirm the contract, ingress, worker, and
 approval gate are healthy before provisioning anything.
 
 ```bash
-make install-dev   # editable install + dev extras
-make schemas       # export 15 contract JSON Schemas -> schemas/contracts/
+make install-dev   # editable install + dev extras (pytest, ruff, streamlit)
+make schemas       # export contract JSON Schemas -> schemas/contracts/
 make lint          # ruff
-make test          # 49 tests (contracts, approval gating, self-improvement loop, importability, slack verify)
+make test          # contracts, approval gating, self-improvement, stack/toolpacks, importability, slack verify
 make smoke         # full ingress -> service -> dispatch -> worker -> approval -> resume loop
 ```
 
-Expected: `make test` reports `49 passed`, and `make smoke` prints `SMOKE OK`
+Expected: `make test` reports all tests passing, and `make smoke` prints `SMOKE OK`
 after exercising a write-gated Slack task (pauses for approval, approved,
 completed) and a read-only MCP task (completes without approval).
 
-To exercise the HTTP ingress locally:
+To exercise the HTTP ingress and admin console locally:
 
 ```bash
 make run-api       # uvicorn FastAPI on localhost; GET /healthz, POST /v1/tasks, /slack/events, /v1/approvals
 make run-worker    # in a second shell: in-process worker draining the dispatch queue
+make run-gui       # Streamlit admin/operator console
 ```
 
-Heavy deps (`ag2`, `google-cloud-pubsub`, `mcp`) are optional; without them the
-package still imports and the in-process dispatcher/worker run. Install the
-`runtime` and `agents` extras for the full stack before building images.
+Heavy deps (`langchain`, `langgraph`, `deepagents`, `langfuse`, `streamlit`,
+`google-cloud-pubsub`, `mcp`) are optional; without them the package still imports
+and the in-process dispatcher/worker run. Install the `runtime`, `agents`, and
+`gui` extras for the full stack before building images.
 
 ## Deployment Sequence
 
@@ -113,7 +115,8 @@ Create secrets before deploying services:
 ```bash
 gcloud secrets create SLACK_SIGNING_SECRET --replication-policy=automatic
 gcloud secrets create SLACK_BOT_TOKEN --replication-policy=automatic
-gcloud secrets create LITELLM_MASTER_KEY --replication-policy=automatic
+gcloud secrets create MODEL_GATEWAY_MASTER_KEY --replication-policy=automatic
+gcloud secrets create ANTHROPIC_API_KEY --replication-policy=automatic
 gcloud secrets create LANGFUSE_PUBLIC_KEY --replication-policy=automatic
 gcloud secrets create LANGFUSE_SECRET_KEY --replication-policy=automatic
 ```
@@ -140,7 +143,7 @@ Set Worker secrets:
 ```bash
 cd cloudflare/ai-gateway-wrapper
 wrangler secret put CF_AIG_AUTH_TOKEN --env poc
-wrangler secret put LITELLM_SHARED_SECRET --env poc
+wrangler secret put MODEL_GATEWAY_SHARED_SECRET --env poc
 ```
 
 Configure Cloudflare:
@@ -175,9 +178,9 @@ gcloud run services list --region="$REGION"
 gcloud run jobs list --region="$REGION"
 ```
 
-### Configure LiteLLM routing
+### Configure model gateway routing
 
-Configure LiteLLM so upstream model calls route through the Cloudflare AI Gateway wrapper. Required metadata headers should include:
+Configure the LiteLLM-compatible model gateway so upstream model calls (Anthropic direct + Vertex AI) route through the Cloudflare AI Gateway wrapper. Required metadata headers should include:
 
 - `x-agent-mesh-tenant-id`
 - `x-agent-mesh-client-slug`
@@ -195,7 +198,7 @@ Run the following checks:
 1. Slack ingress creates a task and returns an acknowledgement quickly.
 2. MCP ingress creates a task with the same task contract.
 3. Long-running worker job picks up the task and persists state.
-4. LiteLLM call routes through Cloudflare AI Gateway.
+4. Model gateway call routes through Cloudflare AI Gateway.
 5. Cloudflare AI Gateway logs token usage, model, provider, status, cost, and duration.
 6. DLP test prompt triggers the expected Cloudflare action.
 7. Write action pauses for approval.
@@ -234,7 +237,7 @@ wrangler rollback --env poc
 - [ ] Cloudflare AI Gateway created/configured.
 - [ ] If using existing Cloudflare AI Gateway, DLP, guardrails, log storage, rate limits, and metadata filters reviewed.
 - [ ] Wrangler worker deployed.
-- [ ] LiteLLM route profile points to Cloudflare wrapper/gateway.
+- [ ] Model gateway route profile points to Cloudflare wrapper/gateway.
 - [ ] Cloud Run ingress deployed.
 - [ ] Cloud Run jobs deployed.
 - [ ] Slack test passed.

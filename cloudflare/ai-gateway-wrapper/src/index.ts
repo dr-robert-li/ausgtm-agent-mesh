@@ -3,7 +3,7 @@ export interface Env {
   CF_AIG_GATEWAY_ID: string;
   COLLECT_LOG_PAYLOAD: string;
   CF_AIG_AUTH_TOKEN?: string;
-  LITELLM_SHARED_SECRET?: string;
+  MODEL_GATEWAY_SHARED_SECRET?: string;
 }
 
 function metadataHeaders(request: Request): Headers {
@@ -33,8 +33,8 @@ export default {
       return new Response("Method not allowed", { status: 405 });
     }
 
-    const sharedSecret = request.headers.get("x-litellm-shared-secret");
-    if (env.LITELLM_SHARED_SECRET && sharedSecret !== env.LITELLM_SHARED_SECRET) {
+    const sharedSecret = request.headers.get("x-gateway-shared-secret");
+    if (env.MODEL_GATEWAY_SHARED_SECRET && sharedSecret !== env.MODEL_GATEWAY_SHARED_SECRET) {
       return new Response("Unauthorized", { status: 401 });
     }
 

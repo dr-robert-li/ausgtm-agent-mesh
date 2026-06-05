@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "monday_create_item.output",
+  "title": "hubspot_create_deal.output",
   "type": "object",
   "additionalProperties": false,
-  "required": ["item_id", "status"],
+  "required": ["deal_id", "status"],
   "properties": {
-    "item_id": { "type": "string", "description": "Created Monday.com item id." },
-    "board_id": { "type": "string" },
+    "deal_id": { "type": "string", "description": "Created HubSpot deal id." },
+    "pipeline_id": { "type": "string" },
     "status": { "type": "string", "description": "Outcome status of the create call." },
     "url": { "type": "string", "format": "uri" }
   }

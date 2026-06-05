@@ -47,7 +47,7 @@ def test_write_task_pauses_then_completes_after_approval(repo):
     svc, worker = _service_and_worker(repo)
     req = request_from_slack(
         tenant_id="t", client_slug="c", slack_user_id="U1", slack_channel_id="C1",
-        text="create a monday item",
+        text="create a hubspot deal",
     )
     task = svc.create_task(req)
     state = worker.process(task.task_id)
