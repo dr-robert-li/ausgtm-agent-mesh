@@ -18,6 +18,7 @@ dependencies = [
 runtime = [
     "google-cloud-pubsub>=2.21",
     "psycopg[binary]>=3.1",
+    "psycopg-pool>=3.2",
     "mcp>=1.2",
     "slack-bolt>=1.18",
     "litellm>=1.40",

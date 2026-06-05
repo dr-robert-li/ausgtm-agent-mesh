@@ -54,7 +54,8 @@ def test_write_task_pauses_then_completes_after_approval(repo):
     assert state == "awaiting_approval"
 
     # Find the opened approval and approve it.
-    (approval_id,) = list(repo._approvals.keys())
+    (record,) = repo.list_approvals(task.task_id, "t")
+    approval_id = record.approval_record_id
     svc.submit_approval_decision(approval_id, ApprovalDecision.APPROVED, "slack:U1", "slack")
     assert repo.get_task(task.task_id).state == "approved"
 
@@ -70,7 +71,7 @@ def test_read_task_completes_without_approval(repo):
     task = svc.create_task(req)
     final = worker.process(task.task_id)
     assert final == "completed"
-    assert len(repo._approvals) == 0
+    assert repo.list_approvals(task.task_id, "t") == []
 
 
 def test_rejected_write_does_not_execute(repo):
@@ -81,6 +82,7 @@ def test_rejected_write_does_not_execute(repo):
     )
     task = svc.create_task(req)
     worker.process(task.task_id)
-    (approval_id,) = list(repo._approvals.keys())
+    (record,) = repo.list_approvals(task.task_id, "t")
+    approval_id = record.approval_record_id
     svc.submit_approval_decision(approval_id, ApprovalDecision.REJECTED, "slack:U1", "slack")
     assert repo.get_task(task.task_id).state == "rejected"

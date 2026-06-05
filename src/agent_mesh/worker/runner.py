@@ -91,7 +91,7 @@ class Worker:
         task = self._repo.get_task(task_id)
         assert task is not None
         # Execute any approved-and-unmodified write tool calls.
-        for call in self._pending_calls(task_id):
+        for call in self._pending_calls(task_id, task.tenant_id):
             if call.approval_record_id is None:
                 continue
             record = self._repo.get_approval(call.approval_record_id)
@@ -115,10 +115,10 @@ class Worker:
         )
         return str(done.state)
 
-    def _pending_calls(self, task_id: str) -> list[ToolCall]:
-        # The in-memory repo does not index tool calls by task; iterate its store.
-        store = getattr(self._repo, "_tool_calls", {})
-        return [c for c in store.values() if c.task_id == task_id]
+    def _pending_calls(self, task_id: str, tenant_id: str) -> list[ToolCall]:
+        # Fetch tool calls through the protocol (tenant-scoped) so the resume
+        # path works identically against the in-memory and SQL repositories.
+        return self._repo.list_tool_calls(task_id, tenant_id)
 
     def _execute(self, call: ToolCall) -> dict:
         if self._gateway is None:

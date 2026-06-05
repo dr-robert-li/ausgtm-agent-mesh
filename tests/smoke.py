@@ -32,7 +32,8 @@ def main() -> None:
         )
     )
     assert worker.process(task.task_id) == "awaiting_approval"
-    (approval_id,) = list(repo._approvals.keys())
+    (record,) = repo.list_approvals(task.task_id, "t")
+    approval_id = record.approval_record_id
     svc.submit_approval_decision(approval_id, ApprovalDecision.APPROVED, "slack:U1", "slack")
     assert worker.process(task.task_id) == "completed"
     print("[write] Slack task paused for approval, approved, completed")
