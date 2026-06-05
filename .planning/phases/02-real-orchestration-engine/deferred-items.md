@@ -31,5 +31,7 @@ current task's change scope).
 - **WR-03 (WARNING) — DEFERRED (quality).** Substring write-trigger matching over-matches
   (e.g. "increase" → `create`) and the trigger heuristic is hand-duplicated across
   graph.py / orchestrator.py / `_run_stub`. Consolidate into one word-boundary matcher.
-- **IN-02 (INFO) — DEFERRED.** `langgraph-checkpoint` pin drift (`~=3.1` declared vs
-  4.1.1 installed). Reconcile the pin during the Phase 4/deploy dependency sweep.
+- **IN-02 (INFO) — NOT A BUG (verified).** No pin drift. The pinned BACKENDS
+  `langgraph-checkpoint-sqlite~=3.1` / `-postgres~=3.1` match the installed 3.1.0. The
+  4.1.1 is the core `langgraph-checkpoint` meta-package, which pyproject does not pin —
+  it is transitive under `langgraph>=1.0,<2` (1.2.4). Reproducible as-is.
