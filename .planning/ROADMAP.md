@@ -56,7 +56,7 @@ Plans:
 
 Plans:
 - [x] 02-01-supervisor-roster-PLAN.md — Real LangGraph supervisor graph + bounded Deep Agents roster (planner, researcher/tool-router, code-writer, reviewer); roster size logged (ORCH-01) [wave 1]
-- [ ] 02-02-checkpointer-interrupt-hitl-PLAN.md — Postgres checkpointer wiring + interrupt-based HITL pause/resume from checkpoint; ledger stays the decision authority (ORCH-02, ORCH-03) [wave 2, depends 02-01]
+- [x] 02-02-checkpointer-interrupt-hitl-PLAN.md — Postgres checkpointer wiring + interrupt-based HITL pause/resume from checkpoint; ledger stays the decision authority (ORCH-02, ORCH-03) [wave 2, depends 02-01]
 - [x] 02-03-hardened-sandbox-PLAN.md — Hardened sandbox isolation: non-fail-open memory limit + Docker cgroup container path (SBX-01) [wave 1]
 
 ### Phase 3: Model Gateway & Observability
