@@ -92,16 +92,21 @@ _Note: this is a TDD plan; both tasks landed green (Task 1 hardened the executor
 - **Verification:** Proved live at the shell (`EXIT=137`) before writing the module; `tests/test_sandbox.py` passes (2 passed) with Docker present.
 - **Committed in:** 5bebfa1 (Task 1 commit)
 
+**2. [Rule 1 - Bug] `artifact_paths` returns `[]` on the Docker path (action-text "artifact discovery" structurally superseded by RF-4 hardening)**
+- **Found during:** Task 1 (executor hardening).
+- **Issue:** The plan `<action>` text lists "artifact discovery from the work dir" as part of `execute_code`'s return. RF-4's hardening mandates `--read-only` rootfs plus an ephemeral `--tmpfs /work`: files the snippet writes live only inside the container's tmpfs and cannot survive `--rm` back to the host. Host-side workdir discovery (as the old native-subprocess executor did) is therefore structurally impossible on the hardened path. Returning a misleading non-empty list, or scanning the now-empty host workdir, would be incorrect.
+- **Fix:** Return `artifact_paths=[]` on the Docker path and document why in the executor docstring/comment. Verified no consumer depends on `CodeExecutionResult.artifact_paths` (`grep -rn "artifact_paths\|execute_code" src/ tests/` — only the unrelated `ProposedPatch.artifact_paths` field, populated by `propose_patch`'s own `artifacts` arg, and the package re-export; nothing reads `execute_code(...).artifact_paths`). The drop is inert.
+- **Files modified:** src/agent_mesh/sandbox/executor.py
+- **Verification:** grep confirms no reader; `tests/test_sandbox.py` (which does not assert artifacts) passes.
+- **Committed in:** 5bebfa1 (Task 1 commit)
+
 ---
 
-**Total deviations:** 1 auto-fixed (1 bug)
-**Impact on plan:** The fix is required for the hardened path to run at all; without it the cgroup container never starts. No scope creep — the security flag set and contracts are exactly as specified.
+**Total deviations:** 2 auto-fixed (2 bugs)
+**Impact on plan:** Both fixes are required for the hardened path to be correct — the mount fix lets the container start at all, and the artifact fix avoids returning misleading state that the RF-4 read-only/tmpfs design makes structurally impossible. No scope creep — the security flag set and contracts are exactly as specified, and no consumer depends on `execute_code`'s artifact discovery. Restoring artifacts would require a writable host bind (`-v <hostdir>:/out:rw`), which is deferred until a downstream consumer needs it.
 
 ## Issues Encountered
 - **Environment had no `python:3.11-slim` image** — pulled it (`docker pull python:3.11-slim`) so the Docker-gated OOM test could run rather than error. Pull is a one-time runtime prerequisite, not a code change.
-
-## Known Limitations
-- **Artifacts are empty on the Docker path.** Files the snippet writes land on the ephemeral `/work` tmpfs and do not survive `--rm` back to the host, so `CodeExecutionResult.artifact_paths` is always `[]` on the Docker path. The plan's behaviour/tests do not require artifact return; capturing artifacts (e.g. via a writable host bind or `docker cp`) is deferred. Documented in the executor docstring.
 
 ## Out-of-Scope (logged to deferred-items.md)
 - 8 unrelated test failures (`tests/test_approval_security.py`, `tests/test_importability.py::...app`) fail with `ModuleNotFoundError: No module named 'fastapi'` — the API/approval surface (plans 02-01/02-02), not the sandbox. `tests/test_sandbox.py` is fully green and the sandbox module imports cleanly.
