@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Durable record that a proposal was promoted (or rolled back).\n\nPromotion is the ONLY path by which a proposal becomes an active, versioned\ncapability. It is refused unless the proposal passed evaluation AND has an\nAPPROVED approval record. The new version string and rollback pointer make\nthe change reversible and AI-BOM-traceable.",
+  "properties": {
+    "ai_bom_snapshot_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "AI-BOM snapshot reflecting the promotion.",
+      "title": "Ai Bom Snapshot Id"
+    },
+    "approval_record_id": {
+      "description": "The approval that authorized promotion.",
+      "title": "Approval Record Id",
+      "type": "string"
+    },
+    "client_slug": {
+      "title": "Client Slug",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "evaluation_id": {
+      "description": "The passing evaluation that gated promotion.",
+      "title": "Evaluation Id",
+      "type": "string"
+    },
+    "patch_hash": {
+      "description": "Hash of the exact artifact promoted.",
+      "title": "Patch Hash",
+      "type": "string"
+    },
+    "previous_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Version replaced, for rollback.",
+      "title": "Previous Version"
+    },
+    "promoted_by": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Promoted By"
+    },
+    "promoted_version": {
+      "description": "Version assigned to the promoted capability.",
+      "title": "Promoted Version",
+      "type": "string"
+    },
+    "promotion_id": {
+      "title": "Promotion Id",
+      "type": "string"
+    },
+    "proposal_id": {
+      "title": "Proposal Id",
+      "type": "string"
+    },
+    "rollback_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Rollback Reason"
+    },
+    "rolled_back": {
+      "default": false,
+      "title": "Rolled Back",
+      "type": "boolean"
+    },
+    "tenant_id": {
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "proposal_id",
+    "tenant_id",
+    "client_slug",
+    "approval_record_id",
+    "evaluation_id",
+    "promoted_version",
+    "patch_hash"
+  ],
+  "title": "PromotionRecord",
+  "type": "object"
+}

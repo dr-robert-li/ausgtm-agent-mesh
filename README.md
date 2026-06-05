@@ -15,6 +15,11 @@ AI Gateway for model-traffic governance.
   layout implication.
 - **[RUNBOOK.md](./RUNBOOK.md)** — repeatable deployment runbook: provisioning,
   verification, rollback, and audit checks for a client rollout.
+- **[docs/self-improvement-loop.md](./docs/self-improvement-loop.md)** — the
+  self-improvement design decision (Option C: approval-gated, self-improving
+  agents), AG2 compatibility, safety boundaries, promotion/rollback, and AI-BOM
+  implications. **No runtime autonomous self-modification of active instructions
+  in the POC.**
 
 ## Clone-and-run readiness
 
@@ -27,7 +32,7 @@ stubs.
 ```bash
 make install-dev   # editable install + dev extras (pytest, ruff)
 make schemas       # export JSON Schema from the Pydantic contracts -> schemas/contracts/
-make test          # 37 tests: contracts, approval gating, importability, slack verify
+make test          # 49 tests: contracts, approval gating, self-improvement loop, importability, slack verify
 make lint          # ruff
 make smoke         # end-to-end: write-gated Slack task + read-only MCP task, in-process
 make run-api       # uvicorn FastAPI ingress (Slack/MCP/API) on localhost
@@ -42,8 +47,8 @@ the write-approval gate and the read path without GCP.
 
 | Status | Component |
 | :--- | :--- |
-| **Scaffolded & tested** | Pydantic contracts + JSON Schema export, lifecycle state machine, in-memory repository, in-process dispatch, task service, FastAPI ingress (health/tasks/Slack/MCP/approvals), Slack signature verify, MCP server stub, approval gating with payload-hash binding, AG2 orchestration stub, budget tracker, prompt-to-code sandbox skeleton, tool-pack loader. |
-| **Needs development** | Real AG2 multi-agent orchestration, Postgres-backed repository (migrations are provided; the repo layer is in-memory), Pub/Sub wiring at runtime, live LiteLLM + Cloudflare AI Gateway integration, real SaaS tool adapters, Langfuse/OTLP telemetry, hardened sandbox isolation. See [docs/production-readiness-caveats.md](./docs/production-readiness-caveats.md). |
+| **Scaffolded & tested** | Pydantic contracts + JSON Schema export, lifecycle state machine, in-memory repository, in-process dispatch, task service, FastAPI ingress (health/tasks/Slack/MCP/approvals), Slack signature verify, MCP server stub, approval gating with payload-hash binding, AG2 orchestration stub, budget tracker, prompt-to-code sandbox skeleton, tool-pack loader, self-improvement loop (Option C: inert proposals → evaluate → approve → versioned promotion → rollback). |
+| **Needs development** | Real AG2 multi-agent orchestration, Postgres-backed repository (migrations are provided; the repo layer is in-memory), Pub/Sub wiring at runtime, live LiteLLM + Cloudflare AI Gateway integration, real SaaS tool adapters, Langfuse/OTLP telemetry, hardened sandbox isolation, real evaluation harness + runtime promotion wiring for the self-improvement loop. See [docs/production-readiness-caveats.md](./docs/production-readiness-caveats.md). |
 
 The POC is **not production-ready**; do not overclaim. See the caveats doc for the
 full hardening list.
@@ -62,13 +67,13 @@ full hardening list.
 | Path | Purpose |
 | :--- | :--- |
 | `src/agent_mesh/contracts/` | Pydantic v2 task/approval/tool/evidence/AI-BOM/budget models, lifecycle state machine, JSON Schema export. |
-| `src/agent_mesh/services/` | Repository, dispatch, sessions, shared task service, approval gating. |
+| `src/agent_mesh/services/` | Repository, dispatch, sessions, shared task service, approval gating, self-improvement loop (Option C). |
 | `src/agent_mesh/api/` | FastAPI ingress (health, tasks, Slack events + signature verify, MCP server, approvals). |
 | `src/agent_mesh/worker/` | AG2 orchestration stub, task runner with approval pause/resume, budget tracker, worker entrypoint. |
 | `src/agent_mesh/sandbox/` | Prompt-to-code executor skeleton (isolated subprocess, resource limits; production needs hardened isolation). |
 | `src/agent_mesh/tools/` | Tool gateway + per-client tool-pack manifest loader. |
 | `schemas/` | Exported contract JSON Schema (`contracts/`) and sample read/write tool schemas. |
-| `migrations/` | Cloud SQL PostgreSQL + `pgvector` SQL (tasks, sessions, memory/evidence chunks kept separate, tool calls, approvals, AI-BOM, budget, gateway events). |
+| `migrations/` | Cloud SQL PostgreSQL + `pgvector` SQL: `0001_init.sql` (tasks, sessions, memory/evidence chunks kept separate, tool calls, approvals, AI-BOM, budget, gateway events) and `0002_self_improvement.sql` (proposals, evaluations, promotions). |
 | `config/litellm.config.yaml` | LiteLLM routing/cascades/budgets, routed through the Cloudflare AI Gateway wrapper. |
 | `docker/` | Dockerfiles for api / worker / code-executor. |
 | `manifests/deployment.manifest.yaml` | Per-environment deployment manifest (tenant, region, model routes, retention). |

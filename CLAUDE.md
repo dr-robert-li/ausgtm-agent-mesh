@@ -10,8 +10,11 @@
 > [README.md](./README.md) for clone-and-run readiness and the scaffolded-vs-needs-development
 > matrix, [docs/language-decision.md](./docs/language-decision.md) for the
 > Python-first/TS-at-edge rationale, [RUNBOOK.md](./RUNBOOK.md) for local smoke
-> checks and deployment, and [docs/production-readiness-caveats.md](./docs/production-readiness-caveats.md)
-> for the hardening required before production. The POC is not production-ready.
+> checks and deployment, [docs/self-improvement-loop.md](./docs/self-improvement-loop.md)
+> for the approval-gated self-improvement design (Option C) and its AG2 mapping,
+> and [docs/production-readiness-caveats.md](./docs/production-readiness-caveats.md)
+> for the hardening required before production. The POC is not production-ready,
+> and performs no runtime autonomous self-modification of active instructions.
 
 ## 2. Refined Engineering Requirements
 - **Functional Requirements:**

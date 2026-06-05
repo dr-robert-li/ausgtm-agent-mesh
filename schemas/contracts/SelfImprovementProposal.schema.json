@@ -1,0 +1,197 @@
+{
+  "$defs": {
+    "ProposalRiskLevel": {
+      "description": "Risk classification for a self-improvement proposal.\n\nEvery proposal requires approval before promotion; risk level drives how much\nscrutiny and which reviewer tier is required. HIGH and CRITICAL can never\nauto-promote regardless of evaluation outcome.",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "title": "ProposalRiskLevel",
+      "type": "string"
+    },
+    "ProposalStatus": {
+      "description": "Lifecycle of a self-improvement proposal.\n\nDRAFT -> PENDING_EVALUATION -> (EVALUATION_PASSED | EVALUATION_FAILED)\n      -> AWAITING_APPROVAL -> (APPROVED -> PROMOTED | REJECTED)\nA proposal may also be ROLLED_BACK after promotion.",
+      "enum": [
+        "draft",
+        "pending_evaluation",
+        "evaluation_passed",
+        "evaluation_failed",
+        "awaiting_approval",
+        "approved",
+        "rejected",
+        "promoted",
+        "rolled_back"
+      ],
+      "title": "ProposalStatus",
+      "type": "string"
+    },
+    "ProposalType": {
+      "description": "Kinds of self-improvement a reflection agent may propose.\n\nEvery type is a *proposal* only: it is stored, evaluated, and approved before\nany promotion. None of these mutate active system state at runtime in the POC.",
+      "enum": [
+        "prompt_patch",
+        "tool_schema_patch",
+        "routing_rule_patch",
+        "eval_case",
+        "runbook_doc_patch",
+        "budget_policy_patch",
+        "field_mapping_patch",
+        "sandbox_policy_patch"
+      ],
+      "title": "ProposalType",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A proposed self-improvement emitted by a reflection/governance agent at the\nend of a workflow (Option C: self-improving agents with approval-gated\npatches).\n\nA proposal is an inert artifact. It NEVER mutates an active system prompt,\ntool permission, routing rule, schema, or write policy on its own. The change\nonly takes effect through the evaluate -> approve -> promote pipeline, which\nversions it and reflects it in the AI-BOM/audit records.",
+  "properties": {
+    "agent_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Reflection/governance agent role that emitted it.",
+      "title": "Agent Id"
+    },
+    "approval_record_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Set once an approval decision is recorded.",
+      "title": "Approval Record Id"
+    },
+    "client_slug": {
+      "title": "Client Slug",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "evidence_pointers": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence Pointers",
+      "type": "array"
+    },
+    "metadata": {
+      "additionalProperties": true,
+      "title": "Metadata",
+      "type": "object"
+    },
+    "patch_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Patch Hash"
+    },
+    "proposal_id": {
+      "title": "Proposal Id",
+      "type": "string"
+    },
+    "proposal_type": {
+      "$ref": "#/$defs/ProposalType"
+    },
+    "proposed_patch": {
+      "description": "Inert artifact: diff / new content / config fragment.",
+      "title": "Proposed Patch",
+      "type": "string"
+    },
+    "rationale": {
+      "description": "Why the agent believes this change helps.",
+      "title": "Rationale",
+      "type": "string"
+    },
+    "risk_level": {
+      "$ref": "#/$defs/ProposalRiskLevel"
+    },
+    "session_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Session Id"
+    },
+    "status": {
+      "$ref": "#/$defs/ProposalStatus",
+      "default": "draft"
+    },
+    "target_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "What the patch targets, e.g. 'prompts/planner.md', 'route:high'.",
+      "title": "Target Ref"
+    },
+    "task_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Originating task, if any.",
+      "title": "Task Id"
+    },
+    "tenant_id": {
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "title": {
+      "description": "Short human-readable summary of the proposed change.",
+      "title": "Title",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "tenant_id",
+    "client_slug",
+    "proposal_type",
+    "risk_level",
+    "title",
+    "rationale",
+    "proposed_patch"
+  ],
+  "title": "SelfImprovementProposal",
+  "type": "object"
+}

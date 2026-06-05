@@ -16,6 +16,9 @@ from agent_mesh.contracts.enums import TaskState
 from agent_mesh.contracts.lifecycle import assert_transition
 from agent_mesh.contracts.models import (
     ApprovalRecord,
+    EvaluationResult,
+    PromotionRecord,
+    SelfImprovementProposal,
     TaskEvent,
     TaskRecord,
     ToolCall,
@@ -34,6 +37,15 @@ class Repository(Protocol):
     def get_tool_call(self, tool_call_id: str) -> ToolCall | None: ...
     def upsert_approval(self, record: ApprovalRecord) -> ApprovalRecord: ...
     def get_approval(self, approval_record_id: str) -> ApprovalRecord | None: ...
+    def upsert_proposal(
+        self, proposal: SelfImprovementProposal
+    ) -> SelfImprovementProposal: ...
+    def get_proposal(self, proposal_id: str) -> SelfImprovementProposal | None: ...
+    def upsert_evaluation(self, evaluation: EvaluationResult) -> EvaluationResult: ...
+    def get_evaluation(self, evaluation_id: str) -> EvaluationResult | None: ...
+    def list_evaluations(self, proposal_id: str) -> list[EvaluationResult]: ...
+    def upsert_promotion(self, promotion: PromotionRecord) -> PromotionRecord: ...
+    def get_promotion(self, promotion_id: str) -> PromotionRecord | None: ...
 
 
 class InMemoryRepository:
@@ -45,6 +57,9 @@ class InMemoryRepository:
         self._events: list[TaskEvent] = []
         self._tool_calls: dict[str, ToolCall] = {}
         self._approvals: dict[str, ApprovalRecord] = {}
+        self._proposals: dict[str, SelfImprovementProposal] = {}
+        self._evaluations: dict[str, EvaluationResult] = {}
+        self._promotions: dict[str, PromotionRecord] = {}
 
     def create_task(self, task: TaskRecord) -> TaskRecord:
         with self._lock:
@@ -100,6 +115,39 @@ class InMemoryRepository:
     def get_approval(self, approval_record_id: str) -> ApprovalRecord | None:
         with self._lock:
             return self._approvals.get(approval_record_id)
+
+    def upsert_proposal(
+        self, proposal: SelfImprovementProposal
+    ) -> SelfImprovementProposal:
+        with self._lock:
+            self._proposals[proposal.proposal_id] = proposal
+            return proposal
+
+    def get_proposal(self, proposal_id: str) -> SelfImprovementProposal | None:
+        with self._lock:
+            return self._proposals.get(proposal_id)
+
+    def upsert_evaluation(self, evaluation: EvaluationResult) -> EvaluationResult:
+        with self._lock:
+            self._evaluations[evaluation.evaluation_id] = evaluation
+            return evaluation
+
+    def get_evaluation(self, evaluation_id: str) -> EvaluationResult | None:
+        with self._lock:
+            return self._evaluations.get(evaluation_id)
+
+    def list_evaluations(self, proposal_id: str) -> list[EvaluationResult]:
+        with self._lock:
+            return [e for e in self._evaluations.values() if e.proposal_id == proposal_id]
+
+    def upsert_promotion(self, promotion: PromotionRecord) -> PromotionRecord:
+        with self._lock:
+            self._promotions[promotion.promotion_id] = promotion
+            return promotion
+
+    def get_promotion(self, promotion_id: str) -> PromotionRecord | None:
+        with self._lock:
+            return self._promotions.get(promotion_id)
 
 
 _SINGLETON: InMemoryRepository | None = None

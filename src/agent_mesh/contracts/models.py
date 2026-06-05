@@ -22,6 +22,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from agent_mesh.contracts.enums import (
     ApprovalDecision,
     Entrypoint,
+    ProposalRiskLevel,
+    ProposalStatus,
+    ProposalType,
     TaskState,
     ToolCallStatus,
     ToolCategory,
@@ -247,6 +250,102 @@ class GatewayEvent(_Base):
     created_at: datetime = Field(default_factory=_utcnow)
 
 
+class SelfImprovementProposal(_Base):
+    """A proposed self-improvement emitted by a reflection/governance agent at the
+    end of a workflow (Option C: self-improving agents with approval-gated
+    patches).
+
+    A proposal is an inert artifact. It NEVER mutates an active system prompt,
+    tool permission, routing rule, schema, or write policy on its own. The change
+    only takes effect through the evaluate -> approve -> promote pipeline, which
+    versions it and reflects it in the AI-BOM/audit records.
+    """
+
+    proposal_id: str = Field(default_factory=_new_id)
+    tenant_id: str
+    client_slug: str
+    # Provenance: which run produced this proposal.
+    task_id: str | None = Field(default=None, description="Originating task, if any.")
+    session_id: str | None = None
+    agent_id: str | None = Field(
+        default=None, description="Reflection/governance agent role that emitted it."
+    )
+    proposal_type: ProposalType
+    risk_level: ProposalRiskLevel
+    status: ProposalStatus = ProposalStatus.DRAFT
+    title: str = Field(description="Short human-readable summary of the proposed change.")
+    rationale: str = Field(description="Why the agent believes this change helps.")
+    # The proposed change as an inert artifact (e.g. unified diff, new prompt
+    # text, JSON schema fragment, eval case). Not applied until promoted.
+    proposed_patch: str = Field(description="Inert artifact: diff / new content / config fragment.")
+    target_ref: str | None = Field(
+        default=None,
+        description="What the patch targets, e.g. 'prompts/planner.md', 'route:high'.",
+    )
+    evidence_pointers: list[str] = Field(default_factory=list)
+    # Bound at promotion time so an approval cannot be replayed against a mutated
+    # artifact (mirrors the ApprovalRecord payload-hash binding).
+    patch_hash: str | None = None
+    approval_record_id: str | None = Field(
+        default=None, description="Set once an approval decision is recorded."
+    )
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+
+class EvaluationResult(_Base):
+    """Outcome of evaluating a self-improvement proposal.
+
+    The POC runs deterministic checks (and may mark ``pending`` when a real eval
+    harness is required). A proposal must have ``passed=True`` before it is
+    eligible for promotion."""
+
+    evaluation_id: str = Field(default_factory=_new_id)
+    proposal_id: str
+    tenant_id: str
+    passed: bool = False
+    pending: bool = Field(
+        default=False, description="True when evaluation could not run deterministically yet."
+    )
+    checks: list[dict[str, Any]] = Field(
+        default_factory=list, description="Per-check name/result/detail records."
+    )
+    evaluator: str = Field(
+        default="deterministic-stub", description="Which evaluator produced this result."
+    )
+    summary: str | None = None
+    created_at: datetime = Field(default_factory=_utcnow)
+
+
+class PromotionRecord(_Base):
+    """Durable record that a proposal was promoted (or rolled back).
+
+    Promotion is the ONLY path by which a proposal becomes an active, versioned
+    capability. It is refused unless the proposal passed evaluation AND has an
+    APPROVED approval record. The new version string and rollback pointer make
+    the change reversible and AI-BOM-traceable."""
+
+    promotion_id: str = Field(default_factory=_new_id)
+    proposal_id: str
+    tenant_id: str
+    client_slug: str
+    approval_record_id: str = Field(description="The approval that authorized promotion.")
+    evaluation_id: str = Field(description="The passing evaluation that gated promotion.")
+    promoted_version: str = Field(description="Version assigned to the promoted capability.")
+    previous_version: str | None = Field(
+        default=None, description="Version replaced, for rollback."
+    )
+    patch_hash: str = Field(description="Hash of the exact artifact promoted.")
+    ai_bom_snapshot_id: str | None = Field(
+        default=None, description="AI-BOM snapshot reflecting the promotion."
+    )
+    rolled_back: bool = False
+    rollback_reason: str | None = None
+    promoted_by: str | None = None
+    created_at: datetime = Field(default_factory=_utcnow)
+
+
 # Registry used by the JSON Schema exporter and by tests.
 CONTRACT_MODELS: dict[str, type[BaseModel]] = {
     "RequesterIdentity": RequesterIdentity,
@@ -261,4 +360,7 @@ CONTRACT_MODELS: dict[str, type[BaseModel]] = {
     "AIBOMSnapshot": AIBOMSnapshot,
     "BudgetEvent": BudgetEvent,
     "GatewayEvent": GatewayEvent,
+    "SelfImprovementProposal": SelfImprovementProposal,
+    "EvaluationResult": EvaluationResult,
+    "PromotionRecord": PromotionRecord,
 }

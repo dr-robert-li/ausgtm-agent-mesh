@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Outcome of evaluating a self-improvement proposal.\n\nThe POC runs deterministic checks (and may mark ``pending`` when a real eval\nharness is required). A proposal must have ``passed=True`` before it is\neligible for promotion.",
+  "properties": {
+    "checks": {
+      "description": "Per-check name/result/detail records.",
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Checks",
+      "type": "array"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "evaluation_id": {
+      "title": "Evaluation Id",
+      "type": "string"
+    },
+    "evaluator": {
+      "default": "deterministic-stub",
+      "description": "Which evaluator produced this result.",
+      "title": "Evaluator",
+      "type": "string"
+    },
+    "passed": {
+      "default": false,
+      "title": "Passed",
+      "type": "boolean"
+    },
+    "pending": {
+      "default": false,
+      "description": "True when evaluation could not run deterministically yet.",
+      "title": "Pending",
+      "type": "boolean"
+    },
+    "proposal_id": {
+      "title": "Proposal Id",
+      "type": "string"
+    },
+    "summary": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Summary"
+    },
+    "tenant_id": {
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "proposal_id",
+    "tenant_id"
+  ],
+  "title": "EvaluationResult",
+  "type": "object"
+}

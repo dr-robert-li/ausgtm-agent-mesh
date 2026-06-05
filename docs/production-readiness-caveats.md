@@ -143,6 +143,25 @@ Production hardening should not collapse these responsibilities into one layer.
   alerting, error budgets, and on-call coverage. Langfuse/OpenTelemetry telemetry
   feeds these; alerting thresholds and escalation paths must be configured.
 
+## 15. Self-improvement loop hardening (Option C)
+
+The scaffolded self-improvement loop ([self-improvement-loop.md](./self-improvement-loop.md))
+is intentionally inert in the POC. Before it carries weight in production:
+
+- A **real evaluation harness** must replace the deterministic stub in
+  `evaluate_proposal` (eval sets, regression suites, red-team checks), so a passing
+  evaluation is meaningful — not just "patch is non-empty".
+- **Promotion → runtime** must be wired through versioned config with a controlled
+  reload/rollout, never a hot in-place rewrite of live prompts/tools/routes. The POC
+  records a versioned `PromotionRecord` but does not apply it to the running system.
+- **AI-BOM snapshot generation on promotion** must be implemented so every promoted
+  change is reflected in the approved capability bundle (the `ai_bom_snapshot_id`
+  link field exists; the generator is future work).
+- The **reflection/governance agent** must be wired into the live AG2 group chat so
+  proposals are emitted from real run telemetry via the `reflect_on_task` seam.
+- Retain the **hard boundary**: no runtime autonomous self-modification of active
+  instructions; high/critical proposals always require human approval.
+
 ## Governance Alignment Crosswalk
 
 The production hardening items above are not just engineering tasks — each one
@@ -173,6 +192,7 @@ to the assessment's intake, risk-register, and operational-governance workflows.
 | Data retention / deletion policy (§12) | Privacy, records management, audit retention |
 | Multi-region / HA decision (§13) | Reliability and business continuity proportional to criticality |
 | Operational SLOs and monitoring (§14) | Success-metrics dashboard and operational monitoring |
+| Self-improvement loop hardening (§15) | Change governance, human-in-the-loop approval, versioning/rollback, evaluation evidence, AI-BOM currency |
 
 Mappings are indicative alignment to framework themes; consult the
 [`org-ai-maturity-assessment`](https://github.com/dr-robert-li/org-ai-maturity-assessment/tree/main)

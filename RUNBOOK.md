@@ -46,13 +46,13 @@ approval gate are healthy before provisioning anything.
 
 ```bash
 make install-dev   # editable install + dev extras
-make schemas       # export 12 contract JSON Schemas -> schemas/contracts/
+make schemas       # export 15 contract JSON Schemas -> schemas/contracts/
 make lint          # ruff
-make test          # 37 tests (contracts, approval gating, importability, slack verify)
+make test          # 49 tests (contracts, approval gating, self-improvement loop, importability, slack verify)
 make smoke         # full ingress -> service -> dispatch -> worker -> approval -> resume loop
 ```
 
-Expected: `make test` reports `37 passed`, and `make smoke` prints `SMOKE OK`
+Expected: `make test` reports `49 passed`, and `make smoke` prints `SMOKE OK`
 after exercising a write-gated Slack task (pauses for approval, approved,
 completed) and a read-only MCP task (completes without approval).
 
