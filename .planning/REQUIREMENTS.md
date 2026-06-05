@@ -23,12 +23,12 @@ platform end-to-end and validate deploy-readiness. Each maps to a roadmap phase.
 ### Orchestration
 
 - [x] **ORCH-01**: A real LangGraph supervisor graph delegates to a bounded Deep Agents roster (planner, researcher/tool-router, code-writer, reviewer); roster is declared and its size logged at startup
-- [ ] **ORCH-02**: The LangGraph Postgres checkpointer is wired; a >60-minute run resumes from its durable checkpoint after a process restart
-- [ ] **ORCH-03**: A write approval is a LangGraph interrupt that pauses the graph and resumes from the checkpoint when the decision arrives
+- [x] **ORCH-02**: The LangGraph Postgres checkpointer is wired; a >60-minute run resumes from its durable checkpoint after a process restart
+- [x] **ORCH-03**: A write approval is a LangGraph interrupt that pauses the graph and resumes from the checkpoint when the decision arrives
 
 ### Sandbox
 
-- [ ] **SBX-01**: The prompt-to-code sandbox enforces memory limits without failing open and executes via a hardened container path (Docker/Cloud Run Job)
+- [x] **SBX-01**: The prompt-to-code sandbox enforces memory limits without failing open and executes via a hardened container path (Docker/Cloud Run Job)
 
 ### Model Gateway
 
@@ -100,9 +100,9 @@ Explicitly excluded. Documented to prevent scope creep.
 | SEC-01 | Phase 1 | Complete |
 | SEC-02 | Phase 1 | Complete |
 | ORCH-01 | Phase 2 | Complete |
-| ORCH-02 | Phase 2 | Pending |
-| ORCH-03 | Phase 2 | Pending |
-| SBX-01 | Phase 2 | Pending |
+| ORCH-02 | Phase 2 | Complete |
+| ORCH-03 | Phase 2 | Complete |
+| SBX-01 | Phase 2 | Complete |
 | GW-01 | Phase 3 | Pending |
 | GW-02 | Phase 3 | Pending |
 | GW-03 | Phase 3 | Pending |

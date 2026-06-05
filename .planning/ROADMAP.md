@@ -19,7 +19,7 @@ GCP-ready — without provisioning any live cloud resources.
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
 - [x] **Phase 1: Durable Core & Approval Security** - Postgres-backed durable state, tenant-scoped reads, runtime dispatch, and an authenticated/replay-proof approval gate _(completed 2026-06-05)_
-- [ ] **Phase 2: Real Orchestration Engine** - Real LangGraph supervisor + Deep Agents roster, durable checkpointer, interrupt-based HITL resume, hardened sandbox
+- [x] **Phase 2: Real Orchestration Engine** - Real LangGraph supervisor + Deep Agents roster, durable checkpointer, interrupt-based HITL resume, hardened sandbox
 - [ ] **Phase 3: Model Gateway & Observability** - Live LiteLLM gateway with budgets/cascades, Cloudflare AI Gateway upstream, Langfuse telemetry + prompt/eval management
 - [ ] **Phase 4: Tools & Self-Improvement** - ≥1 real SaaS tool adapter with schema validation, real eval harness, AI-BOM-on-promotion with controlled versioned wiring
 - [ ] **Phase 5: E2E Validation & Deploy-Readiness** - Full end-to-end proofs + failure modes + idempotent deploy-script validation
