@@ -32,9 +32,56 @@ approval ledger, and the tests are framework-agnostic.
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass, field
 
 from agent_mesh.contracts.models import TaskRecord
+
+# Test-injectable checkpointer hook. When set (by a test), ``_select_checkpointer``
+# returns it verbatim instead of building a PostgresSaver from DATABASE_URL. This is the
+# documented seam the SqliteSaver-file restart-sim tests use; production never sets it.
+_CHECKPOINTER_OVERRIDE = None
+
+
+def set_checkpointer_override(checkpointer) -> None:
+    """Inject a checkpointer (e.g. a file-backed SqliteSaver) for tests.
+
+    Pass ``None`` to clear. NEVER a purely in-memory saver — it loses exactly what a
+    restart loses, which is the property ORCH-02 must prove."""
+    global _CHECKPOINTER_OVERRIDE
+    _CHECKPOINTER_OVERRIDE = checkpointer
+
+
+def _select_checkpointer():
+    """Pick the durable LangGraph checkpointer (DUR-02 / ORCH-02).
+
+    * A test-injected override (file-backed SqliteSaver) wins, mirroring
+      ``RepositorySQL``'s test-DSN seam.
+    * Otherwise, when ``DATABASE_URL`` is set (prod), build a ``PostgresSaver`` from it,
+      call ``.setup()`` (idempotent; library-owned sibling schema, NOT a hand-written app
+      migration), and return it.
+    * Otherwise return ``None``: the graph compiles without a durable saver. The worker's
+      AWAITING_APPROVAL stash is the durability boundary on that path; the interrupt-based
+      durable resume requires a checkpointer and is exercised under the test seam / prod.
+
+    A purely in-memory saver is intentionally never used anywhere (it would defeat the
+    restart proof).
+    """
+    if _CHECKPOINTER_OVERRIDE is not None:
+        return _CHECKPOINTER_OVERRIDE
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        return None
+    # Lazy import mirrors RepositorySQL.__init__: the optional Postgres backend is only
+    # imported when a real DSN is present, so the in-memory POC stays importable.
+    from langgraph.checkpoint.postgres import PostgresSaver
+
+    saver = PostgresSaver.from_conn_string(database_url)
+    # ``from_conn_string`` returns a context manager; enter it so the connection stays
+    # open for the lifetime of the process worker. ``.setup()`` is idempotent.
+    saver = saver.__enter__()
+    saver.setup()
+    return saver
 
 
 @dataclass
@@ -103,15 +150,28 @@ def _run_stub(task: TaskRecord) -> OrchestrationResult:
     )
 
 
+def _graph_config(task: TaskRecord) -> dict:
+    """LangGraph invoke config keyed on the tenant-scoped task id (DUR-02).
+
+    ``thread_id`` is ``task.task_id`` — the task was loaded tenant-scoped by the worker,
+    so this is never a bare/arbitrary thread_id. The checkpointer keys on ``thread_id``
+    only, so binding it to the task id is what keeps a checkpoint from being resumed
+    cross-task (T-02-02-03).
+    """
+    return {"configurable": {"thread_id": task.task_id}}
+
+
 def _run_langgraph(task: TaskRecord) -> OrchestrationResult:
     """Run the task through the real LangGraph supervisor ``StateGraph``.
 
-    Builds the four-node graph (planner -> researcher/tool-router -> code-writer ->
-    reviewer) from :mod:`agent_mesh.worker.graph`, compiles it WITHOUT a durable-state
-    saver (a saver is valid to omit; the Postgres saver and the interrupt-based write
-    gate arrive in 02-02), and invokes it with the task prompt. The terminal state is
-    mapped into :class:`OrchestrationResult`. Proposed writes are surfaced, never
-    executed — the worker gates them through the approval ledger.
+    Builds the graph (planner -> researcher/tool-router -> code-writer -> reviewer ->
+    write_gate) from :mod:`agent_mesh.worker.graph`, compiles it WITH the durable
+    checkpointer selected by :func:`_select_checkpointer` (PostgresSaver in prod,
+    file-backed SqliteSaver under the test seam), and invokes it on the task's
+    ``thread_id``. If the run pauses at the ``write_gate`` interrupt, the resulting
+    state carries ``__interrupt__``; its value's ``proposed_writes`` are surfaced into
+    :class:`OrchestrationResult.proposed_writes` so the worker gates them through the
+    approval ledger. Proposed writes are NEVER executed here.
 
     The roster startup-size log fires once here so ORCH-01's "log roster size at
     startup" holds on the real path; it is best-effort and never blocks a run.
@@ -128,13 +188,67 @@ def _run_langgraph(task: TaskRecord) -> OrchestrationResult:
     except Exception:  # pragma: no cover - defensive; roster_size is pure
         pass
 
-    compiled = build_graph().compile()  # no durable-state saver in this plan (02-02)
-    final_state = compiled.invoke({"prompt": task.prompt})
+    compiled = build_graph().compile(checkpointer=_select_checkpointer())
+    final_state = compiled.invoke({"prompt": task.prompt}, _graph_config(task))
+
+    # When the write_gate interrupt fired, the run is paused: surface the proposed writes
+    # so the worker opens the signed-token approval and parks the task in AWAITING_APPROVAL.
+    if "__interrupt__" in final_state:
+        proposed_writes = final_state["__interrupt__"][0].value.get("proposed_writes", [])
+    else:
+        proposed_writes = final_state.get("proposed_writes", [])
 
     return OrchestrationResult(
         summary=final_state.get("review")
         or f"[mesh] completed: {task.prompt[:120]}",
-        proposed_writes=final_state.get("proposed_writes", []),
+        proposed_writes=proposed_writes,
+        evidence=[],
+        # trace_id stays unset — Langfuse correlation is Phase 3.
+    )
+
+
+def resume_mesh(task: TaskRecord, decision) -> OrchestrationResult:
+    """Resume a paused mesh run from its durable checkpoint after approval (ORCH-03).
+
+    Mirrors the :func:`run_mesh` stub-fallback gate EXACTLY: it branches on
+    :func:`langgraph_available`, never on a blanket ``try/except ImportError``. On the
+    stub path the run never paused via a graph ``interrupt()`` (it paused via the
+    worker's AWAITING_APPROVAL stash), so there is nothing to graph-resume — return a
+    terminal result WITHOUT importing ``langgraph.types.Command`` or touching a
+    checkpointer, keeping the always-on resume / SEC suite green.
+
+    On the stack path, dispatch ``Command(resume=decision)`` on the SAME ``thread_id``;
+    the ``write_gate`` interrupt returns ``decision`` and the graph runs to terminal.
+
+    SECURITY (RF-1 / T-02-02-01): ``decision`` is an ALREADY-VERIFIED boolean only. The
+    write is NOT executed here and NOT executed in any graph node — it executes solely in
+    ``runner._resume_after_approval`` under ``approvals.is_approved()``. ``resume`` MUST
+    NOT carry, and this function MUST NOT pass, an ``approver_id``: the interrupt is the
+    pause mechanism, the signed-token ledger is the decision authority.
+
+    Returns a TERMINAL :class:`OrchestrationResult` (``proposed_writes=[]``) so the
+    worker's completion logic holds.
+    """
+    if not langgraph_available():
+        # Stub path: nothing paused via a graph interrupt; terminal no-op.
+        return OrchestrationResult(
+            summary=f"[stub] resumed after approval: {task.prompt[:120]}",
+            proposed_writes=[],
+            evidence=[],
+        )
+
+    from langgraph.types import Command
+
+    from agent_mesh.worker.graph import build_graph
+
+    compiled = build_graph().compile(checkpointer=_select_checkpointer())
+    # ``decision`` is the verified boolean only — never an approver_id (SEC-01).
+    final_state = compiled.invoke(Command(resume=decision), _graph_config(task))
+
+    return OrchestrationResult(
+        summary=final_state.get("review")
+        or f"[mesh] resumed and completed: {task.prompt[:120]}",
+        proposed_writes=[],
         evidence=[],
         # trace_id stays unset — Langfuse correlation is Phase 3.
     )
