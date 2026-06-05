@@ -13,8 +13,6 @@ This file differs from the rest of the suite in one way: it SETS
 
 from __future__ import annotations
 
-import time
-
 import pytest
 
 from agent_mesh.contracts.enums import ApprovalDecision, ToolCallStatus
