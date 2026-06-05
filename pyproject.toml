@@ -28,10 +28,15 @@ runtime = [
 # Default REQUIRED agent stack for this variant: LangChain + LangGraph +
 # Deep Agents. The orchestration adapter degrades to a deterministic stub when
 # these are not installed so the POC stays importable and testable.
+# Pins verified current (02-RESEARCH Standard Stack): langchain 1.x, langgraph 1.x,
+# both checkpoint backends (consumed by 02-02 — pinned now so 02-02 never edits
+# pyproject), and deepagents 0.6.8. LangSmith is NEVER a dependency (CLAUDE.md §1).
 agents = [
-    "langchain>=0.3",
-    "langgraph>=0.2",
-    "deepagents>=0.0.2",
+    "langchain>=1.0",
+    "langgraph>=1.0,<2",
+    "langgraph-checkpoint-postgres~=3.1",
+    "langgraph-checkpoint-sqlite~=3.1",
+    "deepagents~=0.6.8",
 ]
 # GUI admin / operator app.
 gui = [

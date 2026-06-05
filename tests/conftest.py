@@ -79,6 +79,21 @@ def pg_dsn() -> str:
 
 
 @pytest.fixture
+def agents_stack() -> None:
+    """Skip cleanly unless the optional ``.[agents]`` stack is importable.
+
+    Mirrors the ``pg_dsn`` skip-when-unset shape: real-graph orchestration tests
+    require LangGraph + Deep Agents, which are optional. We REUSE the load-bearing
+    import gates already defined on the orchestrator rather than re-deriving an
+    import probe here, so the skip decision and the runtime branch can never drift.
+    """
+    from agent_mesh.worker import orchestrator
+
+    if not (orchestrator.langgraph_available() and orchestrator.deep_agents_available()):
+        pytest.skip("agents extra not installed; real-graph tests require .[agents]")
+
+
+@pytest.fixture
 def sql_repo(pg_dsn: str):
     """A RepositorySQL bound to the test DB, closed after the test."""
     from agent_mesh.services.repository import RepositorySQL
