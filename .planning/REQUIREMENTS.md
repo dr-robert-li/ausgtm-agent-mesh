@@ -22,7 +22,7 @@ platform end-to-end and validate deploy-readiness. Each maps to a roadmap phase.
 
 ### Orchestration
 
-- [ ] **ORCH-01**: A real LangGraph supervisor graph delegates to a bounded Deep Agents roster (planner, researcher/tool-router, code-writer, reviewer); roster is declared and its size logged at startup
+- [x] **ORCH-01**: A real LangGraph supervisor graph delegates to a bounded Deep Agents roster (planner, researcher/tool-router, code-writer, reviewer); roster is declared and its size logged at startup
 - [ ] **ORCH-02**: The LangGraph Postgres checkpointer is wired; a >60-minute run resumes from its durable checkpoint after a process restart
 - [ ] **ORCH-03**: A write approval is a LangGraph interrupt that pauses the graph and resumes from the checkpoint when the decision arrives
 
@@ -99,7 +99,7 @@ Explicitly excluded. Documented to prevent scope creep.
 | DUR-03 | Phase 1 | Complete |
 | SEC-01 | Phase 1 | Complete |
 | SEC-02 | Phase 1 | Complete |
-| ORCH-01 | Phase 2 | Pending |
+| ORCH-01 | Phase 2 | Complete |
 | ORCH-02 | Phase 2 | Pending |
 | ORCH-03 | Phase 2 | Pending |
 | SBX-01 | Phase 2 | Pending |

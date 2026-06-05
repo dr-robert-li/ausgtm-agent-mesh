@@ -97,7 +97,7 @@ _Note: Tasks 2 and 3 are TDD plan tasks. The roster/graph modules (Task 2) imple
 
 **1. [Rule 3 - Blocking] Selected the project `.venv` interpreter for verification**
 - **Found during:** Execution start (baseline test run)
-- **Issue:** The Makefile's `PY ?= python` resolves to system Python 3.14, which lacks `fastapi` (a declared core dependency) AND the agents stack — 8 pre-existing API-import failures and all agents-gated tests would only ever skip there, so the plan's "real-graph test" could never actually run. The project's `.venv` (Python 3.14 with fastapi + langgraph 1.2.4 + deepagents 0.6.8 installed) is the only interpreter with the full set.
+- **Issue:** With no venv activated, the Makefile's `PY ?= python` resolves to the *system* Python 3.14, which lacks `fastapi` (a declared core dependency) AND the agents stack — 8 pre-existing API-import failures and all agents-gated tests would only skip there. The project's `.venv` (Python 3.14 with fastapi + langgraph 1.2.4 + deepagents 0.6.8 installed) is the interpreter with the full set; the normal workflow is `source .venv/bin/activate && make test`.
 - **Fix:** Ran all verification under `/Users/robertli/Desktop/consulting/ausgtm-agent-mesh/.venv/bin/python` with `PYTHONPATH=src`. No source change required; the missing `fastapi` is a pre-existing environment gap (out of this plan's scope), not a code defect.
 - **Verification:** Under `.venv`: full suite 81 passed / 5 skipped (SQL-DB-gated only), agents-gated orchestration tests RAN and passed, `make smoke` → SMOKE OK, ruff clean. Under system python: 2 always-on pass, 2 agents-gated skip cleanly.
 - **Committed in:** N/A (no source change; verification-environment selection only)
@@ -123,7 +123,8 @@ No new threat surface introduced beyond the plan's register.
 ## Next Phase Readiness
 - **02-02** can add the Postgres checkpointer and the interrupt-based write-gate: `build_graph()` returns an uncompiled `StateGraph` ready to `.compile(checkpointer=...)`, and both checkpoint backends are already pinned. No `pyproject` edit needed.
 - **Phase 3** can wire real models/Langfuse: `build_roster(model=...)` is the seam; `trace_id` is intentionally left unset for Langfuse correlation.
-- **Note for the orchestrator/verifier:** verification must use the project `.venv` interpreter (system `python` lacks `fastapi` and the agents stack). `make test` as configured (`PY ?= python`) will not exit 0 in this environment due to the pre-existing `fastapi` gap.
+- **`register_harness_profile` is a session-global side effect.** `build_roster()` registers a harness profile that disables the general-purpose subagent for its model id, and that registration persists for the rest of the process/test session. Benign here (no other test builds a deepagent for that model), but 02-02 / Phase-3 authors building deepagents for the same model id will inherit the disable — worth keeping in mind.
+- **Verify under the project venv:** verification was run with the project `.venv` interpreter (`source .venv/bin/activate && make test`, or `.venv/bin/python -m pytest`). The system Python on PATH has neither `fastapi` (a pre-existing gap, confirmed in the pre-change baseline) nor the agents stack, so the agents-gated tests only run under the venv. The verifier should run under the activated venv as usual.
 
 ## Self-Check: PASSED
 - All created/modified files present: graph.py, roster.py, test_orchestration_graph.py, orchestrator.py, pyproject.toml, conftest.py, 02-01-SUMMARY.md.
