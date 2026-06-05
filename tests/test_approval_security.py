@@ -295,3 +295,45 @@ def test_mcp_submit_approval_requires_token(repo):
     )
     assert ok.get("approval_record_id") == record.approval_record_id
     assert repo.get_approval(record.approval_record_id).approver_id == "slack:U1"
+
+
+# --------------------------------------------------------------------------
+# CR-01 regression: the worker stashes live HMAC tokens on task metadata, but
+# task-read endpoints are unauthenticated. A raw model_dump leaked the token to
+# any caller who knew a task id, who could then self-approve a gated write. Both
+# readers (HTTP GET /v1/tasks/{id} and MCP get_task) MUST funnel through
+# api.serialization.public_task_dict, which strips the bearer secret.
+# --------------------------------------------------------------------------
+def test_http_task_read_does_not_leak_approval_token(repo):
+    svc, _worker, task, record, token = _pause_on_write(repo)
+    client, app_module = _client()
+    app_module._service = svc  # bind the test repo/service into the app
+
+    resp = client.get(f"/v1/tasks/{task.task_id}")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    # The bearer token must be absent from the public response...
+    metadata = body.get("metadata") or {}
+    assert "approval_tokens" not in metadata
+    assert token not in resp.text  # belt-and-suspenders: not anywhere in payload
+    # ...while the rest of the record is still served.
+    assert body["task_id"] == task.task_id
+    # ...and the token is NOT deleted from the durable store (redaction is at the
+    # serialization boundary, so the deferred approval-delivery seam still works).
+    assert repo.get_task(task.task_id).metadata["approval_tokens"][
+        record.approval_record_id
+    ] == token
+
+
+def test_public_task_dict_strips_token_without_mutating_record(repo):
+    # Unit-level guard on the shared chokepoint both readers (HTTP + MCP) call.
+    from agent_mesh.api.serialization import public_task_dict
+
+    _svc, _worker, task, record, token = _pause_on_write(repo)
+    stored = repo.get_task(task.task_id)
+
+    dumped = public_task_dict(stored)
+    assert "approval_tokens" not in (dumped.get("metadata") or {})
+    # The source record's metadata is untouched (defensive copy, no side effect).
+    assert stored.metadata["approval_tokens"][record.approval_record_id] == token

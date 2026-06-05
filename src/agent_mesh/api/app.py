@@ -18,6 +18,7 @@ import json
 
 from fastapi import FastAPI, HTTPException, Request, Response
 
+from agent_mesh.api.serialization import public_task_dict
 from agent_mesh.api.slack_verify import verify_slack_signature
 from agent_mesh.contracts.enums import ApprovalDecision
 from agent_mesh.contracts.models import TaskRequest
@@ -47,7 +48,7 @@ def get_task(task_id: str) -> dict[str, object]:
     task = _service.get_task(task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="task not found")
-    return task.model_dump(mode="json")
+    return public_task_dict(task)
 
 
 @app.post("/slack/events")

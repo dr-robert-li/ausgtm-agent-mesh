@@ -93,9 +93,9 @@ class Worker:
             current = self._repo.get_task(task_id)
             assert current is not None
             metadata = dict(current.metadata)
-            tokens = dict(metadata.get("approval_tokens", {}))
+            tokens = dict(metadata.get(approvals.APPROVAL_TOKENS_METADATA_KEY, {}))
             tokens.update(issued_tokens)
-            metadata["approval_tokens"] = tokens
+            metadata[approvals.APPROVAL_TOKENS_METADATA_KEY] = tokens
             self._repo.create_task(current.model_copy(update={"metadata": metadata}))  # upsert
 
         self._repo.transition_task(

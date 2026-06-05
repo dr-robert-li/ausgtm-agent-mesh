@@ -22,6 +22,15 @@ from agent_mesh.contracts.models import (
 )
 from agent_mesh.services.repository import Repository
 
+# Task-metadata key under which the worker durably stashes issued HMAC approval
+# tokens (keyed by approval_record_id) pending a real Slack/MCP postback channel.
+# It is a bearer secret: anyone holding the token can self-approve a gated write,
+# so it MUST be redacted from every task-read serialization (see
+# api.serialization.public_task_dict). Defined here so the writer (worker.runner)
+# and the readers (api.app, api.mcp_server) share one source of truth — adding a
+# new read path must reuse the redactor, not re-derive this literal.
+APPROVAL_TOKENS_METADATA_KEY = "approval_tokens"
+
 
 def requires_approval(category: ToolCategory | str) -> bool:
     """Write-class tools always require approval; reads never do."""

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from agent_mesh.api.serialization import public_task_dict
 from agent_mesh.services.task_service import TaskService, request_from_mcp
 from agent_mesh.settings import get_settings
 
@@ -91,7 +92,7 @@ def build_mcp_server(service: TaskService | None = None):  # pragma: no cover - 
         task = service.get_task(task_id)
         if task is None:
             return {"error": "not found", "task_id": task_id}
-        return task.model_dump(mode="json")
+        return public_task_dict(task)
 
     @server.tool()
     def submit_approval(
