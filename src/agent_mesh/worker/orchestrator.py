@@ -31,6 +31,7 @@ approval ledger, and the tests are framework-agnostic.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 
 from agent_mesh.contracts.models import TaskRecord
@@ -102,21 +103,38 @@ def _run_stub(task: TaskRecord) -> OrchestrationResult:
     )
 
 
-def _run_langgraph(task: TaskRecord) -> OrchestrationResult:  # pragma: no cover - needs stack
-    """Placeholder for the real LangGraph + Deep Agents supervisor run.
+def _run_langgraph(task: TaskRecord) -> OrchestrationResult:
+    """Run the task through the real LangGraph supervisor ``StateGraph``.
 
-    Intentionally minimal: wiring real agents requires model credentials and the
-    model gateway base URL, which are out of scope for the importable POC. A real
-    implementation would:
+    Builds the four-node graph (planner -> researcher/tool-router -> code-writer ->
+    reviewer) from :mod:`agent_mesh.worker.graph`, compiles it WITHOUT a durable-state
+    saver (a saver is valid to omit; the Postgres saver and the interrupt-based write
+    gate arrive in 02-02), and invokes it with the task prompt. The terminal state is
+    mapped into :class:`OrchestrationResult`. Proposed writes are surfaced, never
+    executed — the worker gates them through the approval ledger.
 
-      1. Build a model via ``agent_mesh.worker.model_gateway.get_chat_model``.
-      2. Construct a Deep Agents supervisor with a bounded subagent roster
-         (planner, researcher/tool-router, code-writer, reviewer) and the
-         Tool Gateway tools.
-      3. Compile a LangGraph with a checkpointer (Postgres in prod) and run it
-         with the Langfuse CallbackHandler attached.
-      4. Surface proposed writes (never auto-executed) back to the worker.
+    The roster startup-size log fires once here so ORCH-01's "log roster size at
+    startup" holds on the real path; it is best-effort and never blocks a run.
+    """
+    from agent_mesh.worker.graph import build_graph
 
-    The shape of the return value is what the worker consumes regardless of
-    backend."""
-    return _run_stub(task)
+    # Emit the bounded-roster startup-size log once on the real path (ORCH-01). Guarded
+    # because the Deep Agents harness is only needed for live delegation (Phase 3); a
+    # failure to build it must not break topology execution.
+    try:
+        from agent_mesh.worker.roster import roster_size
+
+        logging.getLogger(__name__).info("roster size %d at startup", roster_size())
+    except Exception:  # pragma: no cover - defensive; roster_size is pure
+        pass
+
+    compiled = build_graph().compile()  # no durable-state saver in this plan (02-02)
+    final_state = compiled.invoke({"prompt": task.prompt})
+
+    return OrchestrationResult(
+        summary=final_state.get("review")
+        or f"[mesh] completed: {task.prompt[:120]}",
+        proposed_writes=final_state.get("proposed_writes", []),
+        evidence=[],
+        # trace_id stays unset — Langfuse correlation is Phase 3.
+    )
