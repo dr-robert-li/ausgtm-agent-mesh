@@ -78,6 +78,12 @@ class Settings:
     slack_signing_secret_env: str = "SLACK_SIGNING_SECRET"
     slack_timestamp_tolerance_s: int = 60 * 5
 
+    # Approval-token signing secret. UNLIKE Slack (which fails open in dev), the
+    # approval gate FAILS CLOSED when this secret is unset — see
+    # approvals.verify_approval_token. The name maps to a Secret Manager entry
+    # wired at deploy time.
+    approval_signing_secret_env: str = "APPROVAL_SIGNING_SECRET"
+
     entrypoint: str = field(default_factory=lambda: os.getenv("ENTRYPOINT", "api"))
 
 
