@@ -26,7 +26,7 @@ from agent_mesh.contracts.models import ToolCall
 from agent_mesh.services import approvals
 from agent_mesh.services.repository import Repository, get_repository
 from agent_mesh.tools.gateway import ToolGateway
-from agent_mesh.worker.orchestrator import run_mesh
+from agent_mesh.worker.orchestrator import resume_mesh, run_mesh
 
 
 class Worker:
@@ -106,7 +106,18 @@ class Worker:
     def _resume_after_approval(self, task_id: str) -> str:
         task = self._repo.get_task(task_id)
         assert task is not None
-        # Execute any approved-and-unmodified write tool calls.
+        # Resume the paused mesh graph from its durable checkpoint (ORCH-03). On the real
+        # stack this dispatches Command(resume=True) so the write_gate interrupt RELEASES
+        # and the graph runs to terminal; on the stub env it is a terminal no-op. `decision`
+        # is a SINGLE already-verified boolean: the task reached APPROVED only because
+        # verify_approval_token + record_decision already ran at the endpoint, and the
+        # write_gate node only RELEASES the interrupt (it never executes the write). We pass
+        # NO approver_id into resume — the approver is derived solely from the verified token
+        # (SEC-01). The real per-call gate stays approvals.is_approved() below.
+        resume_mesh(task, True)
+
+        # Execute any approved-and-unmodified write tool calls. This is the ONLY place a
+        # write executes, gated by approvals.is_approved() payload re-hash (SEC-02a).
         for call in self._pending_calls(task_id, task.tenant_id):
             if call.approval_record_id is None:
                 continue
