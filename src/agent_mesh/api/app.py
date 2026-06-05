@@ -21,6 +21,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from agent_mesh.api.slack_verify import verify_slack_signature
 from agent_mesh.contracts.enums import ApprovalDecision
 from agent_mesh.contracts.models import TaskRequest
+from agent_mesh.services import approvals
 from agent_mesh.services.task_service import TaskService, request_from_slack
 from agent_mesh.settings import get_settings
 
@@ -88,14 +89,31 @@ async def slack_events(request: Request) -> Response:
 
 @app.post("/v1/approvals")
 def submit_approval(payload: dict) -> dict[str, str]:
-    """Approval decision callback shared by Slack and MCP requesters."""
+    """Approval decision callback shared by Slack and MCP requesters.
+
+    SEC-01: the approver is derived from a verified HMAC approval token, NEVER
+    from the request body. Any body ``approver_id`` is ignored. Verification
+    fails closed (401) on a missing/invalid/expired/cross-task token or when no
+    signing secret is configured.
+    """
     try:
-        record = _service.submit_approval_decision(
-            approval_record_id=payload["approval_record_id"],
-            decision=ApprovalDecision(payload["decision"]),
-            approver_id=payload["approver_id"],
-            channel=payload.get("channel", "api"),
-        )
+        approval_record_id = payload["approval_record_id"]
+        decision = ApprovalDecision(payload["decision"])
     except KeyError as exc:
         raise HTTPException(status_code=400, detail=f"missing field: {exc}") from exc
-    return {"approval_record_id": record.approval_record_id, "decision": str(record.decision)}
+
+    record = _service.repo.get_approval(approval_record_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="unknown approval record")
+
+    approver_id = approvals.verify_approval_token(payload.get("approval_token", ""), record)
+    if approver_id is None:
+        raise HTTPException(status_code=401, detail="invalid or missing approval token")
+
+    decided = _service.submit_approval_decision(
+        approval_record_id=approval_record_id,
+        decision=decision,
+        approver_id=approver_id,  # token-derived; body approver_id ignored
+        channel=payload.get("channel", "api"),
+    )
+    return {"approval_record_id": decided.approval_record_id, "decision": str(decided.decision)}
