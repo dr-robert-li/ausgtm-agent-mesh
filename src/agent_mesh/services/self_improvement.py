@@ -250,7 +250,7 @@ def promote_proposal(
     if proposal is None:
         raise KeyError(f"unknown proposal {proposal_id}")
 
-    evaluations = repo.list_evaluations(proposal_id)
+    evaluations = repo.list_evaluations(proposal_id, proposal.tenant_id)
     passing = next((e for e in evaluations if e.passed and not e.pending), None)
     if passing is None:
         raise PromotionRefused(

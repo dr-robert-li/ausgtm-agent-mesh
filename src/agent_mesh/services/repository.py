@@ -32,18 +32,22 @@ class Repository(Protocol):
         self, task_id: str, target: TaskState, note: str | None = None
     ) -> TaskRecord: ...
     def append_event(self, event: TaskEvent) -> TaskEvent: ...
-    def list_events(self, task_id: str) -> list[TaskEvent]: ...
+    def list_events(self, task_id: str, tenant_id: str) -> list[TaskEvent]: ...
     def upsert_tool_call(self, call: ToolCall) -> ToolCall: ...
     def get_tool_call(self, tool_call_id: str) -> ToolCall | None: ...
+    def list_tool_calls(self, task_id: str, tenant_id: str) -> list[ToolCall]: ...
     def upsert_approval(self, record: ApprovalRecord) -> ApprovalRecord: ...
     def get_approval(self, approval_record_id: str) -> ApprovalRecord | None: ...
+    def list_approvals(self, task_id: str, tenant_id: str) -> list[ApprovalRecord]: ...
     def upsert_proposal(
         self, proposal: SelfImprovementProposal
     ) -> SelfImprovementProposal: ...
     def get_proposal(self, proposal_id: str) -> SelfImprovementProposal | None: ...
     def upsert_evaluation(self, evaluation: EvaluationResult) -> EvaluationResult: ...
     def get_evaluation(self, evaluation_id: str) -> EvaluationResult | None: ...
-    def list_evaluations(self, proposal_id: str) -> list[EvaluationResult]: ...
+    def list_evaluations(
+        self, proposal_id: str, tenant_id: str
+    ) -> list[EvaluationResult]: ...
     def upsert_promotion(self, promotion: PromotionRecord) -> PromotionRecord: ...
     def get_promotion(self, promotion_id: str) -> PromotionRecord | None: ...
 
@@ -94,9 +98,13 @@ class InMemoryRepository:
             self._events.append(event)
             return event
 
-    def list_events(self, task_id: str) -> list[TaskEvent]:
+    def list_events(self, task_id: str, tenant_id: str) -> list[TaskEvent]:
         with self._lock:
-            return [e for e in self._events if e.task_id == task_id]
+            return [
+                e
+                for e in self._events
+                if e.task_id == task_id and e.tenant_id == tenant_id
+            ]
 
     def upsert_tool_call(self, call: ToolCall) -> ToolCall:
         with self._lock:
@@ -107,6 +115,14 @@ class InMemoryRepository:
         with self._lock:
             return self._tool_calls.get(tool_call_id)
 
+    def list_tool_calls(self, task_id: str, tenant_id: str) -> list[ToolCall]:
+        with self._lock:
+            return [
+                c
+                for c in self._tool_calls.values()
+                if c.task_id == task_id and c.tenant_id == tenant_id
+            ]
+
     def upsert_approval(self, record: ApprovalRecord) -> ApprovalRecord:
         with self._lock:
             self._approvals[record.approval_record_id] = record
@@ -115,6 +131,14 @@ class InMemoryRepository:
     def get_approval(self, approval_record_id: str) -> ApprovalRecord | None:
         with self._lock:
             return self._approvals.get(approval_record_id)
+
+    def list_approvals(self, task_id: str, tenant_id: str) -> list[ApprovalRecord]:
+        with self._lock:
+            return [
+                r
+                for r in self._approvals.values()
+                if r.task_id == task_id and r.tenant_id == tenant_id
+            ]
 
     def upsert_proposal(
         self, proposal: SelfImprovementProposal
@@ -136,9 +160,15 @@ class InMemoryRepository:
         with self._lock:
             return self._evaluations.get(evaluation_id)
 
-    def list_evaluations(self, proposal_id: str) -> list[EvaluationResult]:
+    def list_evaluations(
+        self, proposal_id: str, tenant_id: str
+    ) -> list[EvaluationResult]:
         with self._lock:
-            return [e for e in self._evaluations.values() if e.proposal_id == proposal_id]
+            return [
+                e
+                for e in self._evaluations.values()
+                if e.proposal_id == proposal_id and e.tenant_id == tenant_id
+            ]
 
     def upsert_promotion(self, promotion: PromotionRecord) -> PromotionRecord:
         with self._lock:
