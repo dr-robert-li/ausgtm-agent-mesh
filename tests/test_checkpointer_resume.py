@@ -83,29 +83,43 @@ def test_resume_after_restart_sqlite(agents_stack, tmp_path):
         conn2.close()
 
 
-def test_resume_after_restart_postgres(agents_stack, pg_dsn):
-    """The same drop/reopen restart-sim against a real PostgresSaver on the test DSN."""
+def test_resume_after_restart_postgres(agents_stack, pg_dsn, monkeypatch):
+    """The same drop/reopen restart-sim against a real PostgresSaver on the test DSN.
+
+    Routed through the production ``orchestrator._select_checkpointer()`` DATABASE_URL
+    branch (not an inline saver) so the prod construction + cache + close lifecycle is
+    actually exercised whenever a DSN is present. The "process restart" is simulated by
+    ``close_checkpointer()`` (drops the cached connection) then a fresh selection on the
+    SAME DSN.
+    """
     if not _backend_available("langgraph.checkpoint.postgres"):
         pytest.skip("langgraph-checkpoint-postgres not installed")
 
-    from langgraph.checkpoint.postgres import PostgresSaver
     from langgraph.types import Command
 
-    config = {"configurable": {"thread_id": _THREAD_ID}}  # DUR-02 tenant-scoped task id
+    from agent_mesh.worker import orchestrator
 
-    # --- run to the interrupt, then simulate process death (exit the saver CM) ---
-    with PostgresSaver.from_conn_string(pg_dsn) as saver:
-        saver.setup()  # idempotent, library-owned sibling schema
+    monkeypatch.setenv("DATABASE_URL", pg_dsn)
+    config = {"configurable": {"thread_id": _THREAD_ID}}  # DUR-02 tenant-scoped task id
+    try:
+        # --- run to the interrupt via the PROD checkpointer path ---
+        saver = orchestrator._select_checkpointer()  # builds PostgresSaver from DATABASE_URL
+        assert saver is not None
+        # Cached: a second selection reuses the same connection (no per-task leak).
+        assert orchestrator._select_checkpointer() is saver
         graph = build_graph().compile(checkpointer=saver)
         paused = graph.invoke({"prompt": _PROMPT}, config)
         assert "__interrupt__" in paused
         assert paused["__interrupt__"][0].value["proposed_writes"]
-    # The CM exit drops the connection: simulated restart.
 
-    # --- fresh saver on the SAME DSN + fresh graph; resume on the SAME thread_id ---
-    with PostgresSaver.from_conn_string(pg_dsn) as saver2:
+        # Simulated process restart: close the cached saver, then re-select on the SAME DSN.
+        orchestrator.close_checkpointer()
+        saver2 = orchestrator._select_checkpointer()
+        assert saver2 is not None
         graph2 = build_graph().compile(checkpointer=saver2)
         resumed = graph2.invoke(Command(resume=True), config)
         assert "__interrupt__" not in resumed
         assert resumed.get("decision") is True
-        assert resumed.get("review")
+        assert resumed.get("review")  # checkpoint survived the restart
+    finally:
+        orchestrator.close_checkpointer()

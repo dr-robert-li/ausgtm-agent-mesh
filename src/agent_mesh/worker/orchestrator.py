@@ -42,6 +42,15 @@ from agent_mesh.contracts.models import TaskRecord
 # documented seam the SqliteSaver-file restart-sim tests use; production never sets it.
 _CHECKPOINTER_OVERRIDE = None
 
+# Process-lived PostgresSaver cache, keyed by DSN. ``from_conn_string`` opens a real
+# connection; building one per run/resume would leak a connection per task. We build once
+# per DSN, reuse it across every ``run_mesh``/``resume_mesh``, and close it via
+# ``close_checkpointer()`` at worker shutdown. ``_pg_saver_cm`` retains the context
+# manager so its ``__exit__`` closes the underlying connection cleanly.
+_PG_SAVER = None
+_PG_SAVER_CM = None
+_PG_SAVER_DSN: str | None = None
+
 
 def set_checkpointer_override(checkpointer) -> None:
     """Inject a checkpointer (e.g. a file-backed SqliteSaver) for tests.
@@ -52,14 +61,30 @@ def set_checkpointer_override(checkpointer) -> None:
     _CHECKPOINTER_OVERRIDE = checkpointer
 
 
+def close_checkpointer() -> None:
+    """Close the cached PostgresSaver connection (worker shutdown / test teardown).
+
+    Idempotent. Exits the retained ``from_conn_string`` context manager so the underlying
+    connection is released, then clears the cache so a subsequent call rebuilds it."""
+    global _PG_SAVER, _PG_SAVER_CM, _PG_SAVER_DSN
+    if _PG_SAVER_CM is not None:
+        try:
+            _PG_SAVER_CM.__exit__(None, None, None)
+        finally:
+            _PG_SAVER = None
+            _PG_SAVER_CM = None
+            _PG_SAVER_DSN = None
+
+
 def _select_checkpointer():
     """Pick the durable LangGraph checkpointer (DUR-02 / ORCH-02).
 
     * A test-injected override (file-backed SqliteSaver) wins, mirroring
       ``RepositorySQL``'s test-DSN seam.
-    * Otherwise, when ``DATABASE_URL`` is set (prod), build a ``PostgresSaver`` from it,
+    * Otherwise, when ``DATABASE_URL`` is set (prod), build a ``PostgresSaver`` from it
+      ONCE (cached by DSN, reused across run/resume to avoid a per-task connection leak),
       call ``.setup()`` (idempotent; library-owned sibling schema, NOT a hand-written app
-      migration), and return it.
+      migration), and return it. Close it via :func:`close_checkpointer` at shutdown.
     * Otherwise return ``None``: the graph compiles without a durable saver. The worker's
       AWAITING_APPROVAL stash is the durability boundary on that path; the interrupt-based
       durable resume requires a checkpointer and is exercised under the test seam / prod.
@@ -72,15 +97,26 @@ def _select_checkpointer():
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
         return None
+
+    global _PG_SAVER, _PG_SAVER_CM, _PG_SAVER_DSN
+    if _PG_SAVER is not None and _PG_SAVER_DSN == database_url:
+        return _PG_SAVER
+    # DSN changed (or first build): release any stale saver before rebuilding.
+    if _PG_SAVER_CM is not None:
+        close_checkpointer()
+
     # Lazy import mirrors RepositorySQL.__init__: the optional Postgres backend is only
     # imported when a real DSN is present, so the in-memory POC stays importable.
     from langgraph.checkpoint.postgres import PostgresSaver
 
-    saver = PostgresSaver.from_conn_string(database_url)
-    # ``from_conn_string`` returns a context manager; enter it so the connection stays
-    # open for the lifetime of the process worker. ``.setup()`` is idempotent.
-    saver = saver.__enter__()
-    saver.setup()
+    # ``from_conn_string`` returns a context manager; retain it so ``close_checkpointer``
+    # can ``__exit__`` it, and enter it so the connection stays open for the worker's life.
+    cm = PostgresSaver.from_conn_string(database_url)
+    saver = cm.__enter__()
+    saver.setup()  # idempotent, library-owned sibling schema
+    _PG_SAVER = saver
+    _PG_SAVER_CM = cm
+    _PG_SAVER_DSN = database_url
     return saver
 
 

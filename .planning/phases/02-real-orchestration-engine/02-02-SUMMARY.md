@@ -72,6 +72,7 @@ completed: 2026-06-06
 1. **Task 1: write-gate interrupt node + checkpointer compile + stub-aware resume_mesh** — `79a0294` (feat)
 2. **Task 2: call resume_mesh from runner._resume_after_approval + ORCH-03 interrupt-HITL test** — `e5739bb` (feat)
 3. **Task 3: ORCH-02 resume-after-restart test (SqliteSaver-file + PostgresSaver env-gated)** — `72e7b6e` (test)
+4. **Post-task hardening: cache+close PostgresSaver and exercise the prod `_select_checkpointer()` branch** — `75d7cda` (fix) — see Deviation 4.
 
 _All three are TDD plan tasks; verified against the real stack under the project `.venv` (the only interpreter with langgraph + the checkpoint backends). The agents-gated and TEST_DATABASE_URL-gated tests RAN for real (sqlite) or skipped cleanly (postgres, no DSN)._
 
@@ -110,9 +111,16 @@ _All three are TDD plan tasks; verified against the real stack under the project
 - **Fix:** Added an autouse `_signing_secret` fixture mirroring `tests/test_approval_security.py`.
 - **Committed in:** `e5739bb` (Task 2).
 
+**4. [Rule 1 - Bug] `_select_checkpointer()` prod Postgres branch leaked a connection per task and was untested; restored Task-1's dropped "expose a `close()`" instruction**
+- **Found during:** Final review.
+- **Issue:** Task 1's action said "construct via `PostgresSaver.from_conn_string(...)`, call `.setup()`, expose a `close()`." The first cut entered the `from_conn_string` context manager (`__enter__`) per call with NO close — every `run_mesh`/`resume_mesh` on the prod path would open a fresh connection and never release it (a per-task leak). The DATABASE_URL construction branch was also exercised by no test (the postgres restart test built its own inline saver, never calling `_select_checkpointer()`).
+- **Fix:** `_select_checkpointer()` now builds the `PostgresSaver` ONCE, caches it by DSN, reuses it across run/resume, and `close_checkpointer()` releases it. `test_resume_after_restart_postgres` was rewired to go through `_select_checkpointer()` (with `DATABASE_URL` monkeypatched to the test DSN), so the prod construction + cache + close lifecycle is genuinely exercised whenever a DSN is present (it still skips cleanly without one — no usable local Postgres in this env, consistent with the existing `test_repository_sql` Postgres gating).
+- **Verification:** full suite 89 passed / 6 skipped; ruff clean; smoke OK; phase gate 15 passed.
+- **Committed in:** `75d7cda`.
+
 ---
 
-**Total deviations:** 3 (1 blocking env-provisioning of the repo's own declared extra; 2 bug fixes in this plan's new code/tests). **Impact on deliverables:** none — all ORCH-02/ORCH-03 acceptance criteria met and SEC-01/SEC-02 preserved.
+**Total deviations:** 4 (1 blocking env-provisioning of the repo's own declared extra; 3 bug fixes in this plan's new code/tests). **Impact on deliverables:** none — all ORCH-02/ORCH-03 acceptance criteria met and SEC-01/SEC-02 preserved.
 
 ## Issues Encountered
 - 02-01's SUMMARY claim that "both checkpoint backends" were installed was inaccurate (they were pinned, not installed). Verified env truth directly rather than trusting the summary; installed the declared backends (Deviation 1).
@@ -135,12 +143,13 @@ No new threat surface beyond the plan's register.
 
 ## Next Phase Readiness
 - **Phase 3** can wire real models/Langfuse via the existing `build_roster(model=...)` seam (unchanged) and correlate traces via the still-unset `trace_id`.
-- **Prod durable resume** activates automatically once `DATABASE_URL` is set: `_select_checkpointer()` builds a `PostgresSaver`, calls `.setup()` (idempotent, library-owned sibling schema), and `resume_mesh` takes the real `Command(resume=...)` path.
+- **Prod durable resume** activates once `DATABASE_URL` is set: `_select_checkpointer()` builds a `PostgresSaver` ONCE (cached by DSN, reused across run/resume to avoid a per-task connection leak), calls `.setup()` (idempotent, library-owned sibling schema), and `resume_mesh` takes the real `Command(resume=...)` path. `close_checkpointer()` releases the cached connection at shutdown. The Postgres construction + cache + close lifecycle is exercised by `test_resume_after_restart_postgres` when `TEST_DATABASE_URL` is set (it routes through `_select_checkpointer()` with `DATABASE_URL` monkeypatched); it skips cleanly without a DSN, so the prod branch is verified-when-a-DB-is-present rather than never.
+- **Worker shutdown must call `orchestrator.close_checkpointer()`** to release the cached PostgresSaver connection (no-op when no DSN was used). Wiring this into the actual worker process lifecycle is a small follow-up for the prod runtime.
 - **The checkpoint backends must be installed in any environment that runs the agents-gated checkpointer tests or the prod Postgres path.** The pins live in the `[agents]` extra; ensure `pip install -e .[agents]` (or equivalent) actually installs `langgraph-checkpoint-sqlite`/`-postgres` — 02-01 pinned but did not install them.
 
 ## Self-Check: PASSED
 - Created/modified files all present: graph.py, orchestrator.py, runner.py, tests/test_interrupt_hitl.py, tests/test_checkpointer_resume.py, 02-02-SUMMARY.md.
-- Task commits resolvable in git: 79a0294, e5739bb, 72e7b6e.
+- Commits resolvable in git: 79a0294, e5739bb, 72e7b6e, 75d7cda.
 - Plan verification gate: `test_approval_security.py` 15 passed; full `tests/` 89 passed / 6 skipped; `make smoke` SMOKE OK; no InMemorySaver in changed src/tests; ruff clean.
 
 ---
