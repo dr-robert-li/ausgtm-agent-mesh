@@ -237,11 +237,27 @@ def resume_mesh(task: TaskRecord, decision) -> OrchestrationResult:
             evidence=[],
         )
 
+    # The stack is present, but a graph resume is only possible when the run was durably
+    # checkpointed. ``Command(resume=...)`` REQUIRES a checkpointer; with none configured
+    # (no DATABASE_URL, no test override) the run paused via the worker's AWAITING_APPROVAL
+    # stash, not a durable graph interrupt, so there is nothing to graph-resume. This is a
+    # VALUE check on the selected checkpointer — NOT a blanket try/except that swallows the
+    # stack-path resume (which the Task-1 acceptance criterion forbids). The write still
+    # executes in runner._resume_after_approval under is_approved(); ORCH-03's durable
+    # resume is proven by the agents-gated checkpointer test that injects a real saver.
+    checkpointer = _select_checkpointer()
+    if checkpointer is None:
+        return OrchestrationResult(
+            summary=f"[mesh] resumed after approval (no durable checkpoint): {task.prompt[:120]}",
+            proposed_writes=[],
+            evidence=[],
+        )
+
     from langgraph.types import Command
 
     from agent_mesh.worker.graph import build_graph
 
-    compiled = build_graph().compile(checkpointer=_select_checkpointer())
+    compiled = build_graph().compile(checkpointer=checkpointer)
     # ``decision`` is the verified boolean only — never an approver_id (SEC-01).
     final_state = compiled.invoke(Command(resume=decision), _graph_config(task))
 
