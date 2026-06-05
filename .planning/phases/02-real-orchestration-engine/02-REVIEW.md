@@ -21,9 +21,20 @@ findings:
   info: 3
   total: 7
 status: issues_found
+resolved:
+  - "CR-01 — fixed in d3febd9 (named container + docker rm -f on timeout; containment test added)"
+  - "WR-01 — fixed in d3febd9 (max_cpu_seconds passed as --ulimit cpu)"
+deferred:
+  - "WR-02 — multi-write resume orphan; tracked in deferred-items.md (reachable in Phase 3)"
+  - "WR-03 — substring write-trigger over-match + duplication; quality, tracked in deferred-items.md"
 ---
 
 # Phase 02: Code Review Report
+
+> **Resolution (post-review):** CR-01 (BLOCKER) and WR-01 (WARNING) fixed in
+> commit `d3febd9` with a live Docker-gated containment test
+> (`test_timeout_kills_container`). WR-02 and WR-03 deferred to `deferred-items.md`.
+> The three INFO items are documented-safe / cosmetic.
 
 **Reviewed:** 2026-06-05T22:57:12Z
 **Depth:** standard

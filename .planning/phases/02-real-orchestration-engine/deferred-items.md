@@ -15,3 +15,21 @@ current task's change scope).
   `/bin/sh: python: command not found`. `make smoke` does NOT touch the sandbox path;
   running it directly as `PYTHONPATH=src python3 -m tests.smoke` reports `SMOKE OK`.
   This is an environment/Makefile alias mismatch, not a 02-03 regression.
+
+## From 02 code review (02-REVIEW.md)
+
+- **CR-01 (BLOCKER) — RESOLVED** in `d3febd9`. Sandbox wall-clock timeout SIGKILLed
+  only the `docker run` client; the daemon-owned container kept running and `--rm`
+  never reaped it. Fixed with a pinned `--name` + `docker rm -f` on `TimeoutExpired`;
+  added Docker-gated `test_timeout_kills_container` asserting the container is gone.
+- **WR-01 (WARNING) — RESOLVED** in `d3febd9`. `max_cpu_seconds` was declared but never
+  passed to Docker; now enforced as a hard `--ulimit cpu=<seconds>` (RLIMIT_CPU).
+- **WR-02 (WARNING) — DEFERRED.** Multi-write resume completes the task while sibling
+  approval records are still PENDING (fail-safe: the unapproved write does not execute,
+  but the undecided write is silently dropped). Only reachable once Phase 3 emits >1
+  write per task. Fix when the orchestrator gains real multi-write fan-out.
+- **WR-03 (WARNING) — DEFERRED (quality).** Substring write-trigger matching over-matches
+  (e.g. "increase" → `create`) and the trigger heuristic is hand-duplicated across
+  graph.py / orchestrator.py / `_run_stub`. Consolidate into one word-boundary matcher.
+- **IN-02 (INFO) — DEFERRED.** `langgraph-checkpoint` pin drift (`~=3.1` declared vs
+  4.1.1 installed). Reconcile the pin during the Phase 4/deploy dependency sweep.
