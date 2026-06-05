@@ -59,8 +59,8 @@ platform end-to-end and validate deploy-readiness. Each maps to a roadmap phase.
 
 ### Deploy-Readiness
 
-- [ ] **DEP-01**: `gcloud` bootstrap + deploy scripts are validated idempotent (resource-detection / dry-run) without provisioning live resources
-- [ ] **DEP-02**: The Cloudflare `wrangler` deploy script is validated and the deployment + tool-pack manifests are consistent
+- [ ] **DEP-01**: `gcloud` bootstrap + deploy scripts pass shellcheck/lint, `--dry-run`/`--help` syntax checks, and unit tests of their resource-detection branches with a mocked `gcloud` — proving the idempotency *logic* locally. (True end-to-end idempotency against a real project is deferred to DEP-03; this is the local-validation ceiling.)
+- [ ] **DEP-02**: The Cloudflare `wrangler` deploy script passes lint + `wrangler --dry-run`, and the deployment + tool-pack manifests are schema-consistent — local-validation ceiling, no live publish
 
 ## v2 Requirements
 

@@ -44,6 +44,7 @@ Plans:
 
 ### Phase 2: Real Orchestration Engine
 **Goal**: Replace the orchestration stub with a real LangGraph supervisor delegating to a bounded Deep Agents roster, persist graph state in a Postgres checkpointer so long runs resume after restart, express approvals as graph interrupts, and harden the prompt-to-code sandbox.
+**Note**: The real graph runs against the *stubbed* model path until Phase 3 lands the live gateway — so the supervisor's topology, checkpointing, and interrupts are proven here; real agent *behaviour against real models* is first exercised end-to-end in Phase 3/5. (Layering is intentional: durability before orchestration before model plane. If exercising real model behaviour sooner matters, P2↔P3 can swap.)
 **Depends on**: Phase 1
 **Requirements**: ORCH-01, ORCH-02, ORCH-03, SBX-01
 **Success Criteria** (what must be TRUE):
@@ -97,7 +98,7 @@ Plans:
   1. An end-to-end run proves Slack request → evidence → write-gated SaaS action → approval → completion
   2. An MCP request runs a long checkpointed mesh job and returns an artifact
   3. A failure E2E demonstrates model fallback, job retry, and budget-limit halt together
-  4. The `gcloud` bootstrap/deploy and Cloudflare `wrangler` scripts run idempotently (resource-detection / dry-run) with no live provisioning and no errors, and the deployment + tool-pack manifests are consistent
+  4. The `gcloud` bootstrap/deploy and Cloudflare `wrangler` scripts pass lint + dry-run/syntax checks, and their resource-detection branches are unit-tested with a mocked `gcloud` (idempotency *logic* proven locally — true end-to-end idempotency against a live project is deferred to DEP-03); the deployment + tool-pack manifests are schema-consistent
 **Plans**: 2 plans
 
 Plans:

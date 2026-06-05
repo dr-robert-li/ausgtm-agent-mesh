@@ -97,7 +97,7 @@ approves it — and the entire run is observable and auditable. If everything el
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Full-vertical milestone scope (complete all stubs to local-validated) | The `/goal` is "all functions" E2E-tested + deploy-ready; partial completion leaves the mesh unprovable end-to-end | — Pending |
+| Full-vertical milestone *scope* (complete all stubs to local-validated) — distinct from phase *structure* below | Scope axis = how much we finish (everything stubbed → real); structure axis = how it's sliced (horizontal layers). The `/goal` is "all functions" E2E-tested + deploy-ready; partial completion leaves the mesh unprovable end-to-end | — Pending |
 | Deploy-ready only (no live GCP provisioning) | Keep POC cost at zero until scripts validate idempotent locally; live deploy is a separate decision | — Pending |
 | Fix `/v1/approvals` auth this milestone | Critical finding bypasses the core write-approval gate — the platform's Core Value — so it cannot wait for a hardening milestone | — Pending |
 | Coarse granularity, standard (horizontal-layer) phasing | Work replaces real technical layers (durability → orchestration → model/observability → tools/SI) over a working E2E scaffold; a final phase assembles + validates | — Pending |
