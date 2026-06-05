@@ -399,16 +399,18 @@ graph.invoke(Command(resume=verified_decision), {"configurable": {"thread_id": t
 | A3 | LangSmith is optional-at-runtime (env-gated), not a hard import of deepagents/langgraph | RF-3 | If it were a hard dep it would violate CLAUDE.md; verified-by-design (env gated) but confirm no `import langsmith` at module load. |
 | A4 | `PostgresSaver.from_conn_string` / pooled construction reuses `DATABASE_URL` cleanly alongside `RepositorySQL`'s pool | RF-2 | If pool sharing conflicts, use a separate connection for the saver; minor. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Disable mechanism for the auto general-purpose subagent (A1).**
    - What we know: docs say "added unless disabled or replaced."
    - What's unclear: the exact param/flag at 0.6.8.
    - Recommendation: planner reads reference.langchain.com/python/deepagents at plan time; assert roster size == 4 (filter to declared if needed).
+   - **RESOLVED:** defer exact flag name to execution-time reference check; the roster `size == 4` assertion (02-01 Task 2) is the fail-closed guard — failure to disable surfaces as a failing test, not a silent extra subagent.
 
 2. **Checkpointer construction vs. the existing psycopg pool (A4).**
    - What we know: `RepositorySQL` owns a `ConnectionPool` (`repository.py:470`); `PostgresSaver` can take a conn string or pool.
    - Recommendation: simplest correct path is a dedicated saver connection from `DATABASE_URL`; optimize to shared pool only if needed.
+   - **RESOLVED:** construct a separate `PostgresSaver` connection via `from_conn_string(DATABASE_URL)`, mirroring the `RepositorySQL.__init__` lazy-import pattern; shared-pool optimization deferred until measured need.
 
 ## Environment Availability
 
