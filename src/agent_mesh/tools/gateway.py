@@ -27,6 +27,14 @@ class ToolSpec:
     approval_required: bool
     credential_secret_name: str | None
     resource_bindings: dict[str, Any]
+    # --- D-03 fields (declared in the manifest; the stub loader dropped them) ---
+    # integration_style drives the validator branch (04-02) AND, for aggregators
+    # only, the adapter dispatch key (see adapters.adapter_key_for).
+    integration_style: str = "direct_api"
+    # Repo-root-relative (or absolute) JSON-Schema paths; validation._load reads
+    # them directly, so the engine passes them through unchanged (04-02 handoff).
+    input_schema_ref: str | None = None
+    output_schema_ref: str | None = None
 
     def validate(self) -> None:
         """A write-class tool MUST declare approval_required=true."""
@@ -49,6 +57,9 @@ def load_tool_pack(path: str | Path) -> list[ToolSpec]:
             approval_required=bool(raw.get("approval_required", False)),
             credential_secret_name=raw.get("credential_secret_name"),
             resource_bindings=raw.get("resource_bindings", {}),
+            integration_style=raw.get("integration_style", "direct_api"),
+            input_schema_ref=raw.get("input_schema_ref"),
+            output_schema_ref=raw.get("output_schema_ref"),
         )
         spec.validate()
         specs.append(spec)
