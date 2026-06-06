@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: "Phase 4 context gathered (re-scope: TOOL-03/04 → v1, 5→7 phases)"
-last_updated: "2026-06-06T10:01:10.540Z"
-last_activity: 2026-06-06 -- Phase 03 complete
+status: executing
+stopped_at: "Phase 4 complete — Tool Gateway framework + HubSpot/GWS/Composio/Nango adapters merged; framework verified, live lanes deferred"
+last_updated: "2026-06-06T13:50:00.000Z"
+last_activity: 2026-06-06 -- Phase 4 execution complete (9/9 plans merged, 215 tests green)
 progress:
   total_phases: 7
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 19
-  completed_plans: 10
-  percent: 53
+  completed_plans: 19
+  percent: 57
 ---
 
 # Project State
@@ -21,16 +21,19 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-05)
 
 **Core value:** A long-running agent mesh takes a client request through ingress, durable orchestration, and a write-gated tool action — the write blocked until a human approves — and the whole run is observable and auditable.
-**Current focus:** Phase 04 — next (Phase 03 complete)
+**Current focus:** Phase 5 — Reference Adapter Breadth (TOOL-03) — ready to plan
 
 ## Current Position
 
-Phase: 03 (model-gateway-observability) — COMPLETE
-Plans: 3/3 + 1 gap-closure (03-04 governed budget-halt) — all merged to main
-Status: Phase 03 verified (achieved-with-gaps → Gap 1 closed; Gap 2 deferred to Phase 04)
-Last activity: 2026-06-06 -- Phase 03 complete
+Phase: 4 (tool-gateway-framework-first-adapters-aggregators) — COMPLETE
+Plan: 9 of 9 complete — all merged to main
+Plans: 9/9 merged; 215 tests green creds-free; framework verified 5/5 must-haves + 8 design invariants against source
+Status: Phase 4 complete; next = Phase 5 (Reference Adapter Breadth)
+Last activity: 2026-06-06 -- Phase 4 execution complete
 
-Progress: [████░░░░░░] 43% (3/7 phases)
+Progress: [██████░░░░] 57% (4/7 phases)
+
+**Phase 4 result:** Tool Gateway execution engine (call-time credential resolution never leaked, Draft-2020-12 in/out validation with fail-closed-direct/permissive-aggregate, one tool-event OTel span per call). Adapters: HubSpot (single dispatcher), Google Workspace (9 ops / 6 products, one dispatcher + shared refresh-token scaffold), Composio (key `composio`) + Nango (key `nango`, httpx REST proxy, NO pip dep — PyPI `nango` confirmed unrelated/squatted). Read path executes ungated; writes stay payload-hash-ledger gated (SEC-01/02 intact). Supply-chain package-legitimacy gates T-04-05/06/08-SC recorded with operator sign-off (12-mo audit). **Deferred (operator, live creds):** SC-1 real HubSpot CRM call + SC-3 real Composio/Nango calls — `make test-live` per docs/credentials/README.md.
 
 **Re-scope (2026-06-06):** POC reframed as MVP requiring viable general tool coverage.
 TOOL-03/04 promoted v2→v1. Old "Phase 4: Tools & Self-Improvement" split into Phase 4
