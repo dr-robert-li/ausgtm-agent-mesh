@@ -28,12 +28,6 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
-# Integration styles whose input schema arrives at RUNTIME (D-04): for these,
-# a missing schema is PERMISSIVE, never a block.
-_AGGREGATE_STYLES = frozenset(
-    {"composio_aggregator", "nango_aggregator", "aggregate_mcp", "mcp_server"}
-)
-
 
 class SchemaError(Exception):
     """Base class for schema-boundary failures."""
@@ -97,8 +91,13 @@ def validate_tool_input(
 
     - ``direct_api`` with ``input_schema_ref is None``  -> raise (BLOCK).
     - ``direct_api`` with a ref -> load the on-disk schema and validate.
-    - aggregate styles -> validate against ``runtime_schema`` when supplied;
-      when it is None, return cleanly (NEVER block).
+    - any non-``direct_api`` style (composio_aggregator / nango_aggregator /
+      aggregate_mcp / mcp_server) -> validate against ``runtime_schema`` when
+      supplied; when it is None, return cleanly (NEVER block).
+
+    ``input_schema_ref`` must be resolvable from the caller's CWD (or absolute);
+    the engine (04-03) is responsible for passing a CWD-resolvable/absolute path
+    from the manifest, since ``_load`` reads it directly.
     """
     if integration_style == "direct_api":
         if input_schema_ref is None:

@@ -10,6 +10,7 @@ provides:
   - "tools/validation.py: validate_input / validate_output / validate_tool_input"
   - "InputSchemaViolation / OutputSchemaViolation / SchemaError exception hierarchy"
   - "D-04 fail-closed-for-direct-only dispatch seam the engine (04-03) calls"
+  - "HANDOFF to 04-03: pass a CWD-resolvable or absolute input_schema_ref to validate_tool_input (_load reads the path directly; manifest stores repo-root-relative paths)"
 affects:
   - src/agent_mesh/tools/validation.py
   - tests/test_schema_boundary.py
@@ -27,8 +28,9 @@ key-files:
 decisions:
   - "Draft202012Validator imported at module top (not lazily) — jsonschema is a core dep since 04-01, so the boundary must never be an optional/degradable import"
   - "validate_output returns list[str] and never raises on a content violation — distinguishes 'ran but untrusted' (quarantine) from 'never ran' (input reject); OutputSchemaViolation exists for callers that prefer to raise on a non-empty list"
-  - "_AGGREGATE_STYLES frozenset (composio/nango/aggregate_mcp/mcp_server) defines the permissive set; dispatch keys on integration_style == 'direct_api' for the BLOCK branch so any non-direct style is permissive-by-default"
+  - "dispatch keys solely on integration_style == 'direct_api' for the BLOCK branch (matching RESEARCH Pattern 2's if/else) so any non-direct style is permissive-by-default; no explicit aggregate-style allowlist is enforced"
   - "validate_tool_input is keyword-only (*,) so the engine call site is self-documenting and arg-order-safe"
+  - "_load(ref) is CWD-relative — the engine (04-03) must pass a CWD-resolvable or absolute input_schema_ref (manifest paths are repo-root-relative; CWD won't be repo root in a Cloud Run Job)"
 requirements: [TOOL-02]
 metrics:
   duration: "~12m"
