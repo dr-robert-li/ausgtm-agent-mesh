@@ -42,7 +42,10 @@ def test_stub_fallback(repo):
     assert isinstance(read_result, orchestrator.OrchestrationResult)
     assert read_result.summary
     assert read_result.proposed_writes == []
-    assert read_result.trace_id is None  # Langfuse correlation is Phase 3
+    # OBS-01 (Phase 3) closes the prior P2 gap: trace_id is now SET per task from
+    # the per-task OTel root span (32-hex) when the OTel SDK is importable.
+    assert read_result.trace_id is not None
+    assert len(read_result.trace_id) == 32
 
     # Mutating prompt: the approval path is exercised — exactly one gated write.
     write_task = _task(repo, "create a new HubSpot deal for ACME Corp")

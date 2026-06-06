@@ -37,8 +37,18 @@ def healthz() -> dict[str, str]:
 
 
 @app.post("/v1/tasks")
-def create_task(request: TaskRequest) -> dict[str, str]:
-    """Canonical API ingress. Slack/MCP funnel into the same TaskService."""
+def create_task(request: TaskRequest, http_request: Request) -> dict[str, str]:
+    """Canonical API ingress. Slack/MCP funnel into the same TaskService.
+
+    OBS-01 cross-process trace correlation: read the inbound W3C ``traceparent``
+    header (if any) and stash it on ``request.metadata["traceparent"]`` BEFORE
+    ``create_task()``. ``TaskService`` copies ``request.metadata`` onto the durable
+    ``TaskRecord``, so the worker can restore it after the Pub/Sub boundary and root
+    its spans under the trace started here. The header is TELEMETRY ONLY: it parents
+    spans, never gates a decision or grants authority (T-03-03-06)."""
+    traceparent = http_request.headers.get("traceparent")
+    if traceparent:
+        request.metadata["traceparent"] = traceparent
     task = _service.create_task(request)
     return {"task_id": task.task_id, "state": str(task.state)}
 
