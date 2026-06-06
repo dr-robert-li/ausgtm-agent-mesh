@@ -344,3 +344,19 @@ def test_input_reject_makes_no_adapter_call(monkeypatch):
     assert called == []
     assert call.schema_validation == "input_rejected"
     assert result.get("outcome") == "input_rejected"
+
+
+def test_execute_resolves_schema_ref_from_non_repo_root_cwd(tmp_path, monkeypatch):
+    """The 04-02 handoff: manifest schema refs are repo-root-relative but the
+    production CWD (Cloud Run Job) is NOT the repo root. execute() must anchor the
+    ref against the gateway base_dir so validation._load() finds the schema and the
+    no-cred stub path does NOT crash with FileNotFoundError (D-11)."""
+    gw = _gateway()  # from_manifest -> base_dir anchored at the manifest's parent
+    monkeypatch.chdir(tmp_path)  # CWD where "schemas/..." does NOT resolve
+    call = _call("hubspot_lookup_company", {"object_type": "companies", "query": "Acme"})
+
+    # No resolver -> credential None -> stub. The bug would FileNotFoundError in the
+    # input-validation step BEFORE reaching the stub fallback.
+    result = gw.execute(call)
+    assert result.get("stub") is True
+    assert call.schema_validation == "ok"

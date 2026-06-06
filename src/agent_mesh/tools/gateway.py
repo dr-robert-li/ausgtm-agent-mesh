@@ -37,8 +37,10 @@ class ToolSpec:
     # integration_style drives the validator branch (04-02) AND, for aggregators
     # only, the adapter dispatch key (see adapters.adapter_key_for).
     integration_style: str = "direct_api"
-    # Repo-root-relative (or absolute) JSON-Schema paths; validation._load reads
-    # them directly, so the engine passes them through unchanged (04-02 handoff).
+    # Manifest-relative (or absolute) JSON-Schema paths. validation._load reads the
+    # path directly, so execute() anchors a relative ref against the gateway's
+    # base_dir (the manifest's parent) before passing it on — CWD is NOT the repo
+    # root in a Cloud Run Job (04-02 handoff).
     input_schema_ref: str | None = None
     output_schema_ref: str | None = None
 
@@ -75,18 +77,48 @@ def load_tool_pack(path: str | Path) -> list[ToolSpec]:
 class ToolGateway:
     """Registry + stub executor for the loaded tool pack."""
 
-    def __init__(self, specs: list[ToolSpec]) -> None:
+    def __init__(self, specs: list[ToolSpec], *, manifest_dir: Path | None = None) -> None:
         self._specs = {s.name: s for s in specs}
+        # Directory of the loaded manifest, used to anchor REPO-ROOT-RELATIVE schema
+        # refs (e.g. "schemas/..."). validation._load reads the ref directly, so the
+        # engine MUST hand it a CWD-resolvable/absolute path (04-02 handoff) — CWD is
+        # NOT the repo root in a Cloud Run Job. None for a directly-constructed gateway
+        # (aggregator specs carry no refs, so anchoring is a no-op for them).
+        self._manifest_dir = manifest_dir.resolve() if manifest_dir is not None else None
 
     @classmethod
     def from_manifest(cls, path: str | Path) -> ToolGateway:
-        return cls(load_tool_pack(path))
+        manifest = Path(path)
+        return cls(load_tool_pack(manifest), manifest_dir=manifest.parent)
 
     def get(self, name: str) -> ToolSpec:
         return self._specs[name]
 
     def list_tools(self) -> list[ToolSpec]:
         return list(self._specs.values())
+
+    def _resolve_ref(self, ref: str | None) -> str | None:
+        """Anchor a repo-root-relative schema ref so validation._load reads it
+        regardless of the process CWD (04-02 handoff; Cloud Run Job CWD != repo root).
+
+        Manifest schema refs are relative to the REPO ROOT (e.g. "schemas/..."), and
+        the manifest itself may live in a subdir (``manifests/``). Rather than assume
+        a fixed depth, walk up from the manifest dir to the first ancestor where the
+        ref resolves to an existing file. Absolute refs, the no-manifest-dir path
+        (directly-constructed gateway), and refs that resolve under no ancestor pass
+        through unchanged (the latter then surfaces as a normal validation error, not
+        a silent mis-anchor).
+        """
+        if ref is None or self._manifest_dir is None:
+            return ref
+        p = Path(ref)
+        if p.is_absolute():
+            return ref
+        for base in (self._manifest_dir, *self._manifest_dir.parents):
+            candidate = base / p
+            if candidate.exists():
+                return str(candidate)
+        return ref
 
     def _stub_result(self, spec: ToolSpec, parameters: dict[str, Any]) -> dict[str, Any]:
         """The deterministic no-creds / no-adapter fallback (D-11).
@@ -149,7 +181,7 @@ class ToolGateway:
             try:
                 validation.validate_tool_input(
                     integration_style=spec.integration_style,
-                    input_schema_ref=spec.input_schema_ref,
+                    input_schema_ref=self._resolve_ref(spec.input_schema_ref),
                     runtime_schema=None,
                     params=params,
                 )
@@ -184,7 +216,9 @@ class ToolGateway:
             if spec.output_schema_ref is not None:
                 from agent_mesh.tools.validation import _load, validate_output
 
-                messages = validate_output(_load(spec.output_schema_ref), result)
+                messages = validate_output(
+                    _load(self._resolve_ref(spec.output_schema_ref)), result
+                )
             if messages:
                 call.schema_validation = "output_quarantined"
                 if span is not None:
