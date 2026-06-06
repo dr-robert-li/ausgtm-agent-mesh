@@ -45,10 +45,10 @@ decisions:
   - "Read evidence threaded into the write-gate approval request (build_approval_request evidence=read_evidence) so a gated write carries the read context — but only as STRING summaries, never the raw dict."
 requirements: [TOOL-01]
 metrics:
-  duration: "~40m"
+  duration: "~45m"
   completed: "2026-06-06"
   tasks: 2
-  commits: 4
+  commits: 5
 ---
 
 # Phase 4 Plan 04: Read-Execution Seam Summary
@@ -110,10 +110,27 @@ wired the live worker bootstrap with a real `ToolGateway.from_manifest(...)` + r
 
 ## Deviations from Plan
 
-None — plan executed exactly as written. Item C was kept conservative per the plan's
-explicit constraint ("do NOT soften the approval path"): `reviewer_node`'s write
-proposal stays functionally identical rather than being swapped for a riskier
-plan-derived selection.
+### Auto-fixed Issues
+
+**1. [Rule 1 - Correctness] Read evidence dropped on the read-only completion path**
+- **Found during:** advisor review at completion (the green suite hid it — no test
+  asserted `result_summary` content on the read-only branch).
+- **Issue:** The plan's Task-2 action requires the read evidence string list be
+  "persisted with the result summary." The implementation persisted `read_evidence`
+  only via `build_approval_request(evidence=...)` on the WRITE path. On the no-write
+  completion branch — the dominant path for a read-only task — `read_evidence` was
+  computed and then dropped; durable read evidence lived only on the per-call
+  `ToolCall.result` rows, not "with the result summary" as the plan stated.
+- **Fix:** On the no-write branch, fold the read-only string summaries into the
+  completed task's `result_summary` (`f"{summary} | evidence: {...}"`). STRING summaries
+  only — never the raw result dict (T-04-04-03). Added a test assertion that the read
+  summary lands in `result_summary` and no stub-dict key (`echo_parameters`) leaks.
+- **Files modified:** src/agent_mesh/worker/runner.py, tests/test_read_path.py
+- **Commit:** 32462d2
+
+Item C was kept conservative per the plan's explicit constraint ("do NOT soften the
+approval path"): `reviewer_node`'s write proposal stays functionally identical rather
+than being swapped for a riskier plan-derived selection.
 
 ## Verification
 
@@ -191,6 +208,7 @@ until then. No unintended stubs.
 - `93ccc67` feat(04-04): proposed_reads on OrchestrationResult + researcher emission (items A/C) (GREEN)
 - `1f03a1d` test(04-04): add failing tests for ungated read loop + resolver + gateway injection (RED)
 - `25b568c` feat(04-04): ungated post-run read loop + execute(call,resolver) + worker gateway injection (items A/B) (GREEN)
+- `32462d2` fix(04-04): persist read evidence with result_summary on the read-only completion path
 
 ## TDD Gate Compliance
 
