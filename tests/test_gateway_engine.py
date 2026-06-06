@@ -256,7 +256,7 @@ def test_stub_degradation_when_credential_absent():
     assert called == []  # adapter never reached
     assert result.get("stub") is True
     assert result["tool"] == "hubspot_lookup_company"
-    assert result["echo_parameters"] == {"query": "Acme"}
+    assert result["echo_parameters"] == {"object_type": "companies", "query": "Acme"}
 
 
 def test_adapter_reached_direct_lane():
@@ -272,13 +272,15 @@ def test_adapter_reached_direct_lane():
 
     def fake(spec, params, *, credential=None):
         seen["credential"] = credential
-        return {"company": "Acme Inc", "id": "123"}
+        # schema-valid output (records[].id) so this exercises the live-call path,
+        # not the output-quarantine branch.
+        return {"records": [{"id": "123", "properties": {"name": "Acme Inc"}}]}
 
     adapters.register("hubspot", fake)
     result = gw.execute(call, resolver=resolver)
 
     assert result.get("stub") is not True
-    assert result["company"] == "Acme Inc"
+    assert result["records"][0]["id"] == "123"
     # credential reached the adapter but is NOT echoed back to the caller
     assert seen["credential"] == SENTINEL_CRED
     assert SENTINEL_CRED not in repr(result)

@@ -31,6 +31,7 @@ gateway policy.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from typing import Any
 
 from agent_mesh.settings import Settings, get_settings
@@ -231,6 +232,58 @@ def set_span_metadata(span, metadata: dict) -> None:
         value = metadata.get(key)
         if value is not None:
             span.set_attribute(key, value)
+
+
+@contextmanager
+def tool_event_span(
+    name: str = "tool.execute",
+    *,
+    tenant_id: str,
+    task_id: str,
+    requester_id: str,
+    session_id: str | None = None,
+    tool: str,
+    provider: str,
+    category: str,
+    integration_style: str,
+    approval_state: str | None = None,
+):
+    """Open one OTel tool-event span per ``execute()`` call (OBS-01 / D-10).
+
+    Copies the :func:`agent_mesh.services.approvals._approval_span` shape: a no-op
+    when OTel is unavailable (default-suite-safe), correlation keys via
+    :func:`trace_metadata` + :func:`set_span_metadata`, and the tool-specific
+    attributes (tool/provider/category/integration_style/approval_state/outcome).
+
+    The caller sets ``outcome`` on the yielded span after the operation resolves
+    (``ok`` | ``input_rejected`` | ``output_quarantined`` | ``stub`` | ``error``).
+    NEVER set the resolved credential or the full parameters/result as attributes
+    (T-04-03-01): ``set_span_metadata`` writes only the known correlation keys, and
+    the tool attributes below are bounded identifiers, not payloads.
+    """
+    settings = get_settings()
+    tracer = get_tracer()
+    if tracer is None:
+        yield None
+        return
+
+    meta = trace_metadata(
+        tenant_id=tenant_id,
+        client_slug=settings.client_slug,
+        task_id=task_id,
+        session_id=session_id,
+        requester_id=requester_id,
+        entrypoint="tool",
+        approval_state=approval_state,
+    )
+    with tracer.start_as_current_span(name) as span:
+        set_span_metadata(span, meta)
+        span.set_attribute("tool", tool)
+        span.set_attribute("provider", provider)
+        span.set_attribute("category", category)
+        span.set_attribute("integration_style", integration_style)
+        span.set_attribute("approval_state", approval_state or "n/a")
+        yield span
 
 
 def extract_otel_context(traceparent: str | None):

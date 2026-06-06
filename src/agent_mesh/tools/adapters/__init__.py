@@ -55,7 +55,8 @@ adapter may assume a credential is present — but defensive degradation is welc
 from __future__ import annotations
 
 import importlib
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from agent_mesh.tools.gateway import ToolSpec
@@ -91,7 +92,7 @@ def get_adapter(key: str) -> Callable | None:
     return _REGISTRY.get(key)
 
 
-def adapter_key_for(spec: "ToolSpec") -> str:
+def adapter_key_for(spec: ToolSpec) -> str:
     """Derive the adapter dispatch key for ``spec`` (see module docstring).
 
     Aggregator styles map to their aggregator name; every other style (direct_api,

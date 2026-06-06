@@ -1,21 +1,27 @@
-"""Tool Gateway loader and stub execution path.
+"""Tool Gateway loader and real execution engine.
 
 The gateway reads a tool pack manifest (YAML), validates each tool's declared
 category against its approval requirement, and exposes a registry the agents can
-consult. Execution here is a *stub*: it returns a recorded placeholder result so
-the end-to-end flow (including the approval gate) can be exercised without any
-real SaaS credentials.
+consult. ``ToolGateway.execute(call)`` is the single chokepoint that resolves the
+credential at call time (never returning it to the graph/agent — D-02), validates
+the input/output boundary (04-02), dispatches to the registered adapter via the
+derived dispatch key (or degrades to the deterministic stub when no
+adapter/credential is present — D-11), and emits one OTel tool-event span (D-10).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from agent_mesh.contracts.enums import WRITE_CATEGORIES, ToolCategory
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from agent_mesh.contracts.models import ToolCall
+    from agent_mesh.tools.credentials import CredentialResolver
 
 
 @dataclass(frozen=True)
@@ -82,11 +88,12 @@ class ToolGateway:
     def list_tools(self) -> list[ToolSpec]:
         return list(self._specs.values())
 
-    def execute(self, name: str, parameters: dict[str, Any]) -> dict[str, Any]:
-        """Stub execution. A real adapter would resolve the credential from
-        Secret Manager and call the SaaS API. Write tools are only reached here
-        AFTER an approval has been recorded by the caller."""
-        spec = self.get(name)
+    def _stub_result(self, spec: ToolSpec, parameters: dict[str, Any]) -> dict[str, Any]:
+        """The deterministic no-creds / no-adapter fallback (D-11).
+
+        Exact shape preserved from the original stub so the default suite and the
+        approval-flow E2E stay green without any real SaaS credentials.
+        """
         return {
             "tool": spec.name,
             "provider": spec.provider,
@@ -95,3 +102,103 @@ class ToolGateway:
             "note": "POC stub result; no real SaaS call was made.",
             "echo_parameters": parameters,
         }
+
+    def execute(
+        self,
+        call: ToolCall,
+        *,
+        resolver: CredentialResolver | None = None,
+    ) -> dict[str, Any]:
+        """Execute a tool call: resolve -> validate input -> dispatch -> validate
+        output -> span (the real engine).
+
+        Carries the ``ToolCall`` (not ``name, parameters``) so the span, resolver,
+        and any failed-row have task/tenant correlation (Pitfall 2). The credential
+        is resolved ONLY here and is NEVER placed in the returned dict, a span
+        attribute, or a log (D-02). When no resolver is supplied (or the secret is
+        absent) or no adapter is registered, the call degrades to the deterministic
+        stub (D-11), keeping the default lane green and creds-free.
+        """
+        # Lazy imports keep gateway.py importable without these collaborators on a
+        # bare path and avoid import cycles (validation/adapters/observability).
+        from agent_mesh.observability import tool_event_span
+        from agent_mesh.tools import validation
+        from agent_mesh.tools.adapters import adapter_key_for, get_adapter
+
+        spec = self.get(call.tool_name)
+        params = call.parameters
+        # Record the integration_style on the call for the audit row (D-03/D).
+        call.integration_style = spec.integration_style
+        approval_state = "approved" if spec.approval_required else "n/a"
+
+        with tool_event_span(
+            tenant_id=call.tenant_id,
+            task_id=call.task_id,
+            requester_id=call.requester_id,
+            tool=spec.name,
+            provider=spec.provider,
+            category=spec.category.value,
+            integration_style=spec.integration_style,
+            approval_state=approval_state,
+        ) as span:
+            # (1) Resolve the credential at call time ONLY. Never returned/leaked.
+            credential = resolver.resolve(spec.credential_secret_name) if resolver else None
+
+            # (2) Validate input pre-call (04-02 fail-closed direct-only, D-04/D-06).
+            #     An input violation is a HARD reject: no adapter call (D-06).
+            try:
+                validation.validate_tool_input(
+                    integration_style=spec.integration_style,
+                    input_schema_ref=spec.input_schema_ref,
+                    runtime_schema=None,
+                    params=params,
+                )
+            except validation.InputSchemaViolation as exc:
+                call.schema_validation = "input_rejected"
+                if span is not None:
+                    span.set_attribute("outcome", "input_rejected")
+                return {
+                    "tool": spec.name,
+                    "provider": spec.provider,
+                    "category": spec.category.value,
+                    "outcome": "input_rejected",
+                    "error": str(exc),
+                }
+
+            # (3) Select the adapter via the derived dispatch key. No adapter or no
+            #     credential -> deterministic stub (D-11).
+            adapter = get_adapter(adapter_key_for(spec))
+            if adapter is None or credential is None:
+                call.schema_validation = "ok"
+                if span is not None:
+                    span.set_attribute("outcome", "stub")
+                return self._stub_result(spec, params)
+
+            # (4) Call the adapter. The credential is passed by keyword and dropped
+            #     when execute() returns; it never enters the result dict.
+            result = adapter(spec, params, credential=credential)
+
+            # (5) Validate output post-call. A violation QUARANTINES (the SaaS call
+            #     already ran) rather than discarding the fact it ran (D-06).
+            messages: list[str] = []
+            if spec.output_schema_ref is not None:
+                from agent_mesh.tools.validation import _load, validate_output
+
+                messages = validate_output(_load(spec.output_schema_ref), result)
+            if messages:
+                call.schema_validation = "output_quarantined"
+                if span is not None:
+                    span.set_attribute("outcome", "output_quarantined")
+                return {
+                    "tool": spec.name,
+                    "provider": spec.provider,
+                    "category": spec.category.value,
+                    "outcome": "output_quarantined",
+                    "quarantine_messages": messages,
+                    "result": result,
+                }
+
+            call.schema_validation = "ok"
+            if span is not None:
+                span.set_attribute("outcome", "ok")
+            return result
