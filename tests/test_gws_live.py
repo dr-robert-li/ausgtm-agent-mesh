@@ -66,3 +66,37 @@ def test_live_drive_search_runs_real_call_through_gateway(gws_oauth):
     )
     assert "results" in result
     assert isinstance(result["results"], list)
+
+
+def test_live_calendar_list_events_runs_real_call_through_gateway(gws_oauth):
+    """04-07: a real Calendar read (the representative new live read) runs through the
+    gateway and returns a non-stub, schema-conforming result — proving the new
+    products are live on the same shared auth scaffold (D-08)."""
+    from pathlib import Path
+
+    from agent_mesh.tools.credentials import EnvCredentialResolver
+    from agent_mesh.tools.gateway import ToolGateway
+
+    manifest = Path(__file__).resolve().parents[1] / "manifests" / "tool_pack_manifest.yaml"
+    gateway = ToolGateway.from_manifest(manifest)
+
+    call = ToolCall(
+        task_id="live-gws-cal-task",
+        tenant_id="live-tenant",
+        tool_name="google_calendar_list_events",
+        category=ToolCategory.READ,
+        approval_required=False,
+        requester_id="live-requester",
+        parameters={"calendar_id": "primary", "max_results": 1},
+    )
+
+    result = gateway.execute(call, resolver=EnvCredentialResolver())
+
+    # A real call (not the deterministic stub) and schema-conforming (not quarantined).
+    assert result.get("stub") is not True
+    assert "outcome" not in result or result["outcome"] not in (
+        "stub",
+        "output_quarantined",
+    )
+    assert "events" in result
+    assert isinstance(result["events"], list)
