@@ -20,7 +20,7 @@ GCP-ready — without provisioning any live cloud resources.
 
 - [x] **Phase 1: Durable Core & Approval Security** - Postgres-backed durable state, tenant-scoped reads, runtime dispatch, and an authenticated/replay-proof approval gate _(completed 2026-06-05)_
 - [x] **Phase 2: Real Orchestration Engine** - Real LangGraph supervisor + Deep Agents roster, durable checkpointer, interrupt-based HITL resume, hardened sandbox
-- [ ] **Phase 3: Model Gateway & Observability** - Live LiteLLM gateway with budgets/cascades, Cloudflare AI Gateway upstream, Langfuse telemetry + prompt/eval management
+- [x] **Phase 3: Model Gateway & Observability** - Live LiteLLM gateway with budgets/cascades, Cloudflare AI Gateway upstream, Langfuse telemetry + prompt/eval management _(completed 2026-06-06; GW-01/02/03, OBS-01/02 — governed budget-halt closed via gap plan 03-04; OBS-01 tool-spans deferred to Phase 4)_
 - [ ] **Phase 4: Tools & Self-Improvement** - ≥1 real SaaS tool adapter with schema validation, real eval harness, AI-BOM-on-promotion with controlled versioned wiring
 - [ ] **Phase 5: E2E Validation & Deploy-Readiness** - Full end-to-end proofs + failure modes + idempotent deploy-script validation
 
@@ -71,9 +71,10 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01-litellm-router-budget-PLAN.md — In-process litellm.Router from yaml + RouterChatLiteLLM binding + durable-ledger per-user/per-task budget; shared wave-2 scaffolding (GW-01) [wave 1]
-- [ ] 03-02-cf-chokepoint-failure-test-PLAN.md — D-06 CF-never-bypass structural guard + GW-03 two-lane fallback + cents-cap budget halt (GW-02, GW-03) [wave 2, depends 03-01]
-- [ ] 03-03-langfuse-otel-observability-PLAN.md — langfuse v2→v4 + OTel transport + trace_id + cross-process traceparent + prompt/dataset/eval seed (OBS-01, OBS-02) [wave 2, depends 03-01]
+- [x] 03-01-litellm-router-budget-PLAN.md — In-process litellm.Router from yaml + RouterChatLiteLLM binding + durable-ledger per-user/per-task budget; shared wave-2 scaffolding (GW-01) [wave 1]
+- [x] 03-02-cf-chokepoint-failure-test-PLAN.md — D-06 CF-never-bypass structural guard + GW-03 two-lane fallback + cents-cap budget halt (GW-02, GW-03) [wave 2, depends 03-01]
+- [x] 03-03-langfuse-otel-observability-PLAN.md — langfuse v2→v4 + OTel transport + trace_id + cross-process traceparent + prompt/dataset/eval seed (OBS-01, OBS-02) [wave 2, depends 03-01]
+- [x] 03-04-governed-budget-halt-PLAN.md — gap-closure: governed/observable budget halt (budget_halt gateway_event + FAILED terminal state) (GW-03, OBS-01) [wave 3, gap_closure]
 
 ### Phase 4: Tools & Self-Improvement
 **Goal**: Make at least one real SaaS tool adapter execute through the gated Tool Gateway with runtime credential resolution and boundary schema validation, and replace the self-improvement stubs with a real evaluation harness plus AI-BOM-generating, controlled, versioned promotion.

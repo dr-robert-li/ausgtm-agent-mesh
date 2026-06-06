@@ -32,14 +32,19 @@ platform end-to-end and validate deploy-readiness. Each maps to a roadmap phase.
 
 ### Model Gateway
 
-- [ ] **GW-01**: A live LiteLLM-compatible gateway routes to Anthropic-direct and Vertex AI with cascades and enforces a USD $50/month per-user/per-task budget
-- [ ] **GW-02**: The gateway routes all upstream model calls through the Cloudflare AI Gateway (logging/DLP/guardrails) when enabled; agents never call providers directly
-- [ ] **GW-03**: A failure test proves model fallback and budget-limit halt behave correctly
+- [x] **GW-01
+**: A live LiteLLM-compatible gateway routes to Anthropic-direct and Vertex AI with cascades and enforces a USD $50/month per-user/per-task budget
+- [x] **GW-02
+**: The gateway routes all upstream model calls through the Cloudflare AI Gateway (logging/DLP/guardrails) when enabled; agents never call providers directly
+- [x] **GW-03
+**: A failure test proves model fallback and budget-limit halt behave correctly
 
 ### Observability
 
-- [ ] **OBS-01**: Langfuse telemetry is wired so spans, token/cost, and task/tool/approval events correlate via shared request metadata (`tenant_id`, `task_id`, `session_id`, `requester_id`, `approval_state`)
-- [ ] **OBS-02**: Langfuse prompt/version management and datasets/evals are configured
+- [x] **OBS-01
+**: Langfuse telemetry is wired so spans, token/cost, and task/tool/approval events correlate via shared request metadata (`tenant_id`, `task_id`, `session_id`, `requester_id`, `approval_state`)
+- [x] **OBS-02
+**: Langfuse prompt/version management and datasets/evals are configured
 
 ### Tools
 
@@ -103,11 +108,11 @@ Explicitly excluded. Documented to prevent scope creep.
 | ORCH-02 | Phase 2 | Complete |
 | ORCH-03 | Phase 2 | Complete |
 | SBX-01 | Phase 2 | Complete |
-| GW-01 | Phase 3 | Pending |
-| GW-02 | Phase 3 | Pending |
-| GW-03 | Phase 3 | Pending |
-| OBS-01 | Phase 3 | Pending |
-| OBS-02 | Phase 3 | Pending |
+| GW-01 | Phase 3 | Complete |
+| GW-02 | Phase 3 | Complete |
+| GW-03 | Phase 3 | Complete |
+| OBS-01 | Phase 3 | Complete (tool-event spans deferred to Phase 4 / TOOL-01 — no tool adapters exist until then) |
+| OBS-02 | Phase 3 | Complete |
 | TOOL-01 | Phase 4 | Pending |
 | TOOL-02 | Phase 4 | Pending |
 | SI-01 | Phase 4 | Pending |

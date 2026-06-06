@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 3 context gathered
-last_updated: "2026-06-06T03:05:18.356Z"
-last_activity: 2026-06-05
+status: executing
+stopped_at: Phase 03 complete (GW-01/02/03, OBS-01/02) + governed-halt gap-closure; ready for Phase 04
+last_updated: "2026-06-06T07:15:00.000Z"
+last_activity: 2026-06-06 -- Phase 03 complete; 3 plans + 1 gap-closure merged to main
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 9
-  completed_plans: 6
-  percent: 67
+  completed_phases: 3
+  total_plans: 10
+  completed_plans: 10
+  percent: 60
 ---
 
 # Project State
@@ -21,16 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-05)
 
 **Core value:** A long-running agent mesh takes a client request through ingress, durable orchestration, and a write-gated tool action — the write blocked until a human approves — and the whole run is observable and auditable.
-**Current focus:** Phase 02 — real-orchestration-engine
+**Current focus:** Phase 04 — next (Phase 03 complete)
 
 ## Current Position
 
-Phase: 3
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-06-05
+Phase: 03 (model-gateway-observability) — COMPLETE
+Plans: 3/3 + 1 gap-closure (03-04 governed budget-halt) — all merged to main
+Status: Phase 03 verified (achieved-with-gaps → Gap 1 closed; Gap 2 deferred to Phase 04)
+Last activity: 2026-06-06 -- Phase 03 complete
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██████░░░░] 60% (3/5 phases)
+
+Phase 03 result: GW-01 (in-process litellm.Router + durable budget ledger), GW-02
+(structural CF chokepoint, agents never call providers directly), GW-03 (fallback
+cascade + governed/observable budget-halt), OBS-01 (OTel spans, trace_id on all
+paths, ingress→worker traceparent join), OBS-02 (Langfuse v4 prompt mgmt + seed).
+Suite on main: 135 passed, 10 skipped (live opt-in), ruff clean, smoke OK.
 
 ## Performance Metrics
 
@@ -84,6 +90,8 @@ Items acknowledged and carried forward:
 | Deploy | Live GCP provisioning + FinOps review (DEP-03, DEP-04) | Deferred to v2 | Init |
 | Tools | Remaining reference adapters + aggregate-MCP/Nango styles (TOOL-03, TOOL-04) | Deferred to v2 | Init |
 | Hardening | Immutable ledger, egress controls, kill switches, signed images, GDPR deletion, HA | Production hardening (caveats) | Init |
+| Observability | OBS-01 tool-event spans — wire OTel spans on tool calls (no tool adapters exist until Phase 04 / TOOL-01) | Deferred to Phase 04 | Phase 03 (03-VERIFICATION Gap 2) |
+| Model gateway | `gemini-1.5-flash` (low-complexity route) unmapped in this litellm build's price map — pre-call cost estimate raises; within-budget real-`_delegate` 4-node run falls back to stub lane in one negative-control test | Minor env pricing gap; revisit in Phase 04 model-route work | Phase 03 (03-04 SUMMARY) |
 
 ## Session Continuity
 
