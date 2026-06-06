@@ -31,6 +31,7 @@ decisions:
   - "Served-deployment assertion uses ModelResponse.model (empirically gemini-1.5-pro for the medium-complexity fallback vs gemini-1.5-flash for the low-complexity primary) — verified by experiment before writing the test."
   - "Live-lane Vertex-failure inducer = a NONEXISTENT Vertex model id (vertex_ai/gemini-does-not-exist-9p) paired with a real Anthropic fallback, built in a dedicated inline Router so the shared yaml/default suite is untouched. The fallback inducer choice is a documented live-lane runtime decision, not hardcoded into the default suite."
   - "GatewayEvent has NO `note` column (the plan must_have said note=budget_halt). The budget-halt marker is carried in real contract fields: model_route='budget_halt' + dlp_action='block' + provider_status=None. Documented as a Rule-1 deviation (adapt to the real contract)."
+  - "must_have #6 'gateway_event recorded on halt' is DEFERRED wiring: the production _delegate halt path does not emit the event today, and adding it is a src edit out of scope for this test-only plan. The halt test proves the real spend-stop + the durable-ledger CONTRACT round-trip (well-formed, append-only, tenant/task-scoped) the future hook must satisfy — it does NOT claim system auto-emit. Flagged for a follow-up src-editing plan."
 metrics:
   duration_min: 22
   completed: 2026-06-06
@@ -91,9 +92,12 @@ budget halt — all while `make test` stays green with no cloud dependencies.
    fallback; a genuine Vertex error cascades and the REAL Anthropic deployment serves
    (`"claude"` in `resp.model`). **Halt test**: a cents cap
    (`MODEL_MONTHLY_BUDGET_USD=0.02`) makes a pre-call estimate (`$0.05`) exceed budget,
-   `BudgetTracker.check` raises `BudgetExceeded` before any provider call, a durable
-   `gateway_event` is recorded (marked via real contract fields), and
-   `month_to_date == 0.0` proves no spend past the cap.
+   the REAL `BudgetTracker.check` raises `BudgetExceeded` before any provider call, and
+   `month_to_date == 0.0` proves no spend past the cap. The `gateway_event`-on-halt
+   half of must_have #6 is asserted as a **durable-ledger CONTRACT round-trip** (the
+   halt marker is well-formed, persists append-only, and reads back tenant/task-scoped,
+   with cross-scope isolation), NOT as system-auto-emit — see the must_have #6 caveat
+   below, because the production `_delegate` halt path does not record the event today.
 
 ## Verification Evidence
 
@@ -120,7 +124,7 @@ budget halt — all while `make test` stays green with no cloud dependencies.
 | T-03-02-01 (direct provider call bypassing CF + budget) | mitigated | AST guard fails on any `ChatAnthropic`/`ChatVertexAI`/`litellm.completion(` outside the gateway; negative control proves detection |
 | T-03-02-02 (route api_base not pointing at CF when enabled) | mitigated | config assertion: every `model_list[*].api_base` resolves to the CF wrapper when `CF_ENABLED`; + env-indirection literal check |
 | T-03-02-03 (live-lane keys leaking into CI logs) | mitigated | live tests skip when creds unset; keys read from env only, never asserted/logged; cents cap bounds spend |
-| T-03-02-04 (budget halt fails to stop a near-cap run) | mitigated | halt test: `BudgetExceeded` before any call + durable `gateway_event` + `month_to_date == 0.0` (no spend past cap) |
+| T-03-02-04 (budget halt fails to stop a near-cap run) | mitigated (spend-stop); partial (auto-emit deferred) | halt test: real `BudgetTracker.check` raises `BudgetExceeded` before any call + `month_to_date == 0.0` (no spend past cap). The `gateway_event`-on-halt is proven as a durable CONTRACT round-trip; the `_delegate` halt path does not auto-emit it yet (deferred, see must_have #6 caveat) |
 | T-03-02-05 (forged/replayed gateway_event) | accept | gateway_events are append-only durable rows; halt is run-control, not an approval — no SEC weakening (per plan) |
 
 ## Deviations from Plan
@@ -151,6 +155,25 @@ budget halt — all while `make test` stays green with no cloud dependencies.
   with no network/creds. No Router internals are monkeypatched (both kwargs are public
   litellm API). Verified empirically before writing the test.
 - **Files:** `tests/test_cascade.py`. **Commit:** 3bc68f9.
+
+### Scope Flag — must_have #6 "gateway_event recorded on halt" is DEFERRED wiring
+
+- **What the plan asked:** the budget-halt path records a `gateway_event`
+  (`note=budget_halt`, `provider_status=None`).
+- **Ground truth:** the production halt path (`graph._delegate`, lines 154+) does NOT
+  emit a `gateway_event` — `budget.check()` raises `BudgetExceeded` and the exception
+  propagates; there is no `record_gateway_event` call on that path anywhere in `src/`.
+- **Why not fixed here:** wiring an auto-emit hook into `_delegate` is a `src/` edit,
+  which is out of scope for this **test-only** plan (`files_modified` = the 3 test
+  modules; the 03-01 src is tested, never edited).
+- **What the halt test honestly proves instead:** the REAL spend-stop (`BudgetExceeded`
+  before any provider call, `month_to_date == 0.0`) PLUS the durable-ledger CONTRACT a
+  halt marker must satisfy (well-formed `GatewayEvent`, append-only persistence,
+  tenant/task-scoped read-back, cross-scope isolation). The test explicitly does NOT
+  claim the system auto-records the event (the docstring + an inline comment say so).
+- **Follow-up:** a future plan that may edit `src/` should add a `record_gateway_event`
+  call on the `BudgetExceeded` branch in `_delegate` (the contract this test guards is
+  the exact shape that hook should write), to fully close must_have #6.
 
 ### Live-lane Runtime Decision (documented per plan)
 

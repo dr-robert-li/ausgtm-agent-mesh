@@ -19,14 +19,20 @@ half of GW-03 that proves the boundary is REAL, not faked (D-01):
   SUMMARY; it is NOT hardcoded into the default suite.
 
 * **Halt (Finding 2):** a cents cap (``MODEL_MONTHLY_BUDGET_USD=0.02``) makes the
-  pre-call estimate exceed the cap -> ``BudgetExceeded`` -> a clean terminal halt, a
-  ``gateway_event`` recorded (durable ledger from 03-01), and NO provider call beyond
-  the cap (T-03-02-04). This reuses the real ``BudgetTracker.check`` enforcement.
+  pre-call estimate exceed the cap -> the REAL ``BudgetTracker.check`` raises
+  ``BudgetExceeded`` -> a clean terminal halt with NO provider call beyond the cap
+  (T-03-02-04), and ``month_to_date == 0.0`` (no spend recorded).
 
-  NOTE on the gateway_event marker: ``GatewayEvent`` has no ``note`` column (the plan
-  must_have said ``note=budget_halt``); the halt marker is carried in real contract
-  fields — ``model_route="budget_halt"`` + ``dlp_action="block"`` + ``provider_status
-  =None`` — and documented as a deviation (Rule 1: adapt to the real contract).
+  SCOPE CAVEAT (honest, must_have #6): the production halt path (``graph._delegate``)
+  does NOT itself emit a ``gateway_event`` today — ``budget.check`` raises and the
+  exception propagates; no ``record_gateway_event`` call exists on that path. Wiring an
+  auto-emit hook is a src edit, out of scope for this TEST-ONLY plan. So the halt test
+  does NOT claim the system auto-records the event; it proves the durable-ledger
+  CONTRACT a halt marker must satisfy (well-formed, append-only, tenant/task-scoped
+  round-trip). ``GatewayEvent`` has no ``note`` column (the plan must_have said
+  ``note=budget_halt``); the marker rides real contract fields — ``model_route=
+  "budget_halt"`` + ``dlp_action="block"`` + ``provider_status=None`` (Rule 1: adapt to
+  the real contract). The auto-emit wiring is flagged DEFERRED in the SUMMARY.
 """
 
 from __future__ import annotations
@@ -145,8 +151,15 @@ def test_cents_cap_budget_halt_records_gateway_event_and_blocks_spend(live_creds
 
     assert provider_called is False, "a provider call happened past the budget cap"
 
-    # Clean halt records a durable gateway_event marking the budget halt. GatewayEvent
-    # has no `note` field, so the halt marker lives in real contract fields.
+    # SCOPE LIMITATION (honest): the production halt path (graph._delegate) does NOT
+    # itself emit a gateway_event today — `budget.check` raises `BudgetExceeded` and the
+    # exception propagates; no `record_gateway_event` call exists on that path. Wiring it
+    # would be a src edit, which is out of scope for this TEST-ONLY plan. So this test
+    # does NOT claim the system auto-records the halt; it proves the durable-ledger
+    # CONTRACT that a halt marker must satisfy: a budget-halt GatewayEvent is well-formed
+    # (no `note` column exists, so the marker rides real contract fields), persists
+    # append-only, and reads back tenant/task-scoped via list_gateway_events. The
+    # auto-emit wiring is flagged as deferred in the SUMMARY (must_have #6 caveat).
     repo.record_gateway_event(
         GatewayEvent(
             tenant_id=tenant_id,
@@ -159,6 +172,9 @@ def test_cents_cap_budget_halt_records_gateway_event_and_blocks_spend(live_creds
         )
     )
 
+    # Contract round-trip: the halt marker persists and is retrievable, tenant/task
+    # scoped, with provider_status None (no provider reached). This is the durable shape
+    # a future _delegate halt-emit hook would write; the assertion guards that contract.
     events = repo.list_gateway_events(task_id, tenant_id)
     halt_events = [e for e in events if e.model_route == "budget_halt"]
     assert len(halt_events) == 1, "exactly one budget-halt gateway_event expected"
@@ -166,6 +182,9 @@ def test_cents_cap_budget_halt_records_gateway_event_and_blocks_spend(live_creds
     assert halt.provider_status is None, "no provider was reached; status must be None"
     assert halt.dlp_action == "block"
     assert halt.tenant_id == tenant_id and halt.task_id == task_id
+    # Cross-scope guard: the halt marker is NOT visible under a different task/tenant.
+    assert repo.list_gateway_events("other-task", tenant_id) == []
+    assert repo.list_gateway_events(task_id, "other-tenant") == []
 
     # No budget event was recorded (the call was halted before completing).
     mtd = tracker.month_to_date(budget_owner, tenant_id=tenant_id)
