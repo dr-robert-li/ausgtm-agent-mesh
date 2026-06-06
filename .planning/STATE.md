@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Phase 4 complete — Tool Gateway framework + HubSpot/GWS/Composio/Nango adapters merged; framework verified, live lanes deferred"
-last_updated: "2026-06-06T13:50:00.000Z"
-last_activity: 2026-06-06 -- Phase 4 execution complete (9/9 plans merged, 215 tests green)
+stopped_at: Phase 5 planned — 7 plans, plan-checker PASS; decisions Xero→Composio + Bitscale→real direct httpx (live-verified)
+last_updated: "2026-06-06T23:54:46.994Z"
+last_activity: 2026-06-06 -- Phase 05 execution started
 progress:
   total_phases: 7
   completed_phases: 4
-  total_plans: 19
+  total_plans: 26
   completed_plans: 19
-  percent: 57
+  percent: 73
 ---
 
 # Project State
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-05)
 
 **Core value:** A long-running agent mesh takes a client request through ingress, durable orchestration, and a write-gated tool action — the write blocked until a human approves — and the whole run is observable and auditable.
-**Current focus:** Phase 5 — Reference Adapter Breadth (TOOL-03) — PLANNED (7 plans, plan-checker PASS), ready to execute
+**Current focus:** Phase 05 — reference-adapter-breadth
 
 ## Current Position
 
-Phase: 5 (reference-adapter-breadth) — PLANNED, ready to execute
-Plan: 7 plans written + plan-checker PASS; 0 of 7 executed
+Phase: 05 (reference-adapter-breadth) — EXECUTING
+Plan: 1 of 7
 Plans: 05-01 foundation (all shared-file edits) → 05-02..06 parallel direct adapters → 05-07 Xero+docs+guard
-Status: Phase 5 planned; next = /gsd:execute-phase 5
-Last activity: 2026-06-07 -- Phase 5 planning complete (research + plan + plan-check + 2 refinements folded)
+Status: Executing Phase 05
+Last activity: 2026-06-06 -- Phase 05 execution started
 
 Progress: [██████░░░░] 57% (4/7 phases)
 
