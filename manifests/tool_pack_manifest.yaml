@@ -263,6 +263,38 @@ tools:
     freshness_sla: "1h"
     rate_limit_notes: "Respect Clockify API limits."
 
+  # ---------------- Aggregator READ seams (TOOL-04, 04-08) ----------------
+  # One Composio-style and one Nango-style READ tool exercise each aggregator
+  # integration style end-to-end (D-09). Reads only: no approval-gate coupling.
+  # No input_schema_ref — aggregate tools validate against the RUNTIME provider
+  # schema (Composio session.tools()) or are permissive when none exists (Nango),
+  # per D-04. The adapter dispatch key is the aggregator name (composio / nango),
+  # NOT the provider, via adapters.adapter_key_for.
+  - name: "composio_gmail_list_messages"
+    provider: "composio_gmail"
+    integration_style: "composio_aggregator"
+    category: "read"
+    description: "Read recent Gmail messages via the Composio managed-auth Tool Router."
+    approval_required: false
+    credential_secret_name: "COMPOSIO_API_KEY"
+    resource_bindings:
+      tool_slug: "GMAIL_FETCH_EMAILS"
+      user_id: "mesh-tenant-example"
+    freshness_sla: "15m"
+    rate_limit_notes: "Respect Composio + upstream provider rate limits."
+
+  - name: "nango_hubspot_list_contacts"
+    provider: "nango_hubspot"
+    integration_style: "nango_aggregator"
+    category: "read"
+    description: "Read HubSpot contacts via the self-hosted Nango REST proxy."
+    approval_required: false
+    credential_secret_name: "NANGO_SECRET_KEY"
+    resource_bindings:
+      proxy_endpoint: "crm/v3/objects/contacts"
+    freshness_sla: "15m"
+    rate_limit_notes: "Nango proxy handles upstream rate-limit/retry server-side."
+
   # ---------------- Beehiiv (publishing) ----------------
   - name: "beehiiv_create_post"
     provider: "beehiiv"
