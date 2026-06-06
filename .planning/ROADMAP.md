@@ -71,9 +71,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: Live LiteLLM gateway integration — routing, cascades, USD $50 per-user/per-task budget (GW-01)
-- [ ] 03-02: Cloudflare AI Gateway upstream wiring + failure test (fallback, retry, budget-limit halt) (GW-02, GW-03)
-- [ ] 03-03: Langfuse telemetry wiring + prompt/version management + datasets/evals (OBS-01, OBS-02)
+- [ ] 03-01-litellm-router-budget-PLAN.md — In-process litellm.Router from yaml + RouterChatLiteLLM binding + durable-ledger per-user/per-task budget; shared wave-2 scaffolding (GW-01) [wave 1]
+- [ ] 03-02-cf-chokepoint-failure-test-PLAN.md — D-06 CF-never-bypass structural guard + GW-03 two-lane fallback + cents-cap budget halt (GW-02, GW-03) [wave 2, depends 03-01]
+- [ ] 03-03-langfuse-otel-observability-PLAN.md — langfuse v2→v4 + OTel transport + trace_id + cross-process traceparent + prompt/dataset/eval seed (OBS-01, OBS-02) [wave 2, depends 03-01]
 
 ### Phase 4: Tools & Self-Improvement
 **Goal**: Make at least one real SaaS tool adapter execute through the gated Tool Gateway with runtime credential resolution and boundary schema validation, and replace the self-improvement stubs with a real evaluation harness plus AI-BOM-generating, controlled, versioned promotion.
