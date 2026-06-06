@@ -13,7 +13,6 @@ Creds-free and deterministic: no provider SDKs installed, no network.
 
 from __future__ import annotations
 
-import importlib
 import sys
 from pathlib import Path
 

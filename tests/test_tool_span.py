@@ -9,6 +9,8 @@ the assertion is hermetic and creds-free.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -18,8 +20,6 @@ from agent_mesh.contracts.enums import ToolCategory
 from agent_mesh.contracts.models import ToolCall
 from agent_mesh.tools import adapters
 from agent_mesh.tools.gateway import ToolGateway
-
-from pathlib import Path
 
 MANIFEST = Path(__file__).resolve().parents[1] / "manifests" / "tool_pack_manifest.yaml"
 SENTINEL_CRED = "SENTINEL-SECRET-DO-NOT-LEAK-span"
