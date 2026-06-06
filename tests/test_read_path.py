@@ -11,11 +11,8 @@ gated through the unchanged payload-hash ledger (SEC-01/SEC-02).
 
 from __future__ import annotations
 
-from agent_mesh.contracts.enums import ToolCallStatus, ToolCategory
-from agent_mesh.services.dispatch import InProcessDispatcher
-from agent_mesh.services.task_service import TaskService, request_from_slack
+from agent_mesh.services.task_service import request_from_slack
 from agent_mesh.worker.orchestrator import OrchestrationResult, _run_stub
-from agent_mesh.worker.runner import Worker
 
 
 def _task(prompt: str):

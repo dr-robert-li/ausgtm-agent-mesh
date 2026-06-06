@@ -129,6 +129,12 @@ def _select_checkpointer():
 class OrchestrationResult:
     summary: str
     proposed_writes: list[dict] = field(default_factory=list)
+    # Proposed READS (audit item A). Same ``{tool_name, category, parameters}`` shape
+    # as ``proposed_writes`` but the inverse governance: the worker executes these
+    # UNGATED immediately post-run (no approval ledger) — reads are not a
+    # write-without-approval hole (T-04-04-01). Defaults empty so every other terminal
+    # path stays read-free.
+    proposed_reads: list[dict] = field(default_factory=list)
     evidence: list[str] = field(default_factory=list)
     # Trace correlation back to Langfuse, when the real stack is wired.
     trace_id: str | None = None
@@ -274,9 +280,24 @@ def _run_stub(task: TaskRecord) -> OrchestrationResult:
                 "parameters": {"deal_name": task.prompt[:80], "stage": "appointmentscheduled"},
             }
         )
+    # Deterministic READ (audit item A): every task grounds itself by looking up
+    # company/contact context. ``hubspot_lookup_company`` DECLARES input/output schemas
+    # (D-04), so the read path is exercised through the real validation boundary even on
+    # the default lane. ``query`` must satisfy minLength 1 — guard the empty-prompt case.
+    proposed_reads = [
+        {
+            "tool_name": "hubspot_lookup_company",
+            "category": "read",
+            "parameters": {
+                "object_type": "companies",
+                "query": (task.prompt[:60] or "context"),
+            },
+        }
+    ]
     return OrchestrationResult(
         summary=f"[stub] planned response for: {task.prompt[:120]}",
         proposed_writes=proposed,
+        proposed_reads=proposed_reads,
         evidence=[],
     )
 
@@ -343,10 +364,17 @@ def _run_langgraph(task: TaskRecord) -> OrchestrationResult:
     else:
         proposed_writes = final_state.get("proposed_writes", [])
 
+    # Proposed READS are ACCUMULATED CHANNEL STATE (the researcher node emits them
+    # upstream of the write_gate), NOT carried in the interrupt value (which only holds
+    # proposed_writes). So pull reads from ``final_state`` in BOTH branches — otherwise a
+    # write that pauses the run would silently drop the reads gathered before the gate.
+    proposed_reads = final_state.get("proposed_reads", [])
+
     return OrchestrationResult(
         summary=final_state.get("review")
         or f"[mesh] completed: {task.prompt[:120]}",
         proposed_writes=proposed_writes,
+        proposed_reads=proposed_reads,
         evidence=[],
         # trace_id stays unset — Langfuse correlation is Phase 3.
     )

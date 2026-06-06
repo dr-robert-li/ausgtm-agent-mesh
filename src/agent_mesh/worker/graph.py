@@ -59,6 +59,10 @@ class MeshState(TypedDict, total=False):
     code: str
     review: str
     proposed_writes: list[dict]
+    # Proposed READS (audit item A), emitted by ``researcher_node``. Accumulated channel
+    # state surfaced into ``OrchestrationResult.proposed_reads``; the worker executes them
+    # UNGATED post-run (no approval ledger), the inverse of the write-gate path.
+    proposed_reads: list[dict]
     # Set by ``write_gate_node`` from the resumed ``Command(resume=...)`` value: an
     # already-verified boolean decision, NOT an identity. ``done`` marks the terminal,
     # no-write path (no proposed writes -> no interrupt).
@@ -223,17 +227,47 @@ def planner_node(state: MeshState) -> MeshState:
     return {"plan": plan}
 
 
+def _proposed_reads(prompt: str) -> list[dict]:
+    """Heuristic read selection (researcher / tool-router, audit item A).
+
+    Every task grounds itself with a company/contact lookup. ``hubspot_lookup_company``
+    DECLARES input/output schemas (D-04), so the read path is exercised through the real
+    validation boundary even on the default lane. ``query`` must satisfy minLength 1 —
+    guard the empty-prompt case. Plan-derived selection lands with creds (the gateway/
+    roster route the real read); the stub lane keeps it deterministic so ``make test``
+    stays green (D-11). Kept in lockstep with ``orchestrator._run_stub``.
+    """
+    return [
+        {
+            "tool_name": "hubspot_lookup_company",
+            "category": "read",
+            "parameters": {
+                "object_type": "companies",
+                "query": (prompt[:60] or "context"),
+            },
+        }
+    ]
+
+
 def researcher_node(state: MeshState) -> MeshState:
-    """Gather evidence / route tools off the plan (researcher / tool-router)."""
+    """Gather evidence / route tools off the plan (researcher / tool-router).
+
+    Emits ``proposed_reads`` into ``MeshState`` (audit item A): ungated reads the worker
+    executes post-run. Reads are derived from the ORIGINAL prompt — the same selection on
+    the real-graph and stub-fallback paths — and never route through the approval ledger.
+    """
     plan = state.get("plan", "")
+    prompt = state.get("prompt", "")
+    proposed_reads = _proposed_reads(prompt)
     if _model_credentials_present():  # pragma: no cover - needs model creds
         return {
             "research": _delegate(
                 "researcher", "low_complexity", plan, task_id=state.get("task_id")
-            )
+            ),
+            "proposed_reads": proposed_reads,
         }
     research = f"[research] evidence gathered for: {plan[len('[plan] '):][:80]}"
-    return {"research": research}
+    return {"research": research, "proposed_reads": proposed_reads}
 
 
 def code_writer_node(state: MeshState) -> MeshState:
