@@ -69,6 +69,21 @@ Heavy deps (`langchain`, `langgraph`, `deepagents`, `langfuse`, `streamlit`,
 and the in-process dispatcher/worker run. Install the `runtime`, `agents`, and
 `gui` extras for the full stack before building images.
 
+## Credentials & live lane
+
+The default smoke/test lane above is **creds-free** — it never touches a real SaaS
+provider. To exercise a provider for real (the opt-in **live lane**), supply that
+provider's credential env var(s). Each provider is independently skippable: leave a
+provider's creds unset and only its live tests skip (D-11). The single discoverable
+per-provider credential/scope setup index — which env vars to set, what they govern,
+where to mint them, and the exact scopes — is:
+
+- [`docs/credentials/README.md`](./docs/credentials/README.md) — the credential index
+  + per-provider opt-in live-lane matrix, linking the per-provider setup docs for
+  HubSpot, Google Workspace (all six products), Composio, and Nango.
+
+Run the live lane with `pytest -m live`; providers whose creds are absent skip cleanly.
+
 ## Deployment Sequence
 
 ### Prepare manifests
