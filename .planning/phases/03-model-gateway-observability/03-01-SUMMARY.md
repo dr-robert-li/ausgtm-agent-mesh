@@ -46,13 +46,13 @@ decisions:
   - "Per-task cap enforcement on the SQL path conservatively returns 0.0 task-to-date (per-user cap still hard-stops); the InMemory path enforces both fully. Documented as a deliberate POC limitation."
   - "The async router test uses asyncio.run() (repo-consistent) rather than adding pytest-asyncio asyncio_mode, to avoid touching shared conftest config 03-02/03-03 depend on."
 metrics:
-  duration_min: 38
+  duration_min: 46
   completed: 2026-06-06
   tasks: 3
   files_changed: 10
-  commits: 5
-  tests_added: 13
-  default_suite: "103 passed, 6 skipped"
+  commits: 6
+  tests_added: 15
+  default_suite: "105 passed, 6 skipped"
 ---
 
 # Phase 3 Plan 01: LiteLLM Router + Durable Budget Ledger Summary
@@ -91,15 +91,18 @@ cloud deps.
    Router-backed model whose `model=` is the hyphenated yaml deployment name (D-06:
    `api_base` relocated per-route in the yaml, never on the chat-model constructor).
    `graph.py` role nodes delegate via `get_chat_model(tier)` when creds are present,
-   budget-wrapped (pre-call `check` halt, post-call `record`), keeping the
+   budget-wrapped (pre-call `check` halt; post-call `record` priced from the returned
+   `AIMessage.usage_metadata` via the pure, creds-free-testable `_actual_cost` helper,
+   so the **actual** cost is persisted per D-04 — not the estimate), keeping the
    deterministic fallback for the no-creds default suite and leaving RF-1
-   `proposed_writes` heuristic-derived.
+   `proposed_writes` heuristic-derived. The creds-present `_delegate` body itself is
+   `# pragma: no cover` (needs live creds); its cost helper IS unit-tested.
 
 ## Verification Evidence
 
-- `make test` (default lane, `-m "not live"`): **103 passed, 6 skipped** — master
+- `make test` (default lane, `-m "not live"`): **105 passed, 6 skipped** — master
   invariant holds with no provider/Postgres/Langfuse credentials.
-- `pytest tests/test_model_gateway_router.py tests/test_budget_ledger.py`: **13 passed**.
+- `pytest tests/test_model_gateway_router.py tests/test_budget_ledger.py`: **15 passed**.
 - Load-bearing GW-01 proof: `test_router_chat_litellm_routes_through_router` asserts a
   `.invoke()` against `stub_router` records **exactly one** completion call on the stub
   (and zero async calls) — the override defeats the clobber, verifiably.
@@ -142,11 +145,29 @@ cloud deps.
   (correct v2 idiom; the Router is not a validated field). Removed the deprecation.
 - **Files:** `src/agent_mesh/worker/model_gateway.py`. **Commit:** db68c51.
 
-**3. [Documented limitation] Per-task cap on the SQL path returns 0.0 task-to-date.**
+**3. [Rule 1 - Bug] `_delegate` recorded the estimate (and risked a crash), not the actual cost.**
+- **Found during:** advisor review of the untested creds-present path.
+- **Issue:** Post-call cost used
+  `litellm.completion_cost(completion_response=getattr(result, "_response", None))`.
+  But `chat.invoke()` returns a LangChain `AIMessage`, which has no `_response` attr —
+  so the arg was always `None`, making `completion_cost` return 0 (→ silently record the
+  pre-call **estimate**, violating must_have D-04 "persists actual cost") or raise on the
+  first creds-present run.
+- **Fix:** Extracted pure `_actual_cost(route_model, usage_metadata, fallback)` that
+  prices `AIMessage.usage_metadata` (`input_tokens`/`output_tokens`) via
+  `litellm.cost_per_token`, falling back to the estimate only when usage is absent. Added
+  2 creds-free regression tests (would have caught the `_response` bug).
+- **Files:** `src/agent_mesh/worker/graph.py`, `tests/test_model_gateway_router.py`.
+  **Commit:** e4ba9fb.
+
+**4. [Documented limitation] Per-task SQL cap + `budget_owner` placeholder.**
 - The SQL `BudgetTracker._task_to_date` conservatively returns 0.0 (the per-user cap
-  remains the SOLE hard enforcer guaranteed by the plan); the InMemory path enforces
-  both per-user and per-task fully. Per-task SQL enforcement is a follow-up if a tighter
-  guarantee is needed in production. Not a gap against the plan's stated invariant.
+  remains the SOLE hard enforcer guaranteed by the plan; `per_task_cap` defaults to the
+  per-user cap); the InMemory path enforces both fully.
+- In `_delegate`, `budget_owner` falls back to `settings.tenant_id` (a documented TODO):
+  per-user enforcement collapses to per-tenant for delegated runs until ingress threads
+  the requester id through the graph state (03-02 / ingress follow-up).
+- Both are POC limitations, not gaps against the plan's stated invariant.
 
 ### Intentionally Deferred (per plan)
 
@@ -174,7 +195,8 @@ production stubs.
 - Created/modified files verified present: `tests/test_model_gateway_router.py`,
   `tests/test_budget_ledger.py`, `src/agent_mesh/worker/model_gateway.py`,
   `src/agent_mesh/worker/budget.py`, `03-01-SUMMARY.md`.
-- All 5 task commits verified in git log: `c316ddf` (chore), `9a88526` (test/RED),
-  `92693c6` (feat/GREEN budget), `1be6f30` (test/RED router), `db68c51` (feat/GREEN router).
+- All 6 task commits verified in git log: `c316ddf` (chore), `9a88526` (test/RED),
+  `92693c6` (feat/GREEN budget), `1be6f30` (test/RED router), `db68c51` (feat/GREEN router),
+  `e4ba9fb` (fix/cost-accounting).
 - TDD gate sequence present for Tasks 2 and 3: `test(...)` RED commit precedes its
   `feat(...)` GREEN commit in both cases.
