@@ -170,4 +170,8 @@ class Worker:
                 "note": "no tool gateway configured; write not executed",
                 "tool": call.tool_name,
             }
-        return self._gateway.execute(call.tool_name, call.parameters)
+        # execute() now takes the ToolCall (04-03 Pitfall 2 — carries task/tenant
+        # correlation). No resolver is passed here: resolver=None -> credential
+        # None -> deterministic stub, preserving today's creds-free behavior.
+        # 04-04 wires the EnvCredentialResolver into this call site.
+        return self._gateway.execute(call)
