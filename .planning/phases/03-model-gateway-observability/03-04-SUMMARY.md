@@ -83,6 +83,7 @@ Each task was committed atomically (TDD: RED test added in this file, then GREEN
 - Halt marker rides `model_route="budget_halt"` (no `note` field on GatewayEvent — honours the 03-02 deviation); free-text reason lives on the task transition `note`.
 - Used `settings.tenant_id`/`settings.client_slug` for the gateway_event scope (matches the budget owner) and threaded only `task_id` from state — the minimal new wiring.
 - Test installs ONE `InMemoryRepository` as the process singleton and pins `TENANT_ID`/`CLIENT_SLUG` so the task tenant, breach-ledger row, budget owner, and gateway_event scope all match — preventing a fixture-vs-singleton split-brain that could pass green on a lie.
+- The halt `gateway_event` tenant scope follows the same `settings.tenant_id` POC convention as `budget_owner` (the documented per-tenant collapse in 03-VERIFICATION / graph.py:143 TODO), NOT `task.tenant_id`. In the single-tenant POC they are equal; this is intentional consistency with the budget path, not an oversight.
 
 ## Deviations from Plan
 
@@ -104,12 +105,13 @@ Each task was committed atomically (TDD: RED test added in this file, then GREEN
 ## Issues Encountered
 - `_delegate` lazy-imports `get_chat_model` from `model_gateway`, so the test could not monkeypatch `graph.get_chat_model` (not a module attribute). Resolved by patching `agent_mesh.worker.model_gateway.get_chat_model` at its source. The over-budget assertion needs no chat stub at all — `budget.check` raises before construction.
 - `RECEIVED -> RUNNING` is not a legal transition; the worker assumes a QUEUED task. The test queues the task (`RECEIVED -> QUEUED`) before `Worker.process` so the worker's `QUEUED -> RUNNING` is legal.
+- The negative control's COMPLETED half could not drive a full four-node REAL `_delegate` run to terminal because the low-complexity route model (`gemini-1.5-flash`) is unmapped in this litellm build's price map (its pre-call `cost_per_token` estimate raises) — an environmental pricing gap unrelated to halt governance. Split the negative control: the REAL `_delegate` within-budget no-halt-row half (`test_delegate_normal_path_emits_no_budget_halt_event`) and the COMPLETED-terminal half (`test_worker_within_budget_reaches_completed_via_stub_lane`, deterministic stub lane). Both green, cloud-free.
 
 ## User Setup Required
 None - no external service configuration required.
 
 ## Verification Gates
-- Default suite: `134 passed, 6 skipped` (was 130 passed; +4 new tests, 0 failures), no cloud deps.
+- Default suite (bare `PYTHONPATH=src python -m pytest -q`): `135 passed, 10 skipped` (was 130 passed; +5 new tests in this plan, 0 failures), no cloud deps. The 10 skips are the live-creds/SQL tests, collected cleanly.
 - `ruff check src/agent_mesh tests`: All checks passed.
 - `make smoke` (venv interpreter): SMOKE OK.
 - Grep gate: `record_gateway_event` has 1 production call site in `src/agent_mesh/worker/graph.py` (was 0).

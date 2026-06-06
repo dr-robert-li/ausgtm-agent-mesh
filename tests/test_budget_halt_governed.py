@@ -208,3 +208,30 @@ def test_run_mesh_budget_halt_sets_failed_and_trace_id(governed_env, monkeypatch
     assert result.proposed_writes == []
     final = repo.get_task(task.task_id)
     assert final is not None and final.state == TaskState.FAILED.value
+
+
+def test_worker_within_budget_reaches_completed_via_stub_lane(governed_env):
+    """Negative control (Task 3, COMPLETED half): a within-budget read-only task
+    reaches a normal COMPLETED terminal state with NO ``budget_halt`` row.
+
+    This runs the orchestration topology on the deterministic stub lane (creds
+    absent, so ``_delegate`` is not entered). The complementary
+    ``test_delegate_normal_path_emits_no_budget_halt_event`` already proves the
+    REAL ``_delegate`` path writes no halt row on a within-budget call. We do NOT
+    drive the full four-node real-``_delegate`` run to COMPLETED here because the
+    low-complexity route model (``gemini-1.5-flash``) is unmapped in this litellm
+    build's price map (its pre-call ``cost_per_token`` estimate raises) — an
+    environmental pricing gap unrelated to the halt-governance contract under
+    test. Splitting the negative control this way keeps both halves green and
+    cloud-free."""
+    repo, make_task = governed_env
+    # Read-only prompt (no write-trigger verb) -> no approval pause -> COMPLETED.
+    task = make_task(prompt="research the latest findings")
+
+    state = Worker(repo=repo).process(task.task_id)
+
+    assert state == TaskState.COMPLETED.value
+    final = repo.get_task(task.task_id)
+    assert final is not None and final.state == TaskState.COMPLETED.value
+    events = repo.list_gateway_events(task.task_id, _TENANT)
+    assert [e for e in events if e.model_route == "budget_halt"] == []
