@@ -1,8 +1,8 @@
 # Phase 5: Reference Adapter Breadth - Research
 
 **Researched:** 2026-06-07
-**Domain:** Extending the Phase-4 Tool Gateway with new direct adapters + Xero-via-aggregator
-**Confidence:** HIGH (framework reuse; integration seams read from source) / MEDIUM-LOW (Bitscale public API)
+**Domain:** Extending the Phase-4 Tool Gateway with new direct adapters + Xero-via-Composio
+**Confidence:** HIGH (framework reuse; integration seams read from source; both open decisions resolved with live evidence)
 
 ## Summary
 
@@ -24,27 +24,43 @@ are added. This is the load-bearing foundation work, and — like Phase 4 — it
 shared files (`manifests/tool_pack_manifest.yaml`, plus schema files under `schemas/`),
 which is the tightest serialization constraint of the phase.
 
-**Xero:** the manifest currently declares it `nango_aggregator`. Evidence below recommends
-**flipping it to `composio_aggregator`** — the Nango adapter is hardcoded GET-only over
-httpx, so a financial WRITE (POST create-invoice) through Nango would require editing the
-SHARED `nango.py` file (breaking the isolated-adapter model), whereas Composio's
-`session.execute(tool=..., arguments=...)` is verb-agnostic and already handles writes.
+**Phase 5 ships FIVE real direct adapters + Xero via Composio:**
+`webflow`, `bitscale`, `calcom`, `clockify`, `beehiiv` are all own-file httpx `direct_api`
+adapters; Xero rides the existing `composio.py` adapter (no new Xero module).
+
+**Both open decisions are now RESOLVED with live evidence (locked — no longer
+user-surfaceable):**
+
+- **Xero → Composio (LOCKED).** The operator provisioned a `COMPOSIO_API_KEY`
+  (proxy-execute DISABLED — standard predefined-tool execution, exactly what `composio.py`
+  `session.execute(tool=...)` uses). The Nango adapter is hardcoded GET-only over httpx, so
+  a financial WRITE through Nango would require editing the SHARED `nango.py`; Composio's
+  `session.execute(tool=..., arguments=...)` is verb-agnostic and reuses the existing
+  `composio.py` with zero adapter code change. Flip the two Xero manifest entries
+  `nango_aggregator → composio_aggregator`.
+
+- **Bitscale → real DIRECT httpx adapter (LOCKED, REVERSED from earlier schema-only stub
+  recommendation).** Bitscale HAS a live public REST API — validated directly with live curl
+  during decision resolution. Base `https://api.bitscale.ai/api/v1`, auth header
+  **`X-API-Key: <key>`** (`BITSCALE_API_KEY`). It is the **5th real direct adapter**, an
+  own-file `adapters/bitscale.py` exactly like the other four, sitting in the parallel
+  per-adapter wave. The earlier "no public API → schema-only stub / aggregator-fallback"
+  recommendation is **withdrawn**.
 
 **Primary recommendation:** One **foundation plan** owns ALL shared-file edits (manifest
-schema-refs + entry tweaks, every new schema file, `pyproject.toml` if any SDK extra,
-the `test_credential_docs.py` guard-list extensions, and the Xero style flip). Then
+schema-refs + entry tweaks for all FIVE direct providers incl. bitscale, every new schema
+file, and the Xero style-flip). **No new `pyproject.toml` extra is needed** — all five
+direct providers are httpx (a core dep) and Xero rides the existing `composio` extra. Then
 **isolated per-adapter plans** each touch only their own `adapters/<provider>.py` + tests +
-`docs/credentials/<provider>.md`. Prefer **httpx-direct** for every direct adapter (the
-Phase-4 Nango precedent — no new pyproject extra, no SDK supply-chain gate). Bitscale has
-**no public REST API** (early-access only) — recommend routing it through the aggregator or
-shipping a deferred stub.
+`docs/credentials/<provider>.md`. The `test_credential_docs.py` guard extension is deferred
+to the FINAL plan (it has no degradation; see the boxed warning in Plan Split).
 
 ## Architectural Responsibility Map
 
 | Capability | Primary Tier | Secondary Tier | Rationale |
 |------------|-------------|----------------|-----------|
 | Webflow CMS item create (publishing write) | API / Backend (adapter) | — | Tool Gateway execution-time call; approval-gated upstream in worker |
-| Bitscale enrichment (read) | API / Backend (adapter) | Aggregator | No public direct API → aggregator or deferred stub |
+| Bitscale grids/workspace read + run_grid write | API / Backend (direct httpx adapter) | — | Live public REST API (X-API-Key); run_grid write consumes paid credits → approval-gated + stubbed even in live lane |
 | Cal.com bookings read/write | API / Backend (adapter) | — | Direct REST; write approval-gated upstream |
 | Clockify time-entries read | API / Backend (adapter) | — | Direct REST, X-Api-Key |
 | Beehiiv post-create (publishing write) | API / Backend (adapter) | — | Direct REST; approval-gated upstream |
@@ -58,7 +74,7 @@ shipping a deferred stub.
 
 | ID | Description | Research Support |
 |----|-------------|------------------|
-| TOOL-03 | Reference-provider breadth: Webflow, Bitscale, Cal.com, Clockify, Beehiiv direct adapters + Xero via aggregator, each independently landable/testable, reusing the Phase-4 framework | Per-provider API/auth/op tables + plan split + integration-seam constraints below |
+| TOOL-03 | Reference-provider breadth: Webflow, Bitscale, Cal.com, Clockify, Beehiiv direct adapters + Xero via aggregator, each independently landable/testable, reusing the Phase-4 framework | Per-provider API/auth/op tables + plan split + integration-seam constraints below. All five are real direct adapters; Xero via Composio. |
 
 ## Integration Seams — UNMISSABLE (Phase-4 lessons a fresh planner WILL miss)
 
@@ -70,7 +86,9 @@ defect.
    `manifests/tool_pack_manifest.yaml`, (b) two schema files under `schemas/`, and possibly
    (c) a `pyproject.toml` extra. Phase 4 solved parallel-adapter collisions by front-loading
    ALL of this into ONE foundation plan (04-01) so per-adapter plans touched only their own
-   `adapters/<provider>.py` + tests + doc. **Do the same.** `[VERIFIED: 04-01-PLAN.md files_modified]`
+   `adapters/<provider>.py` + tests + doc. **Do the same.** **For Phase 5, `pyproject.toml`
+   needs NO new extra** — all five direct providers are httpx and Xero reuses the existing
+   `composio` extra. `[VERIFIED: 04-01-PLAN.md files_modified]`
 
 2. **D-04 fail-closed BLOCKS a direct tool with no schema at EXECUTE time.**
    `validation.validate_tool_input` raises `InputSchemaViolation("direct tool with no schema
@@ -83,7 +101,8 @@ defect.
    `register()` per op — last-wins collision makes ops unreachable (the real HubSpot defect
    the test `test_single_dispatcher_routes_distinct_ops` guards). Cal.com (2 ops) MUST use a
    single dispatcher with an internal `_CALCOM_OPS = {name: fn}` map, exactly like HubSpot's
-   `_HS_OPS`. `[VERIFIED: hubspot.py:121-138, adapters/__init__.py:17-20]`
+   `_HS_OPS`. Bitscale (read + run_grid write) is likewise multi-op → single dispatcher with
+   a `_BITSCALE_OPS` map. `[VERIFIED: hubspot.py:121-138, adapters/__init__.py:17-20]`
 
 4. **Dispatch key derivation (`adapter_key_for`):** `direct_api` → `spec.provider`;
    `composio_aggregator` → `"composio"`; `nango_aggregator` → `"nango"`. So a direct
@@ -96,8 +115,9 @@ defect.
    `importlib.import_module(f"agent_mesh.tools.adapters.{key}")` on a registry miss and
    swallows `ImportError` → `None` → engine stubs. Adapter modules must `register()` at
    module top, lazy-import any SDK INSIDE the function, and return `None` on
-   `credential is None` / `ImportError`. **Prefer httpx (a core dep) → no ImportError risk at
-   all.** `[VERIFIED: adapters/__init__.py:80-92, nango.py:89-91]`
+   `credential is None` / `ImportError`. **All five direct adapters use httpx (a core dep) →
+   no ImportError risk; the stub fallback is driven by `credential is None`** (creds-absent →
+   deterministic stub, default `make test` green creds-free). `[VERIFIED: adapters/__init__.py:80-92, nango.py:89-91]`
 
 6. **Credential resolved ONLY inside `execute()`; never logged/returned/span'd (D-02).** The
    adapter receives `credential` by keyword, uses it, and the engine drops it on return. Do
@@ -124,8 +144,8 @@ defect.
    e.g. `hubspot.py`), so a Phase-5 direct adapter that does the same will NOT trip the
    "must be documented" union — meaning the guard won't auto-fail, BUT it also won't enforce
    the new docs unless you extend `_PROVIDER_DOCS`/`_LIVE_TEST_FILES`/`_MIN_ENV_VARS`. Treat
-   extending these four lists + the floor as a shared-file edit owned by the foundation (or
-   final-docs) plan. `[VERIFIED: tests/test_credential_docs.py:44-67, 70-112]`
+   extending these four lists + the floor as a shared-file edit owned by the FINAL plan
+   (deferred from the foundation). `[VERIFIED: tests/test_credential_docs.py:44-67, 70-112]`
 
 10. **`docs/credentials/README.md` index/matrix is a serialization point; per-provider
     `<provider>.md` files are isolated.** Mirror Phase 4: per-adapter plans append their own
@@ -147,7 +167,7 @@ defect.
 ### Supporting (new code per provider)
 | Library | Version | Purpose | When to Use |
 |---------|---------|---------|-------------|
-| `httpx` | already a CORE dep | REST calls for all 5 direct adapters | **Default choice** — no new extra, no SDK gate |
+| `httpx` | already a CORE dep | REST calls for all 5 direct adapters (webflow, bitscale, calcom, clockify, beehiiv) | **Default choice** — no new extra, no SDK gate |
 | `composio` | `>=0.13,<1` (already in `aggregators` extra) | Xero via Composio | Already declared; opt-in; no new dep needed |
 
 ### Alternatives Considered (SDKs — REJECTED in favor of httpx)
@@ -157,10 +177,12 @@ defect.
 | Beehiiv httpx | `beehiiv` PyPI 0.2 | `[ASSUMED]` — v0.2, single release, unverified publisher → SLOP-risk. **Do NOT install.** Use httpx. |
 | Clockify httpx | `clockify-api-client` PyPI | `[ASSUMED]` — third-party, low maturity. Use httpx. |
 | Cal.com httpx | (no official Python SDK found) | httpx is the only sane path. |
+| Bitscale httpx | (no official Python SDK; `bitscale-mcp` exists but adapter calls REST directly) | httpx-direct against the verified REST API; no SDK extra. |
 
-**Installation:** No new dependencies required if all direct adapters use httpx. The
-`composio` extra for Xero already exists. If a planner insists on any SDK, it MUST pass the
-Package Legitimacy Gate first and be tagged accordingly.
+**Installation:** **No new dependencies required.** All five direct adapters use httpx (core
+dep); Xero reuses the existing `composio` extra. **`pyproject.toml` needs NO new extra.** If
+a planner insists on any SDK, it MUST pass the Package Legitimacy Gate first and be tagged
+accordingly.
 
 ## Package Legitimacy Audit
 
@@ -171,8 +193,8 @@ Package Legitimacy Gate first and be tagged accordingly.
 
 | Package | Registry | Notes | slopcheck | Disposition |
 |---------|----------|-------|-----------|-------------|
-| `httpx` | PyPI (core dep) | already installed, used by `nango.py` | n/a (existing) | Approved (reuse) |
-| `composio` | PyPI `>=0.13,<1` | already in `aggregators` extra, Phase-4 approved | n/a (existing) | Approved (reuse for Xero) |
+| `httpx` | PyPI (core dep) | already installed, used by `nango.py`; backs all 5 direct adapters incl. bitscale | n/a (existing) | Approved (reuse) |
+| `composio` | PyPI `>=0.13,<1` | already in `aggregators` extra, Phase-4 approved; Xero rides this | n/a (existing) | Approved (reuse for Xero) |
 | `webflow` | PyPI 2.0.0 | provenance unconfirmed via official docs | not run | REJECTED — use httpx; `[ASSUMED]` if reconsidered |
 | `beehiiv` | PyPI 0.2 | single release, SLOP-risk | not run | REJECTED — use httpx |
 | `clockify-api-client` | PyPI | third-party, low maturity | not run | REJECTED — use httpx |
@@ -207,24 +229,46 @@ and gate install behind a `checkpoint:human-verify` task (Phase-4 precedent for
 - **Gotcha:** create returns 202 (accepted, async stage), not 200. Rate limit 60–120 req/min
   by plan.
 
-### Bitscale (`provider: bitscale`, direct_api **AT RISK**)
-- **No public REST API.** Bitscale's API is "coming soon / early-access program only" — no
-  public endpoint, auth model, or schema is documented. `[VERIFIED: WebSearch — docs.bitscale.ai shows only a custom-API *integration* ingredient + an early-access waitlist; no enrichment REST endpoint]`
-- **Existing manifest entry:** `bitscale_enrich` (read). It is enrichment/scraping — a
-  read-only adapter is legitimate; **do NOT invent a write op.**
-- **Recommendation (decision #2 / Bitscale):** **Two viable fallbacks, pick one in
-  planning:**
-  1. **Keep it a deterministic gateway stub** (the entry stays, no adapter module ships,
-     `get_adapter('bitscale')` import-misses → stub). Lowest risk; success criterion 1
-     ("working direct adapter … with schema validation") is then only PARTIALLY met for
-     Bitscale → flag to orchestrator/user.
-  2. **Route via the aggregator** if Composio/Nango lists Bitscale (NOT confirmed —
-     Composio toolkit search did not surface Bitscale). If chosen, re-style the manifest
-     entry `composio_aggregator` and add a `tool_slug`.
-- **My recommendation:** ship the **schema + manifest ref + a thin httpx adapter scaffold
-  guarded to stub** so the schema-validation criterion is met deterministically, and
-  surface to the user that Bitscale has no live direct API yet. This is a genuine
-  user-surfaceable decision.
+### Bitscale (`provider: bitscale`, direct_api, httpx — 5th REAL direct adapter)
+- **DECISION #2 RESOLVED → real direct httpx adapter (live-curl validated).** Bitscale HAS a
+  live public REST API. A working `bitscale-mcp` server exists in the client's Claude Desktop
+  config, and the underlying REST API was confirmed directly with live curl during decision
+  resolution. The earlier "no public API → schema-only stub" finding is **withdrawn.**
+  `[VERIFIED: live curl against api.bitscale.ai — orchestrator decision resolution]`
+- **API base:** `https://api.bitscale.ai/api/v1`. `[VERIFIED: live curl]`
+- **Auth:** header **`X-API-Key: <key>`** (NOT Bearer; NOT `api-key`/`apikey` — those 401;
+  only `X-API-Key`/`x-api-key` return 200). Env: `BITSCALE_API_KEY` (already added to `.env`
+  / `.env.example`). `[VERIFIED: live curl — header probed, only X-API-Key/x-api-key give 200]`
+- **Integration style:** `direct_api`, provider key `bitscale` — own-file
+  `adapters/bitscale.py` exactly like the other four direct providers (httpx, Phase-4
+  Nango-style httpx precedent, **NO new pyproject SDK extra**). Multi-op (read + write) →
+  single dispatcher with a `_BITSCALE_OPS` map (per integration seam #3).
+- **Verified live READ endpoints (all 200 with X-API-Key):** `[VERIFIED: live curl]`
+  - **`GET /api/v1/grids`** → `{"grids":[{id, name, description, row_count, column_count,
+    columns:[{id, name, type, dependencies}]}]}` — list grids. **Pick this as the primary
+    READ op** (`category: read`, `approval_required: false`, **credit-free**).
+  - **`GET /api/v1/workspace`** → workspace details (plan, credits, member counts) —
+    **credit-free**; a good cheap read / health op.
+  - **`GET /api/v1/grids/{grid_id}`** → grid detail (settings + full columns).
+- **WRITE op — `run_grid`:** MCP signature `run_grid(grid_id, inputs)`; appends a row +
+  triggers enrichment and **consumes the client's paid credits.** REST route to confirm at
+  impl (likely `POST /api/v1/grids/{grid_id}/run`; `get_grid_curl` would reveal it but 400'd
+  on the test grid). `category: write`, `approval_required: true` — gated upstream through
+  the existing payload-hash ledger. **Do NOT probe `run_grid` during planning** (would burn
+  credits / mutate the live grid). `[VERIFIED: bitscale-mcp signature; REST route inferred]`
+- **CREDIT-SAFETY constraint for the live test lane (LOCKED decision):** the live lane
+  exercises **reads only** (`GET /api/v1/grids`, `GET /api/v1/workspace`). `run_grid` stays
+  **stubbed even in the live lane** — it never auto-burns the client's credits. The write
+  path is proven via the **approval-gate + deterministic stub**, NOT real spend. The planner
+  MUST write `tests/test_bitscale_live.py` as **reads-only**; the run_grid write op is
+  asserted through the default-lane stub + approval-gate test, not a live call.
+- **Creds-absent → deterministic stub** (default `make test` green creds-free), same as every
+  other adapter.
+- **Context:** the live workspace is the CLIENT's real `australiagtm.com` Bitscale (Starter
+  plan, real leads grids) — so the credit-safety + approval-gating notes are operational, not
+  academic.
+- **Cred doc:** `docs/credentials/bitscale.md` — Bitscale dashboard → API key. Env:
+  `BITSCALE_API_KEY`. `resource_bindings`: `grid_id` (for grid-detail read + run_grid).
 
 ### Cal.com (`provider: calcom`, direct_api, httpx)
 - **API base:** host `https://api.cal.com` (docs say "typically"; confirm at impl) — **paths include `/v2`** (e.g. `GET /v2/bookings`); do NOT double the `/v2`. `[CITED: cal.com/docs/api-reference/v2]`
@@ -278,22 +322,24 @@ and gate install behind a `checkpoint:human-verify` task (Phase-4 precedent for
   403. Document this caveat. Response nests under `data` (output schema must match
   `{data:{id}}`, NOT a flat `{id}`).
 
-### Xero (`provider: xero`, **flip to composio_aggregator**, financial)
-- **DECISION #1 RESOLVED → Composio (primary).** `[VERIFIED: source nango.py:97-107 is hardcoded GET; composio.py:67 session.execute is verb-agnostic]`
+### Xero (`provider: xero`, composio_aggregator, financial)
+- **DECISION #1 RESOLVED → Composio (LOCKED).** The operator provisioned a `COMPOSIO_API_KEY`
+  (proxy-execute DISABLED — standard predefined-tool execution only, which is exactly what
+  `composio.py` `session.execute(tool=...)` uses). `[VERIFIED: operator provisioned key;
+  source nango.py:97-107 is hardcoded GET; composio.py:67 session.execute is verb-agnostic]`
   - Composio's Xero toolkit lists a **Create Invoice** action + List Invoices. `[CITED: composio.dev/toolkits/xero, composio.dev/tools/xero/all]`
-  - Nango also supports Xero invoices `[CITED: nango.dev/docs/api-integrations/xero]`, BUT the
-    repo's `nango.py` adapter issues only `httpx.request("GET", ...)`. A financial WRITE
-    (POST create-invoice) through Nango would require editing the **shared** `nango.py`
-    aggregator file — breaking the isolated-adapter model and touching a file other
-    aggregator tools depend on. Composio's `session.execute(tool=..., arguments=...)` handles
-    writes with **zero adapter code change** (reuse the existing `composio.py`).
-- **Action:** in `manifests/tool_pack_manifest.yaml`, change `xero_read_invoices` and
-  `xero_create_invoice` from `integration_style: nango_aggregator` →
-  `composio_aggregator`, add `resource_bindings.tool_slug` (e.g. `XERO_LIST_INVOICES` /
+  - The repo's `nango.py` adapter issues only `httpx.request("GET", ...)`, so a financial
+    WRITE (POST create-invoice) through Nango would require editing the **shared** `nango.py`
+    aggregator file — breaking the isolated-adapter model. Composio's
+    `session.execute(tool=..., arguments=...)` handles writes with **zero adapter code change**
+    (reuse the existing `composio.py`).
+- **Action (LOCKED):** in `manifests/tool_pack_manifest.yaml`, change `xero_read_invoices`
+  and `xero_create_invoice` from `integration_style: nango_aggregator` →
+  `composio_aggregator`, add `resource_bindings.tool_slug` (`XERO_LIST_INVOICES` /
   `XERO_CREATE_INVOICE` — confirm exact slugs against Composio's catalog at impl) and a
-  `user_id` binding, and change `credential_secret_name` to `COMPOSIO_API_KEY` (Composio
-  brokers the Xero OAuth). No `input_schema_ref` (aggregate tools validate against the
-  runtime provider schema — D-04 permissive).
+  `user_id` binding, and set `credential_secret_name: COMPOSIO_API_KEY` (Composio brokers the
+  Xero OAuth). No `input_schema_ref` (aggregate tools validate against the runtime provider
+  schema — D-04 permissive). **Reuse the existing `composio.py` — NO new Xero module.**
 - **READ — `xero_read_invoices`:** Composio `XERO_LIST_INVOICES`. `category: read`.
 - **WRITE — `xero_create_invoice`:** Composio `XERO_CREATE_INVOICE`, **draft only** (never
   auto-finalise — `Status: DRAFT`). `category: financial`, `approval_required: true` — gated
@@ -301,34 +347,34 @@ and gate install behind a `checkpoint:human-verify` task (Phase-4 precedent for
 - **Cred doc:** Composio dashboard → connect the Xero toolkit (Composio handles the Xero
   OAuth handshake + tenant). Env: `COMPOSIO_API_KEY` (already documented in `composio.md` —
   Xero rides the SAME key, so no NEW env var; the cred doc just needs a Xero-toolkit note).
-- **Flag to orchestrator/user:** this overrides the manifest's current `nango_aggregator`
-  declaration. Surface as a confirmable decision — the rationale is code-structural, but the
-  user owns the financial-write provider choice.
 
 ## Recommended Plan Split
 
 **Constraint that dictates the split:** SHARED files split into TWO classes —
-*schema-satisfiable* (manifest, schema files, `pyproject.toml` — safe to front-load into
-05-01 because unbacked entries degrade to a stub) and *artifact-dependent*
+*schema-satisfiable* (manifest, schema files — `pyproject.toml` needs no change — safe to
+front-load into 05-01 because unbacked entries degrade to a stub) and *artifact-dependent*
 (`tests/test_credential_docs.py` guard enumeration + `docs/credentials/README.md` index —
-these have NO degradation and MUST land last, in 05-07, after the artifacts they reference
-exist). Per-adapter `adapters/<provider>.py`, per-provider tests, and per-provider
+these have NO degradation and MUST land last, in the final plan, after the artifacts they
+reference exist). Per-adapter `adapters/<provider>.py`, per-provider tests, and per-provider
 `docs/credentials/<provider>.md` are ISOLATED (own-file, wave 2).
 
 ### Plan 05-01 — Foundation (shared-file edits ONLY) [wave 1]
 **Owns (may touch ONLY these):**
 - `manifests/tool_pack_manifest.yaml` — add `input_schema_ref`/`output_schema_ref` to every
-  Phase-5 direct entry; add any NEW op entries decided (webflow read; optional clockify
-  write / beehiiv read); **flip Xero entries to `composio_aggregator` + `tool_slug` +
+  Phase-5 direct entry (incl. **bitscale**); add any NEW op entries decided (webflow read;
+  bitscale `run_grid` write if not already an entry; optional clockify write / beehiiv read);
+  **flip Xero entries to `composio_aggregator` + `tool_slug` + `user_id` +
   `COMPOSIO_API_KEY`**.
-- `schemas/<provider>_<op>.input.schema.json` + `.output.schema.json` for every direct op
-  (Draft 2020-12, inputs permissive-with-required, outputs matching the real response
-  shapes documented above). Aggregate (Xero) tools get NO schema files.
-- `pyproject.toml` — ONLY if an SDK extra is adopted (recommended: none; httpx-direct).
+- `schemas/<provider>_<op>.input.schema.json` + `.output.schema.json` for every direct op —
+  **including all bitscale ops** (Draft 2020-12, inputs permissive-with-required, outputs
+  matching the real response shapes documented above; bitscale read shapes are the verified
+  `{"grids":[...]}` / workspace payloads). Aggregate (Xero) tools get NO schema files.
+- **`pyproject.toml` — NO change** (all five direct providers are httpx; Xero rides the
+  existing `composio` extra). The foundation should confirm no new extra is added.
 - **DOES NOT touch `tests/test_credential_docs.py`** — the guard extension is the ONE
   shared file that is NOT front-loaded into the foundation (see the boxed warning below).
-**Success:** `make test` green creds-free; every Phase-5 direct manifest entry has both
-schema refs and on-disk schema files; Xero styled `composio_aggregator`.
+**Success:** `make test` green creds-free; every Phase-5 direct manifest entry (incl.
+bitscale) has both schema refs and on-disk schema files; Xero styled `composio_aggregator`.
 
 > WARNING - CRITICAL: the credential-docs guard CANNOT be extended in 05-01. The
 > "foundation owns all shared files" instinct is a trap here. A manifest entry with a
@@ -337,38 +383,36 @@ schema refs and on-disk schema files; Xero styled `composio_aggregator`.
 > `tests/test_credential_docs.py` has NO degradation - its assertions are unconditional and
 > run on EVERY merge. If 05-01 raises `_MIN_ENV_VARS`, adds `_ANCHOR_ENV_VARS`, or adds
 > filenames to `_PROVIDER_DOCS`/`_LIVE_TEST_FILES` BEFORE those docs/live-test files exist:
-> `test_derived_env_var_set_...` fails (`7 >= 11` false; missing anchors),
-> `test_all_four_per_provider_docs_exist...` fails (doc not yet written),
-> `test_index_links...` fails (README not yet updated). The default lane goes RED at 05-01
-> and stays red until the last plan merges - violating the two-lane invariant the phase
-> protects. RULE: schema-satisfiable shared edits -> 05-01; artifact-dependent shared edits
-> (the guard enumeration + the README index) -> the FINAL plan (05-07) at wave 3, AFTER
-> every `test_<provider>_live.py` + `<provider>.md` exists. Between 05-02 and 05-07 the
-> guard runs its OLD 4-provider lists, so new files aren't scanned/required -> every
-> intermediate merge stays green.
+> `test_derived_env_var_set_...` fails; `test_all_four_per_provider_docs_exist...` fails
+> (doc not yet written); `test_index_links...` fails (README not yet updated). The default
+> lane goes RED at 05-01 and stays red until the last plan merges - violating the two-lane
+> invariant the phase protects. RULE: schema-satisfiable shared edits -> 05-01;
+> artifact-dependent shared edits (the guard enumeration + the README index) -> the FINAL
+> plan at wave 3, AFTER every `test_<provider>_live.py` + `<provider>.md` exists. Between the
+> per-adapter plans and the final plan the guard runs its OLD 4-provider lists, so new files
+> aren't scanned/required -> every intermediate merge stays green.
 
 ### Plans 05-02 … 05-06 — Isolated per-direct-adapter [wave 2, all depend on 05-01, mutually parallel]
 One plan per provider. Each **may touch ONLY:**
 - `src/agent_mesh/tools/adapters/<provider>.py` (single `register('<provider>', dispatcher)`,
-  routes by `spec.name`, httpx, lazy/stub fallback)
+  routes by `spec.name`, httpx, creds-absent → stub fallback)
 - `tests/test_<provider>_adapter.py` (default lane — fake httpx, schema-shape assert,
-  collision guard if 2 ops) + `tests/test_<provider>_live.py` (opt-in, skips on missing env)
+  collision guard if 2+ ops) + `tests/test_<provider>_live.py` (opt-in, skips on missing env)
 - `docs/credentials/<provider>.md` (isolated; mint steps + scopes + env var)
 
-Providers: `webflow`, `calcom`, `clockify`, `beehiiv`, and `bitscale`. **Cal.com is the
-only 2-op dispatcher** (use `_CALCOM_OPS`).
+Providers: `webflow`, `bitscale`, `calcom`, `clockify`, `beehiiv` — **five real direct
+adapters in the parallel per-adapter wave.** Multi-op dispatchers: **Cal.com**
+(`_CALCOM_OPS`) and **Bitscale** (`_BITSCALE_OPS`: read grids/workspace + run_grid write).
 
-> **Bitscale mechanics (no SDK = no natural stub-guard).** httpx is a core dep, so an
-> httpx Bitscale adapter has NO `ImportError` branch to fall through to the stub (unlike the
-> SDK adapters). So "httpx adapter guarded to stub" is mechanically muddy. Pick ONE clean
-> option: **(a) RECOMMENDED — ship the schema ref + schema file but NO `bitscale.py` module
-> at all.** `get_adapter('bitscale')` then import-misses -> the engine stubs, while input
-> schema validation STILL runs at the boundary (partially satisfies "with schema
-> validation"). No `tests/test_bitscale_live.py` (nothing to call live). OR **(b)** leave
-> the entry fully dormant (no schema ref either). Option (a) is recommended so success
-> criterion 1's schema-validation clause is met deterministically; surface to the user that
-> Bitscale has no live direct API yet. So Bitscale's "per-adapter plan" ships a schema-only
-> contribution into 05-01, not a wave-2 adapter module — it may not need its own plan.
+> **Bitscale mechanics (5th real direct adapter — NOT a stub).** Bitscale ships an own-file
+> `adapters/bitscale.py` exactly like the other four direct providers: httpx against
+> `https://api.bitscale.ai/api/v1`, `X-API-Key` header, creds-absent → deterministic stub.
+> Its `tests/test_bitscale_live.py` is **READS-ONLY** (`GET /api/v1/grids`,
+> `GET /api/v1/workspace` — both credit-free). The **`run_grid` write op stays STUBBED even
+> in the live lane** (it burns the client's paid credits); its write path is proven through
+> the default-lane stub + the upstream approval-gate test, never a live call. Do NOT add a
+> live `run_grid` call anywhere. The earlier "schema-only / aggregator-fallback" plan for
+> Bitscale is withdrawn — Bitscale gets its own wave-2 plan like every other direct adapter.
 
 ### Plan 05-07 — Xero-via-Composio + shared docs index + guard extension [wave 3]
 **Owns (must run AFTER every per-adapter plan so all referenced artifacts exist):**
@@ -377,20 +421,22 @@ only 2-op dispatcher** (use `_CALCOM_OPS`).
   `test_aggregator_adapters.py` registry assertions.
 - `docs/credentials/xero.md` (Composio-toolkit connection note; reuses `COMPOSIO_API_KEY`).
 - `docs/credentials/README.md` — the SHARED index/matrix update (link all new
-  per-provider docs + add skip-matrix rows + document new env vars). Sole owner of this file.
+  per-provider docs incl. bitscale + add skip-matrix rows + document new env vars incl.
+  `BITSCALE_API_KEY`). Sole owner of this file.
 - **`tests/test_credential_docs.py` — the guard extension that 05-01 deliberately deferred.**
-  Atomically: add the new `test_<provider>_live.py` filenames to `_LIVE_TEST_FILES`, the new
-  `<provider>.md` files to `_PROVIDER_DOCS`, add new anchors to `_ANCHOR_ENV_VARS`, and raise
-  `_MIN_ENV_VARS`. Because this lands in the SAME plan as the README + xero.md updates (and
-  AFTER every per-adapter doc/live-test exists), all guard assertions pass on this merge —
-  and only this merge. This is what makes success criterion 4 enforced without ever reddening
-  an intermediate merge.
+  Atomically: add the new `test_<provider>_live.py` filenames (incl. `test_bitscale_live.py`)
+  to `_LIVE_TEST_FILES`, the new `<provider>.md` files (incl. `bitscale.md`) to
+  `_PROVIDER_DOCS`, add new anchors to `_ANCHOR_ENV_VARS`, and raise `_MIN_ENV_VARS`. Because
+  this lands in the SAME plan as the README + xero.md updates (and AFTER every per-adapter
+  doc/live-test exists), all guard assertions pass on this merge — and only this merge. This
+  is what makes success criterion 4 enforced without ever reddening an intermediate merge.
 
-**Wave ordering:** 05-01 (foundation, wave 1) → {05-02..05-06 per-adapter, wave 2, parallel}
-→ 05-07 (wave 3, depends on ALL of 05-02..06). 05-07 must be the SOLE owner of both
-`docs/credentials/README.md` and `tests/test_credential_docs.py`. 05-01's contract should
-NAME the live-test filenames each per-adapter plan will create, so 05-07's
-`_LIVE_TEST_FILES` extension matches exactly — but 05-01 must NOT edit the guard itself.
+**Wave ordering:** 05-01 (foundation, wave 1) → {05-02..05-06 per-adapter incl. bitscale,
+wave 2, parallel} → 05-07 (wave 3, depends on ALL of 05-02..06). 05-07 must be the SOLE owner
+of both `docs/credentials/README.md` and `tests/test_credential_docs.py`. 05-01's contract
+should NAME the live-test filenames each per-adapter plan will create (incl.
+`test_bitscale_live.py`), so 05-07's `_LIVE_TEST_FILES` extension matches exactly — but 05-01
+must NOT edit the guard itself.
 
 ## Don't Hand-Roll
 
@@ -402,10 +448,11 @@ NAME the live-test filenames each per-adapter plan will create, so 05-07's
 | OTel spans | manual span per adapter | the single `tool_event_span` in `execute()` | one span per call, already correlated |
 | Adapter registration plumbing | edits to `gateway.py` | own-file `adapters/<provider>.py` + `register()` | keeps Wave-2 parallel; no shared-file edit |
 | Xero write transport | new Nango POST path in shared `nango.py` | existing `composio.py` `session.execute` | verb-agnostic; zero shared-adapter edit |
+| Bitscale write testing | live `run_grid` call in the live lane | default-lane stub + upstream approval-gate test | run_grid burns the client's paid credits; never auto-spend |
 
 **Key insight:** Phase 5 should add ZERO lines to `gateway.py`, `adapters/__init__.py`,
 `validation.py`, `credentials.py`, `composio.py`, `nango.py`. If a plan proposes editing any
-of those, it has misread the framework.
+of those, it has misread the framework. Phase 5 also adds ZERO new `pyproject.toml` extras.
 
 ## Common Pitfalls
 
@@ -413,21 +460,22 @@ of those, it has misread the framework.
 **What goes wrong:** an adapter module is added but its manifest entry still has no
 `input_schema_ref`, so `validate_tool_input` BLOCKS (input_rejected) before dispatch — the
 adapter never runs and a live test "passes" by stubbing.
-**Avoid:** foundation plan 05-01 lands ALL schema refs+files FIRST; per-adapter live tests
-assert `result.get("stub") is not True` (Phase-4 `test_hubspot_live.py:63`).
+**Avoid:** foundation plan 05-01 lands ALL schema refs+files FIRST (incl. bitscale);
+per-adapter live tests assert `result.get("stub") is not True` (Phase-4 `test_hubspot_live.py:63`).
 
 ### Pitfall 2: Output schema doesn't match real response → quarantine
 **What goes wrong:** Beehiiv returns `{data:{id}}` not `{id}`; Cal.com wraps in
-`{status,data,pagination}`; Webflow create returns 202 with `{id, fieldData, ...}`. A naive
-flat output schema quarantines every real call.
+`{status,data,pagination}`; Webflow create returns 202 with `{id, fieldData, ...}`; Bitscale
+list-grids returns `{"grids":[...]}` not a bare array. A naive flat output schema quarantines
+every real call.
 **Avoid:** copy the documented response shapes above into the output schemas; set
 `additionalProperties:false` only on keys you actually emit (map the SDK/HTTP response into
 the declared shape in the adapter, like `hubspot._lookup_company` does).
 
-### Pitfall 3: register-per-op collision (Cal.com)
+### Pitfall 3: register-per-op collision (Cal.com, Bitscale)
 **What goes wrong:** `register('calcom', list_fn)` then `register('calcom', create_fn)` —
-last wins, the read becomes unreachable.
-**Avoid:** ONE `calcom_adapter` dispatcher + `_CALCOM_OPS = {name: fn}` (HubSpot template).
+last wins, the read becomes unreachable. Same risk for Bitscale (read + run_grid).
+**Avoid:** ONE dispatcher + `_CALCOM_OPS` / `_BITSCALE_OPS` = `{name: fn}` (HubSpot template).
 
 ### Pitfall 4: Editing shared `nango.py`/`composio.py` for Xero write
 **What goes wrong:** adding a POST branch to `nango.py` to support Xero create-invoice
@@ -437,7 +485,16 @@ couples Xero to a shared aggregator file and risks other aggregator tools.
 ### Pitfall 5: Credential-docs guard not extended → criterion 4 unenforced
 **What goes wrong:** new docs are written but `_PROVIDER_DOCS` still lists only the four
 Phase-4 providers, so `test_credential_docs.py` never checks the new docs exist.
-**Avoid:** 05-01 extends the four hardcoded lists + `_MIN_ENV_VARS`.
+**Avoid:** the FINAL plan (05-07) extends the four hardcoded lists + `_MIN_ENV_VARS` AFTER all
+referenced artifacts exist (never in 05-01 — see the boxed warning).
+
+### Pitfall 6: Bitscale `run_grid` burns the client's live credits
+**What goes wrong:** a live-lane test (or a curious planning probe) calls `run_grid` against
+the client's real `australiagtm.com` Starter-plan grid, mutating a real leads grid and
+spending paid credits.
+**Avoid:** the live lane is **reads-only** (`GET /grids`, `GET /workspace`); `run_grid` stays
+stubbed even in the live lane and is asserted via the approval-gate + deterministic stub.
+Never probe `run_grid` during planning.
 
 ## Runtime State Inventory
 
@@ -445,11 +502,11 @@ Phase-4 providers, so `test_credential_docs.py` never checks the new docs exist.
 
 | Category | Items Found | Action Required |
 |----------|-------------|------------------|
-| Stored data | None — no datastore keys reference new providers. Verified: providers are new manifest entries only. | none |
-| Live service config | None for the POC (no live SaaS provisioned this milestone — deploy-ready-only). New env vars (`WEBFLOW_API_TOKEN`, `CALCOM_API_KEY`, `CLOCKIFY_API_KEY`, `BEEHIIV_API_KEY`) are opt-in live-lane only. | document in cred docs |
+| Stored data | None — no datastore keys reference new providers. Verified: providers are new manifest entries only. The client's live Bitscale grids are external SaaS state, not repo state. | none (repo); credit-safety governs live Bitscale writes |
+| Live service config | None for the POC (no live SaaS provisioned this milestone — deploy-ready-only). New env vars (`WEBFLOW_API_TOKEN`, `BITSCALE_API_KEY`, `CALCOM_API_KEY`, `CLOCKIFY_API_KEY`, `BEEHIIV_API_KEY`) are opt-in live-lane only. `BITSCALE_API_KEY` + `COMPOSIO_API_KEY` already provisioned by the operator. | document in cred docs |
 | OS-registered state | None — no OS registrations involve these providers. | none |
-| Secrets/env vars | New live-lane env var NAMES only (above). Xero reuses `COMPOSIO_API_KEY` (no new var). No real secrets in repo (T-04-09-01). | extend cred docs + guard |
-| Build artifacts | None — no new compiled artifacts; httpx-direct adds no installed package. (If an SDK extra is wrongly adopted, a stale `.egg-info` could result — another reason to prefer httpx.) | none |
+| Secrets/env vars | New live-lane env var NAMES (above). `BITSCALE_API_KEY` already added to `.env`/`.env.example`; `COMPOSIO_API_KEY` already provisioned. Xero reuses `COMPOSIO_API_KEY` (no new var). No real secrets in repo (T-04-09-01). | extend cred docs + guard |
+| Build artifacts | None — no new compiled artifacts; httpx-direct adds no installed package, and NO new pyproject extra is added. | none |
 
 ## State of the Art
 
@@ -457,49 +514,58 @@ Phase-4 providers, so `test_credential_docs.py` never checks the new docs exist.
 |--------------|------------------|------|--------|
 | Cal.com API v1 (`api.cal.com/v1`) | v2 (`api.cal.com/v2`) + dated `cal-api-version` header | v2 GA | use v2; pin `cal-api-version: 2026-05-01` |
 | Webflow API v1 | Data API v2 (`api.webflow.com/v2`) | v1 deprecated | use v2; `CMS:read`/`CMS:write` scopes |
-| Manifest Xero = `nango_aggregator` | recommend `composio_aggregator` | this phase | financial write needs verb-agnostic aggregator |
+| Manifest Xero = `nango_aggregator` | `composio_aggregator` (LOCKED — operator provisioned `COMPOSIO_API_KEY`) | this phase | financial write needs verb-agnostic aggregator |
+| Bitscale "no public API → schema-only stub" | real `direct_api` httpx adapter (live-curl validated `api.bitscale.ai/api/v1`, `X-API-Key`) | this phase | 5th real direct adapter; reads-only live lane, run_grid stubbed |
 
 ## Assumptions Log
 
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
-| A1 | Bitscale has NO public direct REST API (early-access only) | Bitscale | If a public API exists, a real direct adapter is possible — re-check at impl; low risk (searched, found only waitlist) |
+| A1 | Bitscale `run_grid` REST route is `POST /api/v1/grids/{grid_id}/run` | Bitscale | Wrong route → write op fails at impl; confirm at impl WITHOUT probing (would burn credits). Reads are live-verified; only the write route is inferred. |
 | A2 | Composio Xero `tool_slug`s are `XERO_LIST_INVOICES` / `XERO_CREATE_INVOICE` | Xero | Wrong slug → call fails; confirm against live Composio catalog at impl |
 | A3 | `webflow`/`beehiiv`/`clockify-api-client` PyPI packages are non-authoritative (httpx preferred) | Standard Stack | Only matters if a planner adopts an SDK; httpx avoids it |
 | A4 | Cal.com `cal-api-version: 2026-05-01` is the current bookings version | Cal.com | Wrong/stale version → 400; pinned per current docs, re-confirm at impl |
 | A5 | Beehiiv create-post may be Enterprise-gated (403 on lower tiers) | Beehiiv | Affects live-lane only; default lane stubs regardless |
 
+> **Note:** both former open decisions (Xero provider, Bitscale direct-vs-stub) are now
+> RESOLVED with live evidence and are NO LONGER assumptions — see State of the Art. The only
+> remaining unknowns are the exact Bitscale `run_grid` REST route (A1) and the exact Composio
+> Xero slugs (A2), both confirmable at impl.
+
 ## Open Questions
 
-1. **Bitscale direct vs stub vs aggregator** (decision #2). Recommendation: ship a
-   schema ref + schema file but NO `bitscale.py` module (engine import-misses -> stub, while
-   input validation still runs); surface "no live direct API yet" to the user. Bitscale thus
-   contributes only to 05-01 (schema) and may NOT need its own wave-2 plan. Orchestrator may
-   want to confirm.
+1. **Bitscale `run_grid` REST route** (write op only). Reads are live-verified; the write
+   route is likely `POST /api/v1/grids/{grid_id}/run`. Confirm at impl **without probing**
+   (probing burns the client's credits). The write path ships stubbed regardless, so this
+   does not block planning. `[A1]`
 2. **Optional complementary ops** (clockify write, beehiiv read, webflow read). Webflow read
    is recommended (rounds out the publishing provider); clockify-write / beehiiv-read are
    optional breadth. Each adds a manifest entry + 2 schema files to 05-01. Planner decides.
-3. **Xero provider flip confirmation** (decision #1). Recommendation Composio is
-   evidence-backed; user owns the financial-provider choice.
+3. **Composio Xero slug confirmation** (`XERO_LIST_INVOICES` / `XERO_CREATE_INVOICE`).
+   Provider choice is LOCKED (Composio); only the exact slugs reconfirm at impl. `[A2]`
 
 ## Environment Availability
 
 | Dependency | Required By | Available | Version | Fallback |
 |------------|------------|-----------|---------|----------|
-| `httpx` | all 5 direct adapters | ✓ (core dep) | installed | — |
+| `httpx` | all 5 direct adapters (webflow, bitscale, calcom, clockify, beehiiv) | ✓ (core dep) | installed | — |
 | `composio` SDK | Xero live lane | ✗ (opt-in `aggregators` extra) | `>=0.13,<1` | stub when absent (D-11) |
-| Live provider creds | live lane only | ✗ (operator-supplied) | — | default lane stubs creds-free |
+| `COMPOSIO_API_KEY` | Xero live lane | ✓ (operator provisioned, proxy-execute disabled) | — | default lane stubs creds-free |
+| `BITSCALE_API_KEY` | Bitscale reads-only live lane | ✓ (operator provisioned, in `.env`/`.env.example`) | — | default lane stubs creds-free |
+| Other live provider creds | live lane only | ✗ (operator-supplied) | — | default lane stubs creds-free |
 
 **Missing with no fallback:** none — default lane is creds-free and stubs everything.
-**Missing with fallback:** all live creds + composio SDK — per-provider opt-in (D-11).
+**Missing with fallback:** remaining live creds + composio SDK — per-provider opt-in (D-11).
 
 ## Project Constraints (from CLAUDE.md)
 
 - LangChain + LangGraph + Deep Agents + Langfuse remain REQUIRED; LangSmith never a dep
   (unaffected — no model/orchestration change this phase).
 - **Human-in-the-loop write-approval gate holds for every write-class tool (payload-hash
-  bound).** Xero financial write + Webflow/Beehiiv publishing writes + any Cal.com/Clockify
-  writes stay `approval_required: true`, gated upstream. Adapters NEVER self-gate.
+  bound).** Xero financial write + Webflow/Beehiiv publishing writes + Bitscale `run_grid`
+  write + any Cal.com/Clockify writes stay `approval_required: true`, gated upstream.
+  Adapters NEVER self-gate. Bitscale `run_grid` ALSO stays stubbed even in the live lane
+  (credit-safety) — the approval gate proves the write path, not real spend.
 - No runtime autonomous self-modification (unaffected).
 - Deep Agents roster stays bounded (unaffected).
 - Durable stores in `australia-southeast1`; model processing may leave AU (unaffected — no
@@ -507,13 +573,17 @@ Phase-4 providers, so `test_credential_docs.py` never checks the new docs exist.
 
 ## Sources
 
-### Primary (HIGH confidence) — repo source verified this session
+### Primary (HIGH confidence) — repo source verified this session + live evidence
 - `src/agent_mesh/tools/gateway.py`, `adapters/__init__.py`, `adapters/hubspot.py`,
   `adapters/composio.py`, `adapters/nango.py`, `validation.py`
 - `manifests/tool_pack_manifest.yaml`, `pyproject.toml`,
   `tests/test_hubspot_adapter.py`, `tests/test_hubspot_live.py`,
   `tests/test_credential_docs.py`, `docs/credentials/README.md`, `docs/credentials/hubspot.md`
 - `.planning/phases/04-.../04-01-PLAN.md` (shared-file ownership model), `.planning/ROADMAP.md`
+- **Bitscale REST API — live curl verified** (`api.bitscale.ai/api/v1`, `X-API-Key`,
+  `GET /grids`, `GET /workspace`, `GET /grids/{id}` → 200): orchestrator decision resolution.
+- **Composio `COMPOSIO_API_KEY` provisioned** (proxy-execute disabled): orchestrator decision
+  resolution.
 
 ### Secondary (MEDIUM confidence) — official provider docs
 - Webflow: developers.webflow.com/data/reference/authentication + .../cms/collection-items/staged-items/create-item
@@ -521,10 +591,8 @@ Phase-4 providers, so `test_credential_docs.py` never checks the new docs exist.
 - Clockify: docs.clockify.me
 - Beehiiv: developers.beehiiv.com/api-reference/posts/create
 - Composio Xero: composio.dev/toolkits/xero, composio.dev/tools/xero/all
-- Nango Xero: nango.dev/docs/api-integrations/xero
-
-### Tertiary (LOW confidence) — flag for validation
-- Bitscale: docs.bitscale.ai / bitscale.co.uk/documentation (early-access; NO public API surfaced)
+- Bitscale `run_grid` REST route (inferred `POST /api/v1/grids/{grid_id}/run`; reads are
+  live-verified, write route to confirm at impl without probing)
 
 ## Metadata
 
@@ -533,8 +601,8 @@ Phase-4 providers, so `test_credential_docs.py` never checks the new docs exist.
 - Plan split / shared-file constraints: HIGH — confirmed against 04-01-PLAN + the guard test
 - Provider APIs (Webflow/Cal.com/Clockify/Beehiiv): MEDIUM — official docs, exact slugs/version
   to reconfirm at impl
-- Xero-via-Composio decision: MEDIUM-HIGH — code-structural evidence + catalog confirmation
-- Bitscale: LOW — no public API; fallback recommended
+- Xero-via-Composio decision: HIGH — LOCKED; operator provisioned `COMPOSIO_API_KEY` + code-structural evidence
+- Bitscale: HIGH (reads) — live-curl verified API/auth/read endpoints; MEDIUM (write route) — `run_grid` REST route inferred, confirm at impl without probing
 
 **Research date:** 2026-06-07
 **Valid until:** ~2026-07-07 (provider APIs stable; Cal.com dated version header may roll)
