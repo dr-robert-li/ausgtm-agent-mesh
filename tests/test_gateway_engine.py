@@ -184,3 +184,161 @@ def test_toolspec_validate_invariant_unchanged():
     )
     with pytest.raises(ValueError):
         bad.validate()
+
+
+# ===========================================================================
+# Task 2 — real execute(call) engine
+# ===========================================================================
+SENTINEL_CRED = "SENTINEL-SECRET-DO-NOT-LEAK-abc123"
+
+
+class _SpyResolver:
+    """Records every resolve() call and returns a fixed value per name."""
+
+    def __init__(self, values: dict[str, str | None]):
+        self.values = values
+        self.calls: list[str | None] = []
+
+    def resolve(self, secret_name):
+        self.calls.append(secret_name)
+        return self.values.get(secret_name)
+
+
+def _gateway():
+    from agent_mesh.tools.gateway import ToolGateway
+
+    return ToolGateway.from_manifest(MANIFEST)
+
+
+def _call(tool_name: str, parameters: dict, category=ToolCategory.READ):
+    return ToolCall(
+        task_id="task-1",
+        tenant_id="tenant-1",
+        tool_name=tool_name,
+        category=category,
+        approval_required=False,
+        parameters=parameters,
+        requester_id="req-1",
+    )
+
+
+def test_credential_resolved_only_in_execute_and_never_leaks():
+    """D-02: resolver is called inside execute; the secret never appears in the
+    returned dict (no credential leakage)."""
+    gw = _gateway()
+    resolver = _SpyResolver({"HUBSPOT_PRIVATE_APP_TOKEN": SENTINEL_CRED})
+    call = _call("hubspot_lookup_company", {"object_type": "companies", "query": "Acme"})
+
+    result = gw.execute(call, resolver=resolver)
+
+    assert resolver.calls == ["HUBSPOT_PRIVATE_APP_TOKEN"]
+    assert SENTINEL_CRED not in repr(result)
+
+
+def test_stub_degradation_when_credential_absent():
+    """D-11: a direct tool whose credential resolves to None returns the stub dict
+    shape and makes no adapter call."""
+    from agent_mesh.tools import adapters
+
+    gw = _gateway()
+    resolver = _SpyResolver({"HUBSPOT_PRIVATE_APP_TOKEN": None})
+    call = _call("hubspot_lookup_company", {"object_type": "companies", "query": "Acme"})
+
+    called = []
+
+    def fake(spec, params, *, credential=None):
+        called.append(True)
+        return {"unexpected": True}
+
+    adapters.register("hubspot", fake)
+    result = gw.execute(call, resolver=resolver)
+
+    assert called == []  # adapter never reached
+    assert result.get("stub") is True
+    assert result["tool"] == "hubspot_lookup_company"
+    assert result["echo_parameters"] == {"query": "Acme"}
+
+
+def test_adapter_reached_direct_lane():
+    """SC-1: a direct tool with a registered adapter AND a resolved credential
+    dispatches to the adapter (NOT the stub)."""
+    from agent_mesh.tools import adapters
+
+    gw = _gateway()
+    resolver = _SpyResolver({"HUBSPOT_PRIVATE_APP_TOKEN": SENTINEL_CRED})
+    call = _call("hubspot_lookup_company", {"object_type": "companies", "query": "Acme"})
+
+    seen = {}
+
+    def fake(spec, params, *, credential=None):
+        seen["credential"] = credential
+        return {"company": "Acme Inc", "id": "123"}
+
+    adapters.register("hubspot", fake)
+    result = gw.execute(call, resolver=resolver)
+
+    assert result.get("stub") is not True
+    assert result["company"] == "Acme Inc"
+    # credential reached the adapter but is NOT echoed back to the caller
+    assert seen["credential"] == SENTINEL_CRED
+    assert SENTINEL_CRED not in repr(result)
+
+
+def test_adapter_reached_aggregator_lane():
+    """SC-3: an aggregator spec (composio_aggregator -> key 'composio') with a
+    registered fake adapter + a credential reaches the adapter."""
+    from agent_mesh.tools import adapters
+    from agent_mesh.tools.gateway import ToolGateway, ToolSpec
+
+    spec = ToolSpec(
+        name="agg_search",
+        provider="some_saas",
+        category=ToolCategory.READ,
+        description="",
+        approval_required=False,
+        credential_secret_name="COMPOSIO_API_KEY",
+        resource_bindings={},
+        integration_style="composio_aggregator",
+        input_schema_ref=None,
+        output_schema_ref=None,
+    )
+    gw = ToolGateway([spec])
+    resolver = _SpyResolver({"COMPOSIO_API_KEY": SENTINEL_CRED})
+    call = _call("agg_search", {"q": "x"})
+
+    reached = []
+
+    def fake(spec, params, *, credential=None):
+        reached.append(True)
+        return {"results": []}
+
+    adapters.register("composio", fake)
+    result = gw.execute(call, resolver=resolver)
+
+    assert reached == [True]
+    assert result.get("stub") is not True
+    assert result == {"results": []}
+
+
+def test_input_reject_makes_no_adapter_call(monkeypatch):
+    """D-06: a schema-invalid input to a direct tool does NOT call the adapter and
+    records schema_validation == 'input_rejected'."""
+    from agent_mesh.tools import adapters
+
+    gw = _gateway()
+    resolver = _SpyResolver({"HUBSPOT_PRIVATE_APP_TOKEN": SENTINEL_CRED})
+    # hubspot_lookup_company requires 'query'; omit it -> input violation.
+    call = _call("hubspot_lookup_company", {"wrong_field": "x"})
+
+    called = []
+
+    def fake(spec, params, *, credential=None):
+        called.append(True)
+        return {}
+
+    adapters.register("hubspot", fake)
+    result = gw.execute(call, resolver=resolver)
+
+    assert called == []
+    assert call.schema_validation == "input_rejected"
+    assert result.get("outcome") == "input_rejected"
