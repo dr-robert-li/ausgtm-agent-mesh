@@ -7,10 +7,17 @@ platform. Work proceeds by hardening technical layers in dependency order: first
 durable Postgres-backed core with an authenticated approval gate (the foundation
 everything else relies on), then the real LangGraph + Deep Agents orchestration engine
 with durable checkpoints, then the live model gateway and Langfuse observability plane,
-then real SaaS tools and a real self-improvement evaluation loop. A final phase assembles
-all layers, proves the platform end-to-end (Slack write-gated action, MCP checkpointed
-job, failure modes), and validates that the deployment scripts are idempotent and
-GCP-ready — without provisioning any live cloud resources.
+then a reusable Tool Gateway execution engine proven across direct adapters and both
+aggregator styles, broad reference-provider coverage, and a real self-improvement
+evaluation loop. A final phase assembles all layers, proves the platform end-to-end
+(Slack write-gated action, MCP checkpointed job, failure modes), and validates that the
+deployment scripts are idempotent and GCP-ready — without provisioning any live cloud
+resources.
+
+> **Re-scope (2026-06-06):** POC reframed as MVP requiring viable general tool coverage,
+> not a single-adapter proof. TOOL-03/04 promoted v2→v1; tool work split into a framework
+> phase (4), an adapter-breadth phase (5), and self-improvement (6); E2E/deploy-readiness
+> moved to Phase 7. Milestone grew 5→7 phases.
 
 ## Phases
 
@@ -21,8 +28,12 @@ GCP-ready — without provisioning any live cloud resources.
 - [x] **Phase 1: Durable Core & Approval Security** - Postgres-backed durable state, tenant-scoped reads, runtime dispatch, and an authenticated/replay-proof approval gate _(completed 2026-06-05)_
 - [x] **Phase 2: Real Orchestration Engine** - Real LangGraph supervisor + Deep Agents roster, durable checkpointer, interrupt-based HITL resume, hardened sandbox
 - [x] **Phase 3: Model Gateway & Observability** - Live LiteLLM gateway with budgets/cascades, Cloudflare AI Gateway upstream, Langfuse telemetry + prompt/eval management _(completed 2026-06-06; GW-01/02/03, OBS-01/02 — governed budget-halt closed via gap plan 03-04; OBS-01 tool-spans deferred to Phase 4)_
-- [ ] **Phase 4: Tools & Self-Improvement** - ≥1 real SaaS tool adapter with schema validation, real eval harness, AI-BOM-on-promotion with controlled versioned wiring
-- [ ] **Phase 5: E2E Validation & Deploy-Readiness** - Full end-to-end proofs + failure modes + idempotent deploy-script validation
+- [ ] **Phase 4: Tool Gateway Framework + First Adapters + Aggregators** - Reusable Tool Gateway execution engine (execution-time credential resolution, JSON-Schema in/out validation, tool-event OTel spans), HubSpot + Google Workspace direct adapters proven live, Composio (primary) + Nango (fallback) aggregator styles end-to-end _(TOOL-01, TOOL-02, TOOL-04)_
+- [ ] **Phase 5: Reference Adapter Breadth** - Remaining reference providers — Webflow, Bitscale, Cal.com, Clockify, Beehiiv direct adapters; Xero via aggregator _(TOOL-03)_
+- [ ] **Phase 6: Self-Improvement** - Real evaluation harness replaces the stub; AI-BOM-on-promotion + controlled versioned (non-hot) promotion with rollback _(SI-01, SI-02)_
+- [ ] **Phase 7: E2E Validation & Deploy-Readiness** - Full end-to-end proofs + failure modes + idempotent deploy-script validation _(E2E-01/02/03, DEP-01/02)_
+
+> **Re-scope (2026-06-06):** POC reframed as MVP requiring viable general tool coverage. TOOL-03/04 promoted v2→v1; the old "Phase 4: Tools & Self-Improvement" split into a tool-framework phase (4), an adapter-breadth phase (5), and a self-improvement phase (6); E2E/deploy-readiness moved to Phase 7. Milestone grew 5→7 phases.
 
 ## Phase Details
 
@@ -76,26 +87,59 @@ Plans:
 - [x] 03-03-langfuse-otel-observability-PLAN.md — langfuse v2→v4 + OTel transport + trace_id + cross-process traceparent + prompt/dataset/eval seed (OBS-01, OBS-02) [wave 2, depends 03-01]
 - [x] 03-04-governed-budget-halt-PLAN.md — gap-closure: governed/observable budget halt (budget_halt gateway_event + FAILED terminal state) (GW-03, OBS-01) [wave 3, gap_closure]
 
-### Phase 4: Tools & Self-Improvement
-**Goal**: Make at least one real SaaS tool adapter execute through the gated Tool Gateway with runtime credential resolution and boundary schema validation, and replace the self-improvement stubs with a real evaluation harness plus AI-BOM-generating, controlled, versioned promotion.
+### Phase 4: Tool Gateway Framework + First Adapters + Aggregators
+**Goal**: Turn the Tool Gateway stub into a real, reusable execution engine — execution-time credential resolution (Secret-Manager-shaped, env-backed locally; agents never receive raw creds), JSON-Schema input/output validation at the boundary, and tool-event OTel spans (closing the OBS-01 leftover) — then prove it across two integration styles: HubSpot + Google Workspace **direct** adapters making real calls, and the **Composio** (primary) + **Nango** (fallback) aggregator styles exercised end-to-end. Ship per-provider credential/scope setup docs.
 **Depends on**: Phase 3
-**Requirements**: TOOL-01, TOOL-02, SI-01, SI-02
+**Requirements**: TOOL-01, TOOL-02, TOOL-04
 **Success Criteria** (what must be TRUE):
-  1. A real SaaS tool adapter (Google Workspace or HubSpot) performs a real call locally through the Tool Gateway with credentials resolved at execution time
-  2. A tool call with a schema-invalid input or output is rejected at the boundary
-  3. A self-improvement proposal is scored by a real evaluation harness, not a stub
-  4. Promotion produces an AI-BOM snapshot and a versioned promotion record with rollback; no live instructions/permissions/routing are mutated at runtime
-**Plans**: 2 plans
+  1. A real direct adapter (HubSpot, and Google Workspace) performs a real call locally through the Tool Gateway with credentials resolved at execution time
+  2. A tool call with a schema-invalid input or output is rejected at the boundary (deterministic test, default lane)
+  3. Both aggregator styles (Composio primary, Nango fallback) execute at least one real tool call end-to-end through the gateway
+  4. Default `make test` / `make smoke` stay green and creds-free; live calls run only in a per-provider opt-in lane, each independently skippable when its creds are absent
+  5. A per-provider credential/scope setup doc exists (how to mint each token/OAuth app + exact scopes)
+**Plans**: 3-4 plans (set at planning)
 
-**Aggregator note**: The generic MCP-aggregator integration style has two peer options — `nango_aggregator` (open-source unified-API, ~838 providers, self-hostable) and `composio_aggregator` (MCP-native single Tool Router endpoint, ~982 toolkits / 20k tools), either serving as fallback to the other. TOOL-04 (aggregator integration styles, currently in v2 scope) must exercise both. Evidence: Spike 001 (`.planning/spikes/001-composio-vs-nango-coverage/`) — Composio wins on MCP-nativeness, near parity on raw connector count.
+**Aggregator note**: `composio_aggregator` (MCP-native single Tool Router endpoint, ~982 toolkits / 20k tools) is **primary**; `nango_aggregator` (open-source unified-API, ~838 providers, self-hostable) is the peer **fallback**. TOOL-04 exercises both. Evidence: Spike 001 (`.planning/spikes/001-composio-vs-nango-coverage/`) — Composio wins on MCP-nativeness, near parity on raw connector count.
 
 Plans:
-- [ ] 04-01: Real SaaS tool adapter behind Tool Gateway + JSON-Schema input/output validation (TOOL-01, TOOL-02)
-- [ ] 04-02: Real eval harness + AI-BOM-on-promotion + controlled versioned promotion wiring (SI-01, SI-02)
+- [ ] 04-01: Tool Gateway execution engine — execution-time credential resolution + JSON-Schema in/out validation + tool-event OTel spans (TOOL-01, TOOL-02, OBS-01 leftover)
+- [ ] 04-02: HubSpot + Google Workspace direct adapters, live-proven via opt-in lane (TOOL-01)
+- [ ] 04-03: Composio (primary) + Nango (fallback) aggregator integration styles end-to-end (TOOL-04)
+- [ ] 04-0x: Per-provider credential/scope setup docs (supports all of the above)
 
-### Phase 5: E2E Validation & Deploy-Readiness
-**Goal**: Assemble all layers and prove the platform end-to-end — a write-gated Slack action from evidence, an MCP-triggered long checkpointed job returning an artifact, and the failure modes — then validate that the `gcloud` and `wrangler` deployment scripts are idempotent and GCP-ready without provisioning live resources.
+### Phase 5: Reference Adapter Breadth
+**Goal**: Fan out the remaining reference providers through the Phase-4 framework — Webflow, Bitscale, Cal.com, Clockify, Beehiiv as direct adapters, and Xero via the aggregator — each independently landable and testable, reusing the credential-resolution / schema-validation / OTel-span machinery without rearchitecture.
 **Depends on**: Phase 4
+**Requirements**: TOOL-03
+**Success Criteria** (what must be TRUE):
+  1. Each reference provider (Webflow, Bitscale, Cal.com, Clockify, Beehiiv) has a working direct adapter behind the gateway with schema validation
+  2. Xero executes through the aggregator path (financial category, approval-gated for writes)
+  3. Each provider is independently skippable in the live lane; default suite stays green and creds-free
+  4. Per-provider credential/scope setup docs extended to cover the new providers
+**Plans**: 2-3 plans (set at planning)
+
+Plans:
+- [ ] 05-0x: Direct adapters — Webflow, Bitscale, Cal.com, Clockify, Beehiiv (TOOL-03)
+- [ ] 05-0x: Xero via aggregator + credential docs (TOOL-03)
+
+### Phase 6: Self-Improvement
+**Goal**: Replace the `evaluate_proposal` stub with a real evaluation harness, and wire AI-BOM-on-promotion with controlled, versioned (non-hot) promotion and retained rollback — with no runtime mutation of active instructions, permissions, or routing (Option C).
+**Depends on**: Phase 5
+**Requirements**: SI-01, SI-02
+**Success Criteria** (what must be TRUE):
+  1. A self-improvement proposal is scored by a real evaluation harness, not a stub
+  2. Promotion generates an AI-BOM snapshot from the deployment + tool-pack manifests and records a versioned promotion with rollback
+  3. No active instructions/permissions/routing are mutated at runtime; the promoted artifact is referenceable only via versioned, non-hot wiring read at next start/deploy
+  4. Default suite stays green and creds-free; any LLM-judge scoring runs only in the opt-in lane
+**Plans**: 2 plans (set at planning)
+
+Plans:
+- [ ] 06-01: Real evaluation harness replacing the `evaluate_proposal` stub (SI-01)
+- [ ] 06-02: AI-BOM-on-promotion + controlled versioned (non-hot) promotion wiring + rollback (SI-02)
+
+### Phase 7: E2E Validation & Deploy-Readiness
+**Goal**: Assemble all layers and prove the platform end-to-end — a write-gated Slack action from evidence, an MCP-triggered long checkpointed job returning an artifact, and the failure modes — then validate that the `gcloud` and `wrangler` deployment scripts are idempotent and GCP-ready without provisioning live resources.
+**Depends on**: Phase 6
 **Requirements**: E2E-01, E2E-02, E2E-03, DEP-01, DEP-02
 **Success Criteria** (what must be TRUE):
   1. An end-to-end run proves Slack request → evidence → write-gated SaaS action → approval → completion
@@ -105,18 +149,20 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 05-01: End-to-end test suite — Slack write-gated action, MCP checkpointed artifact, failure modes (E2E-01, E2E-02, E2E-03)
-- [ ] 05-02: Deploy-readiness validation — idempotent gcloud/wrangler scripts + manifest consistency (DEP-01, DEP-02)
+- [ ] 07-01: End-to-end test suite — Slack write-gated action, MCP checkpointed artifact, failure modes (E2E-01, E2E-02, E2E-03)
+- [ ] 07-02: Deploy-readiness validation — idempotent gcloud/wrangler scripts + manifest consistency (DEP-01, DEP-02)
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Durable Core & Approval Security | 3/3 | Complete | 2026-06-05 |
-| 2. Real Orchestration Engine | 0/3 | Not started | - |
-| 3. Model Gateway & Observability | 0/3 | Not started | - |
-| 4. Tools & Self-Improvement | 0/2 | Not started | - |
-| 5. E2E Validation & Deploy-Readiness | 0/2 | Not started | - |
+| 2. Real Orchestration Engine | 3/3 | Complete | 2026-06-06 |
+| 3. Model Gateway & Observability | 4/4 | Complete | 2026-06-06 |
+| 4. Tool Gateway Framework + First Adapters + Aggregators | 0/4 | Not started | - |
+| 5. Reference Adapter Breadth | 0/3 | Not started | - |
+| 6. Self-Improvement | 0/2 | Not started | - |
+| 7. E2E Validation & Deploy-Readiness | 0/2 | Not started | - |

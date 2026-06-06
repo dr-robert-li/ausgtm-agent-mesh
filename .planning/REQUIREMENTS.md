@@ -50,6 +50,8 @@ platform end-to-end and validate deploy-readiness. Each maps to a roadmap phase.
 
 - [ ] **TOOL-01**: At least one real SaaS tool adapter (Google Workspace or HubSpot) executes a real call locally behind the Tool Gateway with credential resolution at execution time
 - [ ] **TOOL-02**: Tool input and output are validated against JSON Schema at the tool boundary
+- [ ] **TOOL-03**: Remaining reference tool adapters functional — Webflow, Bitscale, Cal.com, Clockify, Beehiiv as direct adapters; Xero via aggregator _(promoted v2→v1 2026-06-06: POC-as-MVP full tool coverage)_
+- [ ] **TOOL-04**: Aggregate-MCP, Nango-aggregator, and Composio-aggregator (MCP-native) integration styles exercised end-to-end. Composio primary + Nango fallback (peer aggregator options — MCP-native single-endpoint vs open-source unified-API); see Spike 001 (`.planning/spikes/001-composio-vs-nango-coverage/`) _(promoted v2→v1 2026-06-06)_
 
 ### Self-Improvement
 
@@ -76,10 +78,7 @@ Deferred to future milestones. Tracked, not in current roadmap.
 - **DEP-03**: Live provisioning of Cloud SQL + Cloud Run in `australia-southeast1` and a live E2E run
 - **DEP-04**: FinOps review of live telemetry against the USD $65 infra and USD $50 model guardrails
 
-### Tool Coverage
-
-- **TOOL-03**: Remaining reference tool adapters (Xero, Webflow, Bitscale, Cal.com, Clockify, Beehiiv) functional
-- **TOOL-04**: Aggregate-MCP, Nango-aggregator, and Composio-aggregator (MCP-native fallback) integration styles exercised end-to-end. Composio and Nango are peer aggregator options (MCP-native single-endpoint vs open-source unified-API); see Spike 001 (`.planning/spikes/001-composio-vs-nango-coverage/`)
+_(TOOL-03 and TOOL-04 promoted v2→v1 on 2026-06-06 — see Tools under v1. Driver: user reframed POC as MVP requiring viable general tool coverage, not a single-adapter proof.)_
 
 ## Out of Scope
 
@@ -111,23 +110,28 @@ Explicitly excluded. Documented to prevent scope creep.
 | GW-01 | Phase 3 | Complete |
 | GW-02 | Phase 3 | Complete |
 | GW-03 | Phase 3 | Complete |
-| OBS-01 | Phase 3 | Complete (tool-event spans deferred to Phase 4 / TOOL-01 — no tool adapters exist until then) |
+| OBS-01 | Phase 3 | Complete (tool-event spans deferred to Phase 4 framework — closed there once a real adapter exists) |
 | OBS-02 | Phase 3 | Complete |
 | TOOL-01 | Phase 4 | Pending |
 | TOOL-02 | Phase 4 | Pending |
-| SI-01 | Phase 4 | Pending |
-| SI-02 | Phase 4 | Pending |
-| E2E-01 | Phase 5 | Pending |
-| E2E-02 | Phase 5 | Pending |
-| E2E-03 | Phase 5 | Pending |
-| DEP-01 | Phase 5 | Pending |
-| DEP-02 | Phase 5 | Pending |
+| TOOL-04 | Phase 4 | Pending |
+| TOOL-03 | Phase 5 | Pending |
+| SI-01 | Phase 6 | Pending |
+| SI-02 | Phase 6 | Pending |
+| E2E-01 | Phase 7 | Pending |
+| E2E-02 | Phase 7 | Pending |
+| E2E-03 | Phase 7 | Pending |
+| DEP-01 | Phase 7 | Pending |
+| DEP-02 | Phase 7 | Pending |
 
 **Coverage:**
-- v1 requirements: 23 total
-- Mapped to phases: 23
+- v1 requirements: 25 total
+- Mapped to phases: 25
 - Unmapped: 0 ✓
+
+**Re-scope note (2026-06-06):** TOOL-03/04 promoted v2→v1; tool work split across Phases 4–5,
+self-improvement moved to Phase 6, E2E + deploy-readiness to Phase 7. Milestone grew 5→7 phases.
 
 ---
 *Requirements defined: 2026-06-05*
-*Last updated: 2026-06-05 after initial definition*
+*Last updated: 2026-06-06 — TOOL-03/04 promoted v2→v1 (POC-as-MVP full tool coverage); re-phased to 7 phases*

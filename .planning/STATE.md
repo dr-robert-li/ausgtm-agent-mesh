@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 03 complete (GW-01/02/03, OBS-01/02) + governed-halt gap-closure; ready for Phase 04
-last_updated: "2026-06-06T07:15:00.000Z"
-last_activity: 2026-06-06 -- Phase 03 complete; 3 plans + 1 gap-closure merged to main
+stopped_at: Phase 04 context gathered (re-scope: TOOL-03/04 → v1, 5→7 phases)
+last_updated: "2026-06-06T08:15:00.000Z"
+last_activity: 2026-06-06 -- Phase 04 re-scope + context; milestone grew 5→7 phases
 progress:
-  total_phases: 5
+  total_phases: 7
   completed_phases: 3
   total_plans: 10
   completed_plans: 10
-  percent: 60
+  percent: 43
 ---
 
 # Project State
@@ -30,7 +30,13 @@ Plans: 3/3 + 1 gap-closure (03-04 governed budget-halt) — all merged to main
 Status: Phase 03 verified (achieved-with-gaps → Gap 1 closed; Gap 2 deferred to Phase 04)
 Last activity: 2026-06-06 -- Phase 03 complete
 
-Progress: [██████░░░░] 60% (3/5 phases)
+Progress: [████░░░░░░] 43% (3/7 phases)
+
+**Re-scope (2026-06-06):** POC reframed as MVP requiring viable general tool coverage.
+TOOL-03/04 promoted v2→v1. Old "Phase 4: Tools & Self-Improvement" split into Phase 4
+(tool framework + HubSpot + full Google Workspace + Composio/Nango aggregators), Phase 5
+(reference-adapter breadth, TOOL-03), Phase 6 (self-improvement, SI-01/02); E2E/deploy → Phase 7.
+**Current focus: Phase 04** — context gathered, ready to plan.
 
 Phase 03 result: GW-01 (in-process litellm.Router + durable budget ledger), GW-02
 (structural CF chokepoint, agents never call providers directly), GW-03 (fallback
@@ -88,10 +94,10 @@ Items acknowledged and carried forward:
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
 | Deploy | Live GCP provisioning + FinOps review (DEP-03, DEP-04) | Deferred to v2 | Init |
-| Tools | Remaining reference adapters + aggregate-MCP/Nango styles (TOOL-03, TOOL-04) | Deferred to v2 | Init |
+| Tools | TOOL-03 (reference adapters) + TOOL-04 (aggregators) | **Promoted v2→v1 2026-06-06** — TOOL-04 + flagship adapters in Phase 4; TOOL-03 in Phase 5 | Re-scoped Phase 04 |
 | Hardening | Immutable ledger, egress controls, kill switches, signed images, GDPR deletion, HA | Production hardening (caveats) | Init |
-| Observability | OBS-01 tool-event spans — wire OTel spans on tool calls (no tool adapters exist until Phase 04 / TOOL-01) | Deferred to Phase 04 | Phase 03 (03-VERIFICATION Gap 2) |
-| Model gateway | `gemini-1.5-flash` (low-complexity route) unmapped in this litellm build's price map — pre-call cost estimate raises; within-budget real-`_delegate` 4-node run falls back to stub lane in one negative-control test | Minor env pricing gap; revisit in Phase 04 model-route work | Phase 03 (03-04 SUMMARY) |
+| Observability | OBS-01 tool-event spans — wire OTel spans on tool calls | **Scheduled for Phase 04** (D-10, framework emits them once a real adapter exists) | Phase 03 (03-VERIFICATION Gap 2) |
+| Model gateway | `gemini-1.5-flash` (low-complexity route) unmapped in this litellm build's price map — pre-call cost estimate raises; within-budget real-`_delegate` 4-node run falls back to stub lane in one negative-control test | Minor env pricing gap; revisit in Phase 04/05 tool+model-route work | Phase 03 (03-04 SUMMARY) |
 
 ## Session Continuity
 
