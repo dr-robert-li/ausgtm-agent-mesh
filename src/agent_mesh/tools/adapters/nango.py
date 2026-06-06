@@ -52,17 +52,39 @@ def nango_adapter(spec: ToolSpec, params: dict, *, credential: str | None) -> di
     """Execute one Nango read via the REST ``/proxy`` endpoint over ``httpx``.
 
     ``credential`` is the resolved ``NANGO_SECRET_KEY`` (D-02). The engine stubs before
-    reaching this adapter when the secret is absent (D-11); the additional host/
-    connection/provider-config env vars must also be present for a live call. When any
-    is missing we return ``None`` so the engine degrades cleanly to the stub (the live
-    test skips on the same precondition, so this partial-cred path is not exercised in
-    the default lane).
+    reaching this adapter when the secret is absent (D-11) -> a ``None`` credential here
+    is the defensive degrade-to-stub path. But when the credential IS present the user
+    intended a live call, so a misconfigured proxy (missing ``NANGO_HOST`` /
+    ``NANGO_CONNECTION_ID`` / ``NANGO_PROVIDER_CONFIG_KEY``) raises a clear ``RuntimeError``
+    naming the missing vars (NO secret values) rather than silently returning ``None`` a
+    caller would ``.get()`` on. The live test gates on all four vars, so this never fires
+    in the default or live lane.
     """
+    if not credential:
+        # Engine stubs before reaching here when the credential is absent (D-11);
+        # this defensive path returns None so the engine still degrades cleanly.
+        return None  # type: ignore[return-value]
+
     host = os.getenv(_NANGO_HOST)
     connection_id = os.getenv(_NANGO_CONNECTION_ID)
     provider_config_key = os.getenv(_NANGO_PROVIDER_CONFIG_KEY)
-    if not credential or not all((host, connection_id, provider_config_key)):
-        return None  # type: ignore[return-value]  # defensive degradation to stub
+    missing = [
+        name
+        for name, val in (
+            (_NANGO_HOST, host),
+            (_NANGO_CONNECTION_ID, connection_id),
+            (_NANGO_PROVIDER_CONFIG_KEY, provider_config_key),
+        )
+        if not val
+    ]
+    if missing:
+        # The credential is PRESENT, so the user intended a live call — a silent stub
+        # would mask a misconfiguration. Fail loud with the missing var names (no secret
+        # values). The live test gates on all four vars, so this never fires in tests.
+        raise RuntimeError(
+            "Nango credential resolved but the proxy is misconfigured; "
+            f"missing env: {', '.join(missing)} (see docs/credentials/nango.md)"
+        )
 
     # ``httpx`` is a CORE dependency — import is safe at module level, but kept local to
     # mirror the lazy-adapter pattern and avoid a top-level cost on every registry import.

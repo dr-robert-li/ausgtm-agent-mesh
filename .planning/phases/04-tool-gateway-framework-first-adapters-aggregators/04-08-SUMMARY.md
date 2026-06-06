@@ -51,7 +51,7 @@ decisions:
   - "Adapters register under the bare aggregator name (composio/nango == module filename == adapter_key_for key), NOT the integration_style string — registering under 'composio_aggregator' would never be looked up and a creds-present call would silently stub (SC-3)"
   - "SDK import is LAZY (inside the adapter fn); register() is at module top. If the SDK import were at module top, get_adapter's ImportError swallow would return None and the registered adapter would be unreachable without the SDK installed — the exact SC-3 regression"
   - "fetch_runtime_schema is called from inside the Composio adapter (not from execute()); gateway.py is NOT edited — the engine already passes runtime_schema=None to the aggregate validation branch (04-03), which is permissive by design (D-04)"
-  - "Nango credential is NANGO_SECRET_KEY but the proxy also needs NANGO_HOST/CONNECTION_ID/PROVIDER_CONFIG_KEY; the adapter returns None (degrade-to-stub) when any is absent, and the live test skips on the same 4-var precondition"
+  - "Nango credential is NANGO_SECRET_KEY but the proxy also needs NANGO_HOST/CONNECTION_ID/PROVIDER_CONFIG_KEY; credential-ABSENT returns None (degrade-to-stub, D-11), but credential-PRESENT-with-missing-env raises a clear RuntimeError naming the missing vars (no secret values) rather than silently returning None a caller .get()s on — a credential present means the user intended a live call. Live test gates on all four vars, so neither lane fires it"
   - "_SCHEMA_CACHE caches None too, so tests snapshot/restore it per case (a stale None would mask a later positive fetch)"
 requirements: [TOOL-04]
 metrics:
@@ -159,6 +159,10 @@ the 12-month supply-chain audit:
 - **Fix:** Added `composio_aggregator` to the `allowed` set (all five contract styles).
 - **Files modified:** tests/test_stack_and_toolpacks.py
 - **Commit:** bd8b966
+- **Parallel-merge note:** `tests/test_stack_and_toolpacks.py` was NOT in this plan's
+  declared no-conflict set (only `manifests/tool_pack_manifest.yaml` was). If another
+  wave-4 aggregator plan (e.g. 04-07) also adds `composio_aggregator` to this same
+  `allowed` set line, the orchestrator must reconcile the (identical-intent) edit at merge.
 
 **Scope note (NOT a deviation):** The plan's Task-1 wording ("feeds the 04-02 aggregate
 validation branch") could be read as an engine edit. It is not: `gateway.py` already passes
@@ -196,8 +200,11 @@ NOT in this plan's `files_modified` — left untouched to protect the green base
   register under those exact keys (closes SC-3)" -> register at module top under
   `composio`/`nango`; `test_aggregator_adapters.py` SC-3 guard ✓
 - "Aggregate tools validate against a runtime provider schema fetched + cached; a missing
-  runtime schema NEVER blocks (D-04)" -> `aggregate_schema.fetch_runtime_schema` +
-  permissive `None`; the engine's aggregate branch is already permissive ✓
+  runtime schema NEVER blocks (D-04)" -> `aggregate_schema.fetch_runtime_schema` (fetch +
+  cache) + permissive `None`; the engine's aggregate branch is already permissive ✓. NOTE:
+  the runtime schema is FETCHED + recorded; *enforcement-when-present* (calling the
+  validator on `params` inside the Composio adapter) is deferred for this reads-only phase
+  — see T-04-08-03. The plan's success criterion (fetch+cache; missing never blocks) is met. ✓
 - "With aggregator creds absent both adapters degrade to the stub; make test stays green
   and creds-free (D-11)" -> both return `None` creds-absent; full suite green creds-free ✓
 
@@ -213,9 +220,14 @@ NOT in this plan's `files_modified` — left untouched to protect the green base
   MITIGATED. Credentials resolved only inside `execute()` (04-03), passed as `credential`,
   never returned/logged; READS only this phase (D-09); the adapter result dicts carry no
   credential.
-- **T-04-08-03 (Spoofing/Tampering — aggregate input unvalidated)** — MITIGATED BY DESIGN.
-  D-04: Composio validates against the runtime provider schema when present; Nango is
-  permissive (no schema) — reads only, so blast radius is read-not-write.
+- **T-04-08-03 (Spoofing/Tampering — aggregate input unvalidated)** — PARTIAL, accepted
+  for a reads-only phase. D-04: the Composio adapter FETCHES the runtime provider schema
+  (and records `runtime_schema_present`); **enforcement-when-present is deferred** — the
+  adapter does not yet call the validator on `params`. Nango exposes no schema and is
+  permissive. A missing aggregate schema NEVER blocks (D-04), which is the engine's
+  existing behavior. Blast radius is read-not-write (D-09), so unvalidated aggregate input
+  cannot mutate a SaaS resource this phase; wiring `validate_input(runtime_schema, params)`
+  in the Composio adapter is a clean follow-up when aggregate WRITES land (Phase 5).
 
 No high-severity threat left open.
 
