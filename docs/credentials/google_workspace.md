@@ -1,10 +1,11 @@
 # Google Workspace credentials (`GOOGLE_WORKSPACE_OAUTH`) — D-12
 
 The Google Workspace direct adapter (`tools/adapters/google_workspace.py`) drives
-Drive, Gmail, Sheets (this plan) — and, once 04-07 lands, Calendar, Docs, Slides —
-from a **single OAuth client plus one stored refresh token**. One refresh token mints
-short-lived access tokens on demand and auto-refreshes via
-`google.oauth2.credentials.Credentials`, so the live lane runs unattended.
+all six products — Drive, Gmail, Sheets, Calendar, Docs, Slides — from a **single
+OAuth client plus one stored refresh token**. One refresh token mints short-lived
+access tokens on demand and auto-refreshes via
+`google.oauth2.credentials.Credentials`, so the live lane runs unattended. The single
+OAuth client must be granted the **union** of all six products' scopes (table below).
 
 The Tool Gateway resolves the secret **only at execution time** (D-02): it is never
 returned to the agent, set as a span attribute, or logged. Store it as a secret env
@@ -38,8 +39,9 @@ Credentials(
 ## Step 1 — Create the OAuth client (Desktop) in Google Cloud Console
 
 1. In the Google Cloud Console, select (or create) the project, then enable the APIs
-   you need: **Google Drive API**, **Gmail API**, **Google Sheets API** (add
-   Calendar / Docs / Slides APIs when 04-07 ships).
+   you need: **Google Drive API**, **Gmail API**, **Google Sheets API**, **Google
+   Calendar API**, **Google Docs API**, **Google Slides API** (all six products are
+   live as of 04-07).
 2. Configure the **OAuth consent screen** (Internal for a Workspace org, or External +
    test users for the POC). Add the per-product scopes from the table below.
 3. Under **APIs & Services -> Credentials -> Create credentials -> OAuth client ID**,
@@ -58,6 +60,12 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive.readonly",
     "https://www.googleapis.com/auth/gmail.send",
     "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/calendar.events",
+    "https://www.googleapis.com/auth/documents.readonly",
+    "https://www.googleapis.com/auth/documents",
+    "https://www.googleapis.com/auth/presentations.readonly",
+    "https://www.googleapis.com/auth/presentations",
 ]
 flow = InstalledAppFlow.from_client_secrets_file("client_secret.json", SCOPES)
 creds = flow.run_local_server(access_type="offline", prompt="consent")
@@ -77,28 +85,23 @@ With it set, `pytest -m live tests/test_gws_live.py` runs a real Drive search; w
 it, the live lane SKIPS and the default suite stays green and creds-free (the adapter
 degrades to the deterministic stub, D-11).
 
-## Per-product scopes (least-privilege — this plan: Drive/Gmail/Sheets)
+## Per-product scopes (least-privilege — full six-product suite)
 
-| Product | Operation (this plan) | Scope |
-| :--- | :--- | :--- |
-| Drive   | `google_drive_search` (read)          | `https://www.googleapis.com/auth/drive.readonly` |
-| Gmail   | `gmail_send` (external_send)           | `https://www.googleapis.com/auth/gmail.send` |
-| Sheets  | `google_sheets_append` (write)         | `https://www.googleapis.com/auth/spreadsheets` |
+The single OAuth client is granted the **union** of these scopes; each adapter op
+requests only its own product's read or write scope at execution time.
 
-Least-privilege by design (RESEARCH A7): Drive uses `drive.readonly`, **not** the full
-`https://www.googleapis.com/auth/drive` scope. Request only the scopes the deployed
-ops need.
+| Product  | Operation | Category | Scope |
+| :--- | :--- | :--- | :--- |
+| Drive    | `google_drive_search` (read)         | read         | `https://www.googleapis.com/auth/drive.readonly` |
+| Gmail    | `gmail_send`                          | external_send| `https://www.googleapis.com/auth/gmail.send` |
+| Sheets   | `google_sheets_append`               | write        | `https://www.googleapis.com/auth/spreadsheets` |
+| Calendar | `google_calendar_list_events` (read) | read         | `https://www.googleapis.com/auth/calendar.readonly` |
+| Calendar | `google_calendar_create_event`       | write        | `https://www.googleapis.com/auth/calendar.events` |
+| Docs     | `google_docs_get` (read)             | read         | `https://www.googleapis.com/auth/documents.readonly` |
+| Docs     | `google_docs_create`                 | write        | `https://www.googleapis.com/auth/documents` |
+| Slides   | `google_slides_get` (read)           | read         | `https://www.googleapis.com/auth/presentations.readonly` |
+| Slides   | `google_slides_create`               | write        | `https://www.googleapis.com/auth/presentations` |
 
-## Calendar / Docs / Slides scopes — see 04-07
-
-04-07 extends this adapter (and this doc) with the Calendar, Docs, and Slides
-operations and their scopes:
-
-| Product  | Scope (added by 04-07) |
-| :--- | :--- |
-| Calendar | `https://www.googleapis.com/auth/calendar.events` |
-| Docs     | `https://www.googleapis.com/auth/documents` |
-| Slides   | `https://www.googleapis.com/auth/presentations` |
-
-When you add those ops, append their scopes to the consent flow and re-mint the refresh
-token so the single `GOOGLE_WORKSPACE_OAUTH` blob covers all six products.
+Least-privilege by design (RESEARCH A7): each read uses its product's `*.readonly`
+scope, **not** the full read/write scope. Reads are ungated; writes/sends are
+approval-gated by the manifest + ledger. Request only the scopes the deployed ops need.

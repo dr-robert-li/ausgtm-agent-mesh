@@ -1,11 +1,13 @@
 """Google Workspace direct adapter — shared auth scaffold + single dispatcher (D-08).
 
-This module ships the FIRST half of the full Google Workspace direct suite: the
-shared OAuth/refresh auth scaffold plus three ops — Drive search (read), Gmail send
-(external_send, approval-gated upstream), and Sheets append (write, approval-gated
-upstream). 04-07 EXTENDS this same file with Calendar/Docs/Slides by adding entries
-to ``_GWS_OPS`` — it does NOT add another ``register`` call (which would last-wins
-collide and silently make most ops unreachable).
+This module ships the FULL Google Workspace direct suite: the shared OAuth/refresh
+auth scaffold plus twelve ops across six products — Drive search (read), Gmail send
+(external_send), Sheets append (write) [04-06]; and Calendar list/create, Docs
+get/create, Slides get/create [04-07]. Reads are ungated; writes/sends are
+approval-gated upstream by the manifest + ledger. All twelve ops live behind ONE
+dispatcher routed by ``spec.name`` through ``_GWS_OPS`` — there is exactly ONE
+registration call (a second per-op call would last-wins collide and silently make
+most ops unreachable).
 
 REGISTRY CONTRACT (04-03)
 -------------------------
@@ -49,6 +51,13 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 _DRIVE_READONLY = "https://www.googleapis.com/auth/drive.readonly"
 _GMAIL_SEND = "https://www.googleapis.com/auth/gmail.send"
 _SHEETS = "https://www.googleapis.com/auth/spreadsheets"
+# 04-07 — Calendar/Docs/Slides per-product scopes (read = readonly, write = full).
+_CALENDAR_READONLY = "https://www.googleapis.com/auth/calendar.readonly"
+_CALENDAR_EVENTS = "https://www.googleapis.com/auth/calendar.events"
+_DOCS_READONLY = "https://www.googleapis.com/auth/documents.readonly"
+_DOCS = "https://www.googleapis.com/auth/documents"
+_SLIDES_READONLY = "https://www.googleapis.com/auth/presentations.readonly"
+_SLIDES = "https://www.googleapis.com/auth/presentations"
 
 
 def _build_credentials(credential: str, scopes: list[str]):
@@ -184,12 +193,213 @@ def _sheets_append(spec: ToolSpec, params: dict, *, credential: str | None) -> d
     return out
 
 
+# ---------------------------------------------------------------------------
+# 04-07 — Calendar / Docs / Slides ops (complete the six-product suite, D-08).
+# All reuse _build_credentials + _service (no new auth path); each read maps the
+# nested Google response to its flat output schema, each write maps the created id.
+# ---------------------------------------------------------------------------
+
+
+def _calendar_list_events(
+    spec: ToolSpec, params: dict, *, credential: str | None
+) -> dict | None:
+    """Calendar list-events (read; ``calendar.readonly``; ``build("calendar","v3")``).
+
+    The Events.list response key is ``items`` (NOT ``events``); each item's
+    ``start``/``end`` are objects (``{dateTime}`` for timed, ``{date}`` for all-day),
+    but ``google_calendar_list_events.output`` declares them as ``string`` — so we
+    extract ``dateTime or date``. Maps ``id`` -> ``event_id``. Optional keys are
+    OMITTED when absent (the items allow additionalProperties but the declared fields
+    are string-typed, so a null would mismatch).
+    """
+    if credential is None:  # defensive D-11 (execute() also guards before dispatch)
+        return None
+    creds = _build_credentials(credential, [_CALENDAR_READONLY])
+    service = _service("calendar", "v3", creds)
+    list_kwargs: dict[str, Any] = {
+        "calendarId": params["calendar_id"],
+        "maxResults": params.get("max_results", 25),
+        "singleEvents": True,
+        "orderBy": "startTime",
+    }
+    if params.get("time_min"):
+        list_kwargs["timeMin"] = params["time_min"]
+    if params.get("time_max"):
+        list_kwargs["timeMax"] = params["time_max"]
+    resp = service.events().list(**list_kwargs).execute()
+    events: list[dict[str, str]] = []
+    for ev in resp.get("items", []):
+        item: dict[str, str] = {"event_id": ev["id"]}
+        if ev.get("summary"):
+            item["summary"] = ev["summary"]
+        start = ev.get("start") or {}
+        start_val = start.get("dateTime") or start.get("date")
+        if start_val:
+            item["start"] = start_val
+        end = ev.get("end") or {}
+        end_val = end.get("dateTime") or end.get("date")
+        if end_val:
+            item["end"] = end_val
+        events.append(item)
+    return {"events": events}
+
+
+def _calendar_create_event(
+    spec: ToolSpec, params: dict, *, credential: str | None
+) -> dict | None:
+    """Calendar create-event (write; ``calendar.events``; events().insert). Reached
+    only AFTER the ledger approves (manifest ``approval_required: true``). Maps the
+    created event's ``id`` -> ``event_id`` and ``htmlLink`` -> ``html_link``.
+    """
+    if credential is None:  # defensive D-11
+        return None
+    creds = _build_credentials(credential, [_CALENDAR_EVENTS])
+    service = _service("calendar", "v3", creds)
+    body: dict[str, Any] = {
+        "summary": params["summary"],
+        "start": {"dateTime": params["start"]},
+        "end": {"dateTime": params["end"]},
+    }
+    if params.get("description"):
+        body["description"] = params["description"]
+    if params.get("attendees"):
+        body["attendees"] = [{"email": e} for e in params["attendees"]]
+    created = (
+        service.events()
+        .insert(calendarId=params["calendar_id"], body=body)
+        .execute()
+    )
+    out: dict[str, str] = {"event_id": created["id"]}
+    if created.get("htmlLink"):
+        out["html_link"] = created["htmlLink"]
+    return out
+
+
+def _docs_get(spec: ToolSpec, params: dict, *, credential: str | None) -> dict | None:
+    """Docs get (read; ``documents.readonly``; ``build("docs","v1")``; documents().get).
+
+    The API returns ``body.content[]`` structural elements; ``text`` is a REQUIRED
+    output field, so we walk ``content[].paragraph.elements[].textRun.content`` and
+    join (returning "" would pass the schema but be a dead read). Maps ``documentId``
+    -> ``document_id`` and ``title``.
+    """
+    if credential is None:  # defensive D-11
+        return None
+    creds = _build_credentials(credential, [_DOCS_READONLY])
+    service = _service("docs", "v1", creds)
+    doc = service.documents().get(documentId=params["document_id"]).execute()
+    parts: list[str] = []
+    for element in doc.get("body", {}).get("content", []):
+        paragraph = element.get("paragraph")
+        if not paragraph:
+            continue
+        for run in paragraph.get("elements", []):
+            text_run = run.get("textRun")
+            if text_run and text_run.get("content"):
+                parts.append(text_run["content"])
+    out: dict[str, str] = {
+        "document_id": doc.get("documentId", params["document_id"]),
+        "text": "".join(parts),
+    }
+    if doc.get("title"):
+        out["title"] = doc["title"]
+    return out
+
+
+def _docs_create(
+    spec: ToolSpec, params: dict, *, credential: str | None
+) -> dict | None:
+    """Docs create (write; ``documents``; documents().create). Reached only AFTER the
+    ledger approves. ``documents().create`` accepts only ``title`` (folder placement /
+    body content would need extra Drive-move / batchUpdate calls — out of scope for
+    this representative write; writes aren't in the live read lane). Maps ``documentId``
+    -> ``document_id`` and ``title``.
+    """
+    if credential is None:  # defensive D-11
+        return None
+    creds = _build_credentials(credential, [_DOCS])
+    service = _service("docs", "v1", creds)
+    created = service.documents().create(body={"title": params["title"]}).execute()
+    out: dict[str, str] = {"document_id": created["documentId"]}
+    if created.get("title"):
+        out["title"] = created["title"]
+    return out
+
+
+def _slides_get(
+    spec: ToolSpec, params: dict, *, credential: str | None
+) -> dict | None:
+    """Slides get (read; ``presentations.readonly``; ``build("slides","v1")``;
+    presentations().get). Walks each slide's
+    ``pageElements[].shape.text.textElements[].textRun.content`` and maps slide
+    ``objectId`` -> ``slide_id``; maps ``presentationId`` -> ``presentation_id`` and
+    ``title``. A slide with no extractable text still appears (slide_id only).
+    """
+    if credential is None:  # defensive D-11
+        return None
+    creds = _build_credentials(credential, [_SLIDES_READONLY])
+    service = _service("slides", "v1", creds)
+    pres = (
+        service.presentations().get(presentationId=params["presentation_id"]).execute()
+    )
+    slides: list[dict[str, str]] = []
+    for slide in pres.get("slides", []):
+        entry: dict[str, str] = {}
+        if slide.get("objectId"):
+            entry["slide_id"] = slide["objectId"]
+        parts: list[str] = []
+        for page_element in slide.get("pageElements", []):
+            text = page_element.get("shape", {}).get("text", {})
+            for te in text.get("textElements", []):
+                text_run = te.get("textRun")
+                if text_run and text_run.get("content"):
+                    parts.append(text_run["content"])
+        if parts:
+            entry["text"] = "".join(parts)
+        slides.append(entry)
+    out: dict[str, Any] = {
+        "presentation_id": pres.get("presentationId", params["presentation_id"])
+    }
+    if pres.get("title"):
+        out["title"] = pres["title"]
+    if slides:
+        out["slides"] = slides
+    return out
+
+
+def _slides_create(
+    spec: ToolSpec, params: dict, *, credential: str | None
+) -> dict | None:
+    """Slides create (write; ``presentations``; presentations().create). Reached only
+    AFTER the ledger approves. ``presentations().create`` accepts only ``title``
+    (folder placement would need an extra Drive-move call — out of scope for this
+    representative write). Maps ``presentationId`` -> ``presentation_id`` and ``title``.
+    """
+    if credential is None:  # defensive D-11
+        return None
+    creds = _build_credentials(credential, [_SLIDES])
+    service = _service("slides", "v1", creds)
+    created = (
+        service.presentations().create(body={"title": params["title"]}).execute()
+    )
+    out: dict[str, str] = {"presentation_id": created["presentationId"]}
+    if created.get("title"):
+        out["title"] = created["title"]
+    return out
+
+
 # Internal dispatch map: spec.name -> op. 04-07 extends this in place with
 # Calendar/Docs/Slides entries (no new register call).
 _GWS_OPS = {
     "google_drive_search": _drive_search,
     "gmail_send": _gmail_send,
     "google_sheets_append": _sheets_append,
+    "google_calendar_list_events": _calendar_list_events,
+    "google_calendar_create_event": _calendar_create_event,
+    "google_docs_get": _docs_get,
+    "google_docs_create": _docs_create,
+    "google_slides_get": _slides_get,
+    "google_slides_create": _slides_create,
 }
 
 

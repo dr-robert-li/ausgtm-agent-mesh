@@ -113,7 +113,17 @@ def test_credential_none_degrades_to_stub_before_any_creds_build(monkeypatch):
 
     monkeypatch.setattr(mod, "_build_credentials", _boom)
 
-    for name in ("google_drive_search", "gmail_send", "google_sheets_append"):
+    for name in (
+        "google_drive_search",
+        "gmail_send",
+        "google_sheets_append",
+        "google_calendar_list_events",
+        "google_calendar_create_event",
+        "google_docs_get",
+        "google_docs_create",
+        "google_slides_get",
+        "google_slides_create",
+    ):
         result = mod.google_workspace_adapter(_spec(name), {}, credential=None)
         assert result is None
 
@@ -213,3 +223,272 @@ def test_drive_search_escapes_single_quote_in_query(monkeypatch):
         _spec("google_drive_search"), {"query": "client's deck"}, credential="c"
     )
     assert captured["q"] == "fullText contains 'client\\'s deck'"
+
+
+# ---------------------------------------------------------------------------
+# 04-07 — Calendar / Docs / Slides: routing regression + response-shape mappings.
+# The fakes model the REAL nested Google response shapes (items / start objects /
+# body.content text-run tree / pageElements text tree) — flattening them to
+# already-correct strings would make the assertion tautological while the live
+# mapping stays wrong.
+# ---------------------------------------------------------------------------
+
+
+def test_new_spec_name_routes_to_its_own_op_not_drive(monkeypatch):
+    """Regression guard against collision: google_calendar_list_events reaches the
+    calendar op through the ONE dispatcher, NOT the Drive op."""
+    mod = _gws_module()
+    seen: list[str] = []
+
+    def fake_calendar(spec, params, *, credential):
+        seen.append("calendar")
+        return {"events": []}
+
+    def fake_drive(spec, params, *, credential):
+        seen.append("drive")
+        return {"results": []}
+
+    monkeypatch.setitem(mod._GWS_OPS, "google_calendar_list_events", fake_calendar)
+    monkeypatch.setitem(mod._GWS_OPS, "google_drive_search", fake_drive)
+
+    mod.google_workspace_adapter(
+        _spec("google_calendar_list_events"), {}, credential="c"
+    )
+    assert seen == ["calendar"]
+
+
+def test_all_twelve_ops_registered_in_dispatch_map():
+    """All six products (twelve ops) are reachable through the single _GWS_OPS map."""
+    mod = _gws_module()
+    for name in (
+        "google_drive_search",
+        "gmail_send",
+        "google_sheets_append",
+        "google_calendar_list_events",
+        "google_calendar_create_event",
+        "google_docs_get",
+        "google_docs_create",
+        "google_slides_get",
+        "google_slides_create",
+    ):
+        assert name in mod._GWS_OPS
+
+
+def test_calendar_list_events_maps_nested_response_to_output_schema(monkeypatch):
+    """Calendar read maps the REAL Events.list shape (items[], start/end as objects)
+    to the strict google_calendar_list_events.output schema, validated against the
+    real schema file. start/end objects are flattened to dateTime-or-date strings."""
+    from agent_mesh.tools.validation import _load, validate_output
+
+    mod = _gws_module()
+    monkeypatch.setattr(mod, "_build_credentials", lambda credential, scopes: object())
+
+    captured: dict[str, object] = {}
+
+    class _FakeList:
+        def execute(self):
+            return {
+                "items": [
+                    {
+                        "id": "ev1",
+                        "summary": "Standup",
+                        "start": {"dateTime": "2026-06-07T09:00:00+10:00"},
+                        "end": {"dateTime": "2026-06-07T09:15:00+10:00"},
+                    },
+                    {  # all-day event uses `date`, not `dateTime`; no summary
+                        "id": "ev2",
+                        "start": {"date": "2026-06-08"},
+                        "end": {"date": "2026-06-09"},
+                    },
+                ]
+            }
+
+    class _FakeEvents:
+        def list(self, **kwargs):
+            captured.update(kwargs)
+            return _FakeList()
+
+    class _FakeService:
+        def events(self):
+            return _FakeEvents()
+
+    monkeypatch.setattr(mod, "_service", lambda product, version, creds: _FakeService())
+
+    result = mod._calendar_list_events(
+        _spec("google_calendar_list_events"),
+        {"calendar_id": "primary"},
+        credential="c",
+    )
+    assert result == {
+        "events": [
+            {
+                "event_id": "ev1",
+                "summary": "Standup",
+                "start": "2026-06-07T09:00:00+10:00",
+                "end": "2026-06-07T09:15:00+10:00",
+            },
+            {
+                "event_id": "ev2",
+                "start": "2026-06-08",
+                "end": "2026-06-09",
+            },
+        ]
+    }
+    assert captured["calendarId"] == "primary"
+    schema = _load(
+        str(REPO_ROOT / "schemas" / "google_calendar_list_events.output.schema.json")
+    )
+    assert validate_output(schema, result) == []
+
+
+def test_docs_get_walks_content_tree_to_output_schema(monkeypatch):
+    """Docs read walks the REAL body.content[].paragraph.elements[].textRun.content
+    tree into the required `text` field, validated against the real schema file."""
+    from agent_mesh.tools.validation import _load, validate_output
+
+    mod = _gws_module()
+    monkeypatch.setattr(mod, "_build_credentials", lambda credential, scopes: object())
+
+    class _FakeGet:
+        def execute(self):
+            return {
+                "documentId": "doc1",
+                "title": "Q3 Plan",
+                "body": {
+                    "content": [
+                        {"sectionBreak": {}},  # non-paragraph element is skipped
+                        {
+                            "paragraph": {
+                                "elements": [
+                                    {"textRun": {"content": "Hello "}},
+                                    {"textRun": {"content": "world\n"}},
+                                ]
+                            }
+                        },
+                    ]
+                },
+            }
+
+    class _FakeDocs:
+        def get(self, documentId):
+            assert documentId == "doc1"
+            return _FakeGet()
+
+    class _FakeService:
+        def documents(self):
+            return _FakeDocs()
+
+    monkeypatch.setattr(mod, "_service", lambda product, version, creds: _FakeService())
+
+    result = mod._docs_get(
+        _spec("google_docs_get"), {"document_id": "doc1"}, credential="c"
+    )
+    assert result == {
+        "document_id": "doc1",
+        "text": "Hello world\n",
+        "title": "Q3 Plan",
+    }
+    schema = _load(str(REPO_ROOT / "schemas" / "google_docs_get.output.schema.json"))
+    assert validate_output(schema, result) == []
+
+
+def test_slides_get_walks_page_elements_to_output_schema(monkeypatch):
+    """Slides read walks the REAL slides[].pageElements[].shape.text.textElements[]
+    .textRun.content tree, mapping objectId -> slide_id; validated against the real
+    schema file."""
+    from agent_mesh.tools.validation import _load, validate_output
+
+    mod = _gws_module()
+    monkeypatch.setattr(mod, "_build_credentials", lambda credential, scopes: object())
+
+    class _FakeGet:
+        def execute(self):
+            return {
+                "presentationId": "pres1",
+                "title": "Pitch",
+                "slides": [
+                    {
+                        "objectId": "s1",
+                        "pageElements": [
+                            {
+                                "shape": {
+                                    "text": {
+                                        "textElements": [
+                                            {"textRun": {"content": "Title slide"}}
+                                        ]
+                                    }
+                                }
+                            }
+                        ],
+                    },
+                    {"objectId": "s2"},  # slide with no text -> slide_id only
+                ],
+            }
+
+    class _FakePresentations:
+        def get(self, presentationId):
+            assert presentationId == "pres1"
+            return _FakeGet()
+
+    class _FakeService:
+        def presentations(self):
+            return _FakePresentations()
+
+    monkeypatch.setattr(mod, "_service", lambda product, version, creds: _FakeService())
+
+    result = mod._slides_get(
+        _spec("google_slides_get"), {"presentation_id": "pres1"}, credential="c"
+    )
+    assert result == {
+        "presentation_id": "pres1",
+        "title": "Pitch",
+        "slides": [
+            {"slide_id": "s1", "text": "Title slide"},
+            {"slide_id": "s2"},
+        ],
+    }
+    schema = _load(str(REPO_ROOT / "schemas" / "google_slides_get.output.schema.json"))
+    assert validate_output(schema, result) == []
+
+
+def test_calendar_create_event_maps_created_id(monkeypatch):
+    """Calendar write maps the created event's id -> event_id and htmlLink ->
+    html_link, validated against the real schema file."""
+    from agent_mesh.tools.validation import _load, validate_output
+
+    mod = _gws_module()
+    monkeypatch.setattr(mod, "_build_credentials", lambda credential, scopes: object())
+
+    captured: dict[str, object] = {}
+
+    class _FakeInsert:
+        def execute(self):
+            return {"id": "newev", "htmlLink": "https://cal/x"}
+
+    class _FakeEvents:
+        def insert(self, **kwargs):
+            captured.update(kwargs)
+            return _FakeInsert()
+
+    class _FakeService:
+        def events(self):
+            return _FakeEvents()
+
+    monkeypatch.setattr(mod, "_service", lambda product, version, creds: _FakeService())
+
+    result = mod._calendar_create_event(
+        _spec("google_calendar_create_event"),
+        {
+            "calendar_id": "primary",
+            "summary": "Sync",
+            "start": "2026-06-07T09:00:00+10:00",
+            "end": "2026-06-07T09:30:00+10:00",
+        },
+        credential="c",
+    )
+    assert result == {"event_id": "newev", "html_link": "https://cal/x"}
+    assert captured["calendarId"] == "primary"
+    schema = _load(
+        str(REPO_ROOT / "schemas" / "google_calendar_create_event.output.schema.json")
+    )
+    assert validate_output(schema, result) == []
