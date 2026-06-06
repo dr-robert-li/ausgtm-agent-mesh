@@ -97,15 +97,20 @@ Plans:
   3. Both aggregator styles (Composio primary, Nango fallback) execute at least one real tool call end-to-end through the gateway
   4. Default `make test` / `make smoke` stay green and creds-free; live calls run only in a per-provider opt-in lane, each independently skippable when its creds are absent
   5. A per-provider credential/scope setup doc exists (how to mint each token/OAuth app + exact scopes)
-**Plans**: 3-4 plans (set at planning)
+**Plans**: 9 plans
 
 **Aggregator note**: `composio_aggregator` (MCP-native single Tool Router endpoint, ~982 toolkits / 20k tools) is **primary**; `nango_aggregator` (open-source unified-API, ~838 providers, self-hostable) is the peer **fallback**. TOOL-04 exercises both. Evidence: Spike 001 (`.planning/spikes/001-composio-vs-nango-coverage/`) — Composio wins on MCP-nativeness, near parity on raw connector count.
 
 Plans:
-- [ ] 04-01: Tool Gateway execution engine — execution-time credential resolution + JSON-Schema in/out validation + tool-event OTel spans (TOOL-01, TOOL-02, OBS-01 leftover)
-- [ ] 04-02: HubSpot + Google Workspace direct adapters, live-proven via opt-in lane (TOOL-01)
-- [ ] 04-03: Composio (primary) + Nango (fallback) aggregator integration styles end-to-end (TOOL-04)
-- [ ] 04-0x: Per-provider credential/scope setup docs (supports all of the above)
+- [ ] 04-01-PLAN.md — Contract + manifest + deps foundation: ToolCall additive fields + migration 0003 + repo ripple; all GWS manifest entries + schemas; pyproject tools/aggregators extras + jsonschema core (TOOL-01, TOOL-02) [wave 1]
+- [ ] 04-02-PLAN.md — JSON-Schema validation boundary: Draft 2020-12, asymmetric input-reject/output-quarantine, fail-closed-direct-only (TOOL-02) [wave 2, depends 04-01]
+- [ ] 04-03-PLAN.md — Tool Gateway execution engine: ToolSpec D-03 fields + CredentialResolver + adapter-dispatch registry + real execute(call) + D-10 tool-event span (TOOL-01, TOOL-02, OBS-01 leftover) [wave 2, depends 04-01]
+- [ ] 04-04-PLAN.md — Read-execution seam (item A) + worker gateway wiring: proposed_reads ungated post-run, runner/main/graph wiring; read path never touches the approval gate (TOOL-01) [wave 3, depends 04-01/04-03]
+- [ ] 04-05-PLAN.md — HubSpot direct adapter: lookup_company (read) + create_deal (approval-gated write, sandbox), live-proven (TOOL-01) [wave 3, depends 04-01/04-03]
+- [ ] 04-06-PLAN.md — Google Workspace adapters part 1: shared refresh-token auth scaffold + Drive/Gmail/Sheets, live-proven (TOOL-01) [wave 3, depends 04-01/04-03]
+- [ ] 04-07-PLAN.md — Google Workspace adapters part 2: Calendar/Docs/Slides completing the full six-product suite (TOOL-01) [wave 4, depends 04-06]
+- [ ] 04-08-PLAN.md — Composio (primary) + Nango (fallback, httpx REST proxy) aggregators end-to-end + runtime aggregate-schema fetch/cache (TOOL-04) [wave 3, depends 04-01/04-03]
+- [ ] 04-09-PLAN.md — Per-provider credential/scope setup index + live-lane matrix + completeness guard (TOOL-01, TOOL-04) [wave 5, depends 04-05/06/07/08]
 
 ### Phase 5: Reference Adapter Breadth
 **Goal**: Fan out the remaining reference providers through the Phase-4 framework — Webflow, Bitscale, Cal.com, Clockify, Beehiiv as direct adapters, and Xero via the aggregator — each independently landable and testable, reusing the credential-resolution / schema-validation / OTel-span machinery without rearchitecture.
@@ -162,7 +167,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 1. Durable Core & Approval Security | 3/3 | Complete | 2026-06-05 |
 | 2. Real Orchestration Engine | 3/3 | Complete | 2026-06-06 |
 | 3. Model Gateway & Observability | 4/4 | Complete | 2026-06-06 |
-| 4. Tool Gateway Framework + First Adapters + Aggregators | 0/4 | Not started | - |
+| 4. Tool Gateway Framework + First Adapters + Aggregators | 0/9 | Not started | - |
 | 5. Reference Adapter Breadth | 0/3 | Not started | - |
 | 6. Self-Improvement | 0/2 | Not started | - |
 | 7. E2E Validation & Deploy-Readiness | 0/2 | Not started | - |
