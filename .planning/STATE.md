@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-05)
 
 **Core value:** A long-running agent mesh takes a client request through ingress, durable orchestration, and a write-gated tool action — the write blocked until a human approves — and the whole run is observable and auditable.
-**Current focus:** Phase 5 — Reference Adapter Breadth (TOOL-03) — ready to plan
+**Current focus:** Phase 5 — Reference Adapter Breadth (TOOL-03) — PLANNED (7 plans, plan-checker PASS), ready to execute
 
 ## Current Position
 
-Phase: 4 (tool-gateway-framework-first-adapters-aggregators) — COMPLETE
-Plan: 9 of 9 complete — all merged to main
-Plans: 9/9 merged; 215 tests green creds-free; framework verified 5/5 must-haves + 8 design invariants against source
-Status: Phase 4 complete; next = Phase 5 (Reference Adapter Breadth)
-Last activity: 2026-06-06 -- Phase 4 execution complete
+Phase: 5 (reference-adapter-breadth) — PLANNED, ready to execute
+Plan: 7 plans written + plan-checker PASS; 0 of 7 executed
+Plans: 05-01 foundation (all shared-file edits) → 05-02..06 parallel direct adapters → 05-07 Xero+docs+guard
+Status: Phase 5 planned; next = /gsd:execute-phase 5
+Last activity: 2026-06-07 -- Phase 5 planning complete (research + plan + plan-check + 2 refinements folded)
 
 Progress: [██████░░░░] 57% (4/7 phases)
 
@@ -105,6 +105,7 @@ Items acknowledged and carried forward:
 ## Session Continuity
 
 Last session: --stopped-at
-Stopped at: Phase 4 context gathered (re-scope: TOOL-03/04 → v1, 5→7 phases)
+Stopped at: Phase 5 planned — 7 plans, plan-checker PASS; decisions Xero→Composio + Bitscale→real direct httpx (live-verified)
 
-**Planned Phase:** 04 (tool-gateway-framework-first-adapters-aggregators) — 9 plans — 2026-06-06T10:01:10.531Z
+**Planned Phase:** 05 (reference-adapter-breadth) — 7 plans — 2026-06-07
+Decisions (live-evidenced): Xero via Composio (key provisioned, proxy-execute off); Bitscale = real direct httpx adapter (api.bitscale.ai/api/v1, X-API-Key), reads-only live lane, run_grid credit-safe-stubbed. COMPOSIO_API_KEY + BITSCALE_API_KEY in .env (gitignored).

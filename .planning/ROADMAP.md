@@ -173,6 +173,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 2. Real Orchestration Engine | 3/3 | Complete | 2026-06-06 |
 | 3. Model Gateway & Observability | 4/4 | Complete | 2026-06-06 |
 | 4. Tool Gateway Framework + First Adapters + Aggregators | 9/9 | Complete | 2026-06-06 |
-| 5. Reference Adapter Breadth | 0/3 | Not started | - |
+| 5. Reference Adapter Breadth | 0/7 | Planned | - |
 | 6. Self-Improvement | 0/2 | Not started | - |
 | 7. E2E Validation & Deploy-Readiness | 0/2 | Not started | - |
