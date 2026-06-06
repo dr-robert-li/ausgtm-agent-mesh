@@ -257,8 +257,8 @@ def test_new_spec_name_routes_to_its_own_op_not_drive(monkeypatch):
     assert seen == ["calendar"]
 
 
-def test_all_twelve_ops_registered_in_dispatch_map():
-    """All six products (twelve ops) are reachable through the single _GWS_OPS map."""
+def test_all_nine_ops_registered_in_dispatch_map():
+    """All six products (nine ops) are reachable through the single _GWS_OPS map."""
     mod = _gws_module()
     for name in (
         "google_drive_search",

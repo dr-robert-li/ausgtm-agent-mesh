@@ -1,10 +1,10 @@
 """Google Workspace direct adapter — shared auth scaffold + single dispatcher (D-08).
 
 This module ships the FULL Google Workspace direct suite: the shared OAuth/refresh
-auth scaffold plus twelve ops across six products — Drive search (read), Gmail send
+auth scaffold plus nine ops across six products — Drive search (read), Gmail send
 (external_send), Sheets append (write) [04-06]; and Calendar list/create, Docs
 get/create, Slides get/create [04-07]. Reads are ungated; writes/sends are
-approval-gated upstream by the manifest + ledger. All twelve ops live behind ONE
+approval-gated upstream by the manifest + ledger. All nine ops live behind ONE
 dispatcher routed by ``spec.name`` through ``_GWS_OPS`` — there is exactly ONE
 registration call (a second per-op call would last-wins collide and silently make
 most ops unreachable).
