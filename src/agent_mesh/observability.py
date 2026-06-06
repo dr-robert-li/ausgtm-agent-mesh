@@ -177,6 +177,47 @@ def init_tracing(settings: Settings | None = None, *, test_exporter: Any | None 
     return provider
 
 
+# Test-injectable tracer-provider hook. When set (by a test), :func:`get_tracer`
+# returns a tracer from THIS provider instead of building/using a global one. This
+# is the documented seam that lets several tests in one process each assert on an
+# isolated InMemorySpanExporter — OTel ``set_tracer_provider`` is install-once and a
+# global would leak spans across tests. Production never sets it.
+_TRACER_PROVIDER_OVERRIDE = None
+
+
+def set_tracer_provider_override(provider) -> None:
+    """Inject a TracerProvider (e.g. one wired to an InMemorySpanExporter) for tests.
+
+    Pass ``None`` to clear. Production leaves this unset and gets a process-built
+    provider from :func:`get_tracer`."""
+    global _TRACER_PROVIDER_OVERRIDE
+    _TRACER_PROVIDER_OVERRIDE = provider
+
+
+# Process-built provider cache (production path), so the worker reuses one provider
+# across runs rather than rebuilding (and re-exporting connections) per task.
+_PROCESS_PROVIDER = None
+
+
+def get_tracer(name: str = _SERVICE_NAME, settings: Settings | None = None):
+    """Return an OTel ``Tracer``, or ``None`` when OTel is unavailable.
+
+    Resolution order: a test-injected provider override wins (isolated per-test
+    exporter); else a process-cached provider built once from settings via
+    :func:`init_tracing`. NEVER mutates the OTel global provider, so concurrent
+    tests do not clobber each other."""
+    if not tracing_available():
+        return None
+    if _TRACER_PROVIDER_OVERRIDE is not None:
+        return _TRACER_PROVIDER_OVERRIDE.get_tracer(name)
+    global _PROCESS_PROVIDER
+    if _PROCESS_PROVIDER is None:
+        _PROCESS_PROVIDER = init_tracing(settings)
+    if _PROCESS_PROVIDER is None:
+        return None
+    return _PROCESS_PROVIDER.get_tracer(name)
+
+
 def set_span_metadata(span, metadata: dict) -> None:
     """Set the shared-metadata dict as span attributes on ``span`` (OBS-01).
 
