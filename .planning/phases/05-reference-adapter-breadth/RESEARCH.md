@@ -190,7 +190,7 @@ and gate install behind a `checkpoint:human-verify` task (Phase-4 precedent for
 > risk). Inputs: permissive-with-required (Phase-4 `gmail_send` style).
 
 ### Webflow (`provider: webflow`, direct_api, httpx)
-- **API base:** `https://api.webflow.com/v2` `[CITED: developers.webflow.com/data/reference/authentication]`
+- **API base:** host `https://api.webflow.com` — **paths already include `/v2`** (e.g. `POST /v2/collections/...`); do NOT concatenate to `.../v2/v2/...`. `[CITED: developers.webflow.com/data/reference/authentication]`
 - **Auth:** Bearer token (Site Token simplest for single-site internal use). Header:
   `Authorization: Bearer <WEBFLOW_API_TOKEN>`, `Accept: application/json`. `[CITED]`
 - **Existing manifest entry:** `webflow_create_cms_item` (publishing write). **Add a READ
@@ -227,7 +227,7 @@ and gate install behind a `checkpoint:human-verify` task (Phase-4 precedent for
   user-surfaceable decision.
 
 ### Cal.com (`provider: calcom`, direct_api, httpx)
-- **API base:** `https://api.cal.com/v2` `[CITED: cal.com/docs/api-reference/v2]`
+- **API base:** host `https://api.cal.com` (docs say "typically"; confirm at impl) — **paths include `/v2`** (e.g. `GET /v2/bookings`); do NOT double the `/v2`. `[CITED: cal.com/docs/api-reference/v2]`
 - **Auth:** `Authorization: Bearer <CALCOM_API_KEY>` (key prefixed `cal_`). **REQUIRED
   header:** `cal-api-version: 2026-05-01` for bookings. `[CITED: cal.com/docs/api-reference/v2/bookings/get-all-bookings]`
 - **Existing manifest entries:** `calcom_list_bookings` (read) + `calcom_create_booking`
@@ -307,9 +307,13 @@ and gate install behind a `checkpoint:human-verify` task (Phase-4 precedent for
 
 ## Recommended Plan Split
 
-**Constraint that dictates the split:** the manifest, every schema file, `pyproject.toml`,
-and `tests/test_credential_docs.py` are SHARED. Per-adapter `adapters/<provider>.py`,
-per-provider tests, and per-provider `docs/credentials/<provider>.md` are ISOLATED.
+**Constraint that dictates the split:** SHARED files split into TWO classes —
+*schema-satisfiable* (manifest, schema files, `pyproject.toml` — safe to front-load into
+05-01 because unbacked entries degrade to a stub) and *artifact-dependent*
+(`tests/test_credential_docs.py` guard enumeration + `docs/credentials/README.md` index —
+these have NO degradation and MUST land last, in 05-07, after the artifacts they reference
+exist). Per-adapter `adapters/<provider>.py`, per-provider tests, and per-provider
+`docs/credentials/<provider>.md` are ISOLATED (own-file, wave 2).
 
 ### Plan 05-01 — Foundation (shared-file edits ONLY) [wave 1]
 **Owns (may touch ONLY these):**
@@ -321,11 +325,27 @@ per-provider tests, and per-provider `docs/credentials/<provider>.md` are ISOLAT
   (Draft 2020-12, inputs permissive-with-required, outputs matching the real response
   shapes documented above). Aggregate (Xero) tools get NO schema files.
 - `pyproject.toml` — ONLY if an SDK extra is adopted (recommended: none; httpx-direct).
-- `tests/test_credential_docs.py` — extend `_LIVE_TEST_FILES`, `_PROVIDER_DOCS`,
-  `_ANCHOR_ENV_VARS`, raise `_MIN_ENV_VARS` to cover the new providers (so success
-  criterion 4 is actually enforced).
+- **DOES NOT touch `tests/test_credential_docs.py`** — the guard extension is the ONE
+  shared file that is NOT front-loaded into the foundation (see the boxed warning below).
 **Success:** `make test` green creds-free; every Phase-5 direct manifest entry has both
 schema refs and on-disk schema files; Xero styled `composio_aggregator`.
+
+> WARNING - CRITICAL: the credential-docs guard CANNOT be extended in 05-01. The
+> "foundation owns all shared files" instinct is a trap here. A manifest entry with a
+> schema ref but no adapter module yet degrades cleanly (validate -> import-miss -> stub ->
+> green), so manifest/schema edits ARE safe to front-load. But
+> `tests/test_credential_docs.py` has NO degradation - its assertions are unconditional and
+> run on EVERY merge. If 05-01 raises `_MIN_ENV_VARS`, adds `_ANCHOR_ENV_VARS`, or adds
+> filenames to `_PROVIDER_DOCS`/`_LIVE_TEST_FILES` BEFORE those docs/live-test files exist:
+> `test_derived_env_var_set_...` fails (`7 >= 11` false; missing anchors),
+> `test_all_four_per_provider_docs_exist...` fails (doc not yet written),
+> `test_index_links...` fails (README not yet updated). The default lane goes RED at 05-01
+> and stays red until the last plan merges - violating the two-lane invariant the phase
+> protects. RULE: schema-satisfiable shared edits -> 05-01; artifact-dependent shared edits
+> (the guard enumeration + the README index) -> the FINAL plan (05-07) at wave 3, AFTER
+> every `test_<provider>_live.py` + `<provider>.md` exists. Between 05-02 and 05-07 the
+> guard runs its OLD 4-provider lists, so new files aren't scanned/required -> every
+> intermediate merge stays green.
 
 ### Plans 05-02 … 05-06 — Isolated per-direct-adapter [wave 2, all depend on 05-01, mutually parallel]
 One plan per provider. Each **may touch ONLY:**
@@ -335,24 +355,42 @@ One plan per provider. Each **may touch ONLY:**
   collision guard if 2 ops) + `tests/test_<provider>_live.py` (opt-in, skips on missing env)
 - `docs/credentials/<provider>.md` (isolated; mint steps + scopes + env var)
 
-Providers: `webflow`, `calcom`, `clockify`, `beehiiv`, and `bitscale` (bitscale ships the
-stub-guarded scaffold per the Bitscale decision). **Cal.com is the only 2-op dispatcher**
-(use `_CALCOM_OPS`).
+Providers: `webflow`, `calcom`, `clockify`, `beehiiv`, and `bitscale`. **Cal.com is the
+only 2-op dispatcher** (use `_CALCOM_OPS`).
 
-### Plan 05-07 — Xero-via-Composio + shared docs index [wave 2 or 3]
-**Owns:**
+> **Bitscale mechanics (no SDK = no natural stub-guard).** httpx is a core dep, so an
+> httpx Bitscale adapter has NO `ImportError` branch to fall through to the stub (unlike the
+> SDK adapters). So "httpx adapter guarded to stub" is mechanically muddy. Pick ONE clean
+> option: **(a) RECOMMENDED — ship the schema ref + schema file but NO `bitscale.py` module
+> at all.** `get_adapter('bitscale')` then import-misses -> the engine stubs, while input
+> schema validation STILL runs at the boundary (partially satisfies "with schema
+> validation"). No `tests/test_bitscale_live.py` (nothing to call live). OR **(b)** leave
+> the entry fully dormant (no schema ref either). Option (a) is recommended so success
+> criterion 1's schema-validation clause is met deterministically; surface to the user that
+> Bitscale has no live direct API yet. So Bitscale's "per-adapter plan" ships a schema-only
+> contribution into 05-01, not a wave-2 adapter module — it may not need its own plan.
+
+### Plan 05-07 — Xero-via-Composio + shared docs index + guard extension [wave 3]
+**Owns (must run AFTER every per-adapter plan so all referenced artifacts exist):**
 - `tests/test_xero_live.py` (opt-in; exercises `xero_read_invoices` through the EXISTING
   `composio.py` adapter — no new adapter module). Default-lane coverage rides the existing
   `test_aggregator_adapters.py` registry assertions.
 - `docs/credentials/xero.md` (Composio-toolkit connection note; reuses `COMPOSIO_API_KEY`).
 - `docs/credentials/README.md` — the SHARED index/matrix update (link all new
-  per-provider docs + skip matrix rows). Since README is shared, give it to exactly ONE
-  plan (this one) to avoid serialization collisions.
+  per-provider docs + add skip-matrix rows + document new env vars). Sole owner of this file.
+- **`tests/test_credential_docs.py` — the guard extension that 05-01 deliberately deferred.**
+  Atomically: add the new `test_<provider>_live.py` filenames to `_LIVE_TEST_FILES`, the new
+  `<provider>.md` files to `_PROVIDER_DOCS`, add new anchors to `_ANCHOR_ENV_VARS`, and raise
+  `_MIN_ENV_VARS`. Because this lands in the SAME plan as the README + xero.md updates (and
+  AFTER every per-adapter doc/live-test exists), all guard assertions pass on this merge —
+  and only this merge. This is what makes success criterion 4 enforced without ever reddening
+  an intermediate merge.
 
-**Wave ordering:** 05-01 (foundation) → {05-02..05-06 parallel} → 05-07 (docs index +
-Xero). 05-07's README edit must be the sole owner of that file. If the credential-docs
-guard extension (in 05-01) references new live-test filenames, ensure those filenames match
-what the per-adapter plans create (name them in 05-01's contract).
+**Wave ordering:** 05-01 (foundation, wave 1) → {05-02..05-06 per-adapter, wave 2, parallel}
+→ 05-07 (wave 3, depends on ALL of 05-02..06). 05-07 must be the SOLE owner of both
+`docs/credentials/README.md` and `tests/test_credential_docs.py`. 05-01's contract should
+NAME the live-test filenames each per-adapter plan will create, so 05-07's
+`_LIVE_TEST_FILES` extension matches exactly — but 05-01 must NOT edit the guard itself.
 
 ## Don't Hand-Roll
 
@@ -433,9 +471,11 @@ Phase-4 providers, so `test_credential_docs.py` never checks the new docs exist.
 
 ## Open Questions
 
-1. **Bitscale direct vs stub vs aggregator** (decision #2). Recommendation: ship
-   schema + stub-guarded scaffold and surface "no live direct API" to the user. Orchestrator
-   may want to confirm.
+1. **Bitscale direct vs stub vs aggregator** (decision #2). Recommendation: ship a
+   schema ref + schema file but NO `bitscale.py` module (engine import-misses -> stub, while
+   input validation still runs); surface "no live direct API yet" to the user. Bitscale thus
+   contributes only to 05-01 (schema) and may NOT need its own wave-2 plan. Orchestrator may
+   want to confirm.
 2. **Optional complementary ops** (clockify write, beehiiv read, webflow read). Webflow read
    is recommended (rounds out the publishing provider); clockify-write / beehiiv-read are
    optional breadth. Each adds a manifest entry + 2 schema files to 05-01. Planner decides.
