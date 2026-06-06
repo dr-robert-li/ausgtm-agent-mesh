@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "google_docs_create.input",
+  "description": "Input for the Google Docs create tool. WRITE-category: approval required. Permissive-by-design (D-05); destination folder is the cost/security-critical target and is validated when supplied.",
+  "type": "object",
+  "x-tool-category": "write",
+  "x-approval-required": true,
+  "additionalProperties": true,
+  "required": ["title"],
+  "properties": {
+    "title": { "type": "string", "minLength": 1 },
+    "body": { "type": "string", "description": "Initial document text content." },
+    "folder_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional destination Drive folder id (security-critical: validated when supplied)."
+    }
+  }
+}

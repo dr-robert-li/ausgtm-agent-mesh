@@ -55,6 +55,23 @@
       "title": "Created At",
       "type": "string"
     },
+    "integration_style": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Integration Style"
+    },
+    "is_read": {
+      "default": false,
+      "title": "Is Read",
+      "type": "boolean"
+    },
     "model_route": {
       "anyOf": [
         {
@@ -88,6 +105,18 @@
       ],
       "default": null,
       "title": "Result"
+    },
+    "schema_validation": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Schema Validation"
     },
     "status": {
       "$ref": "#/$defs/ToolCallStatus",

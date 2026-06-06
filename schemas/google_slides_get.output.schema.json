@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "google_slides_get.output",
+  "description": "Output of the Google Slides get tool: presentation id, title, and slide summaries.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["presentation_id"],
+  "properties": {
+    "presentation_id": { "type": "string" },
+    "title": { "type": "string" },
+    "slides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "slide_id": { "type": "string" },
+          "text": { "type": "string" }
+        }
+      }
+    }
+  }
+}

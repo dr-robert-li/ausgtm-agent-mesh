@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "google_sheets_append.output",
+  "description": "Output of the Google Sheets append tool: the updated range the agent consumes.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["updated_range"],
+  "properties": {
+    "updated_range": { "type": "string" },
+    "updated_rows": { "type": "integer", "minimum": 0 }
+  }
+}

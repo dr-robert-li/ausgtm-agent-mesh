@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "gmail_send.output",
+  "description": "Output of the Gmail send tool: the sent message id the agent consumes.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["message_id"],
+  "properties": {
+    "message_id": { "type": "string" },
+    "thread_id": { "type": "string" }
+  }
+}

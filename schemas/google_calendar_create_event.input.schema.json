@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "google_calendar_create_event.input",
+  "description": "Input for the Google Calendar create-event tool. WRITE-category: approval required. Permissive-by-design (D-05); calendar_id is the cost/security-critical target and is validated.",
+  "type": "object",
+  "x-tool-category": "write",
+  "x-approval-required": true,
+  "additionalProperties": true,
+  "required": ["calendar_id", "summary", "start", "end"],
+  "properties": {
+    "calendar_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Target calendar id (security-critical: validated)."
+    },
+    "summary": { "type": "string" },
+    "description": { "type": "string" },
+    "start": { "type": "string", "format": "date-time", "description": "Event start (RFC3339)." },
+    "end": { "type": "string", "format": "date-time", "description": "Event end (RFC3339)." },
+    "attendees": {
+      "type": "array",
+      "items": { "type": "string", "format": "email" }
+    }
+  }
+}

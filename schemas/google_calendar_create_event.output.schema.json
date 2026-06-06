@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "google_calendar_create_event.output",
+  "description": "Output of the Google Calendar create-event tool: the created event id the agent consumes.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["event_id"],
+  "properties": {
+    "event_id": { "type": "string" },
+    "html_link": { "type": "string" }
+  }
+}

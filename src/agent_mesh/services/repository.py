@@ -317,6 +317,9 @@ def _row_to_tool_call(row: tuple) -> ToolCall:
         requester_id,
         model_route,
         approval_record_id,
+        integration_style,
+        schema_validation,
+        is_read,
         created_at,
     ) = row
     return ToolCall(
@@ -332,6 +335,9 @@ def _row_to_tool_call(row: tuple) -> ToolCall:
         requester_id=requester_id,
         model_route=model_route,
         approval_record_id=approval_record_id,
+        integration_style=integration_style,
+        schema_validation=schema_validation,
+        is_read=is_read,
         created_at=created_at,
     )
 
@@ -537,6 +543,7 @@ _EVENT_COLS = "event_id, task_id, tenant_id, state, note, payload, created_at"
 _TOOL_CALL_COLS = (
     "tool_call_id, task_id, tenant_id, tool_name, category, approval_required, "
     "status, parameters, result, requester_id, model_route, approval_record_id, "
+    "integration_style, schema_validation, is_read, "
     "created_at"
 )
 _APPROVAL_COLS = (
@@ -725,12 +732,16 @@ class RepositorySQL:
             conn.execute(
                 "INSERT INTO tool_calls (tool_call_id, task_id, tenant_id, "
                 "tool_name, category, approval_required, status, parameters, "
-                "result, requester_id, model_route, approval_record_id, created_at) "
-                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
+                "result, requester_id, model_route, approval_record_id, "
+                "integration_style, schema_validation, is_read, created_at) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
                 "ON CONFLICT (tool_call_id) DO UPDATE SET status=EXCLUDED.status, "
                 "parameters=EXCLUDED.parameters, result=EXCLUDED.result, "
                 "approval_record_id=EXCLUDED.approval_record_id, "
-                "model_route=EXCLUDED.model_route",
+                "model_route=EXCLUDED.model_route, "
+                "integration_style=EXCLUDED.integration_style, "
+                "schema_validation=EXCLUDED.schema_validation, "
+                "is_read=EXCLUDED.is_read",
                 (
                     call.tool_call_id,
                     call.task_id,
@@ -744,6 +755,9 @@ class RepositorySQL:
                     call.requester_id,
                     call.model_route,
                     call.approval_record_id,
+                    call.integration_style,
+                    call.schema_validation,
+                    call.is_read,
                     call.created_at,
                 ),
             )

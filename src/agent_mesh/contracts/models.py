@@ -131,6 +131,16 @@ class ToolCall(_Base):
     requester_id: str
     model_route: str | None = None
     approval_record_id: str | None = None
+    # --- Phase 4 additive fields (audit item D) ---------------------------
+    # integration_style: how the call was routed (direct_api / aggregate_mcp /
+    #   nango_aggregator / composio_aggregator / mcp_server). None until set by
+    #   the gateway at execution time.
+    integration_style: str | None = None
+    # schema_validation: outcome of the JSON-Schema boundary check (D-06).
+    #   Allowed values: "ok" | "input_rejected" | "output_quarantined".
+    schema_validation: str | None = None
+    # is_read: True for non-gated read calls, False for gated write-class calls.
+    is_read: bool = False
     created_at: datetime = Field(default_factory=_utcnow)
 
 

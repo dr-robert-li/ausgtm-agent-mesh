@@ -10,6 +10,9 @@ dependencies = [
     "uvicorn[standard]>=0.29",
     "pyyaml>=6.0",
     "httpx>=0.27",
+    # jsonschema is a CORE dep (not an extra): the Tool Gateway schema boundary
+    # (TOOL-02) must never be an optional import. Small, pure-Python, no creds.
+    "jsonschema>=4.18,<5",
 ]
 
 [project.optional-dependencies]
@@ -44,6 +47,21 @@ agents = [
     "langgraph-checkpoint-postgres~=3.1",
     "langgraph-checkpoint-sqlite~=3.1",
     "deepagents~=0.6.8",
+]
+# Direct-adapter provider SDKs (TOOL-01). Opt-in so the default lane stays
+# creds-free and importable; installed only behind the per-adapter human-verify
+# checkpoints in the adapter plans (04-05/06). NOT installed by this plan.
+tools = [
+    "hubspot-api-client>=12,<13",
+    "google-api-python-client>=2.190",
+    "google-auth>=2.40",
+    "google-auth-oauthlib>=1.2",
+]
+# Aggregator clients (TOOL-04). Opt-in; installed only behind the per-aggregator
+# human-verify checkpoints in the adapter plans (04-07/08). NOT installed here.
+aggregators = [
+    "composio>=0.13,<1",
+    # Nango: NO python dep — integrates via core httpx against the Nango REST proxy (04-RESEARCH Pitfall 1).
 ]
 # GUI admin / operator app.
 gui = [

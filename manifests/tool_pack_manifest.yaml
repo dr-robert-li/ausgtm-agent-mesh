@@ -42,6 +42,8 @@ tools:
     credential_secret_name: "GOOGLE_WORKSPACE_OAUTH"
     resource_bindings:
       allowed_from_addresses: ["REPLACE_WITH_SENDER"]
+    input_schema_ref: "schemas/gmail_send.input.schema.json"
+    output_schema_ref: "schemas/gmail_send.output.schema.json"
     freshness_sla: "live"
     rate_limit_notes: "Respect Gmail send quotas."
 
@@ -54,8 +56,94 @@ tools:
     credential_secret_name: "GOOGLE_WORKSPACE_OAUTH"
     resource_bindings:
       allowed_spreadsheet_ids: ["REPLACE_WITH_SHEET_ID"]
+    input_schema_ref: "schemas/google_sheets_append.input.schema.json"
+    output_schema_ref: "schemas/google_sheets_append.output.schema.json"
     freshness_sla: "live"
     rate_limit_notes: "Respect Sheets API quotas."
+
+  - name: "google_calendar_list_events"
+    provider: "google_workspace"
+    integration_style: "direct_api"
+    category: "read"
+    description: "List upcoming Google Calendar events for scheduling context."
+    approval_required: false
+    credential_secret_name: "GOOGLE_WORKSPACE_OAUTH"
+    resource_bindings:
+      allowed_calendar_ids: ["REPLACE_WITH_CALENDAR_ID"]
+    input_schema_ref: "schemas/google_calendar_list_events.input.schema.json"
+    output_schema_ref: "schemas/google_calendar_list_events.output.schema.json"
+    freshness_sla: "15m"
+    rate_limit_notes: "Respect Calendar API quotas."
+
+  - name: "google_calendar_create_event"
+    provider: "google_workspace"
+    integration_style: "direct_api"
+    category: "write"
+    description: "Create a Google Calendar event from an approved task."
+    approval_required: true
+    credential_secret_name: "GOOGLE_WORKSPACE_OAUTH"
+    resource_bindings:
+      allowed_calendar_ids: ["REPLACE_WITH_CALENDAR_ID"]
+    input_schema_ref: "schemas/google_calendar_create_event.input.schema.json"
+    output_schema_ref: "schemas/google_calendar_create_event.output.schema.json"
+    freshness_sla: "live"
+    rate_limit_notes: "Respect Calendar API quotas."
+
+  - name: "google_docs_get"
+    provider: "google_workspace"
+    integration_style: "direct_api"
+    category: "read"
+    description: "Read a Google Doc's content for retrieval evidence."
+    approval_required: false
+    credential_secret_name: "GOOGLE_WORKSPACE_OAUTH"
+    resource_bindings:
+      allowed_folder_ids: ["REPLACE_WITH_FOLDER_ID"]
+    input_schema_ref: "schemas/google_docs_get.input.schema.json"
+    output_schema_ref: "schemas/google_docs_get.output.schema.json"
+    freshness_sla: "15m"
+    rate_limit_notes: "Respect Docs API quotas."
+
+  - name: "google_docs_create"
+    provider: "google_workspace"
+    integration_style: "direct_api"
+    category: "write"
+    description: "Create a Google Doc from an approved task."
+    approval_required: true
+    credential_secret_name: "GOOGLE_WORKSPACE_OAUTH"
+    resource_bindings:
+      allowed_folder_ids: ["REPLACE_WITH_FOLDER_ID"]
+    input_schema_ref: "schemas/google_docs_create.input.schema.json"
+    output_schema_ref: "schemas/google_docs_create.output.schema.json"
+    freshness_sla: "live"
+    rate_limit_notes: "Respect Docs API quotas."
+
+  - name: "google_slides_get"
+    provider: "google_workspace"
+    integration_style: "direct_api"
+    category: "read"
+    description: "Read a Google Slides presentation's content for evidence."
+    approval_required: false
+    credential_secret_name: "GOOGLE_WORKSPACE_OAUTH"
+    resource_bindings:
+      allowed_folder_ids: ["REPLACE_WITH_FOLDER_ID"]
+    input_schema_ref: "schemas/google_slides_get.input.schema.json"
+    output_schema_ref: "schemas/google_slides_get.output.schema.json"
+    freshness_sla: "15m"
+    rate_limit_notes: "Respect Slides API quotas."
+
+  - name: "google_slides_create"
+    provider: "google_workspace"
+    integration_style: "direct_api"
+    category: "write"
+    description: "Create a Google Slides presentation from an approved task."
+    approval_required: true
+    credential_secret_name: "GOOGLE_WORKSPACE_OAUTH"
+    resource_bindings:
+      allowed_folder_ids: ["REPLACE_WITH_FOLDER_ID"]
+    input_schema_ref: "schemas/google_slides_create.input.schema.json"
+    output_schema_ref: "schemas/google_slides_create.output.schema.json"
+    freshness_sla: "live"
+    rate_limit_notes: "Respect Slides API quotas."
 
   # ---------------- HubSpot (read + write) ----------------
   - name: "hubspot_lookup_company"
