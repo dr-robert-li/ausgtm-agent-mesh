@@ -25,6 +25,7 @@ from agent_mesh.contracts.lifecycle import is_terminal
 from agent_mesh.contracts.models import ToolCall
 from agent_mesh.services import approvals
 from agent_mesh.services.repository import Repository, get_repository
+from agent_mesh.tools.credentials import CredentialResolver, EnvCredentialResolver
 from agent_mesh.tools.gateway import ToolGateway
 from agent_mesh.worker.orchestrator import resume_mesh, run_mesh
 
@@ -34,9 +35,17 @@ class Worker:
         self,
         repo: Repository | None = None,
         tool_gateway: ToolGateway | None = None,
+        resolver: CredentialResolver | None = None,
     ) -> None:
         self._repo = repo or get_repository()
         self._gateway = tool_gateway
+        # The credential-resolution authority for execute() (D-02). Defaults to the
+        # env-backed resolver: creds-free by default (every secret resolves to None ->
+        # the gateway degrades to the deterministic stub, D-11), prod swaps to a
+        # SecretManagerResolver behind the same Protocol. The resolver is shared by BOTH
+        # the ungated read loop and the gated write execution — neither receives raw
+        # credentials; the gateway resolves them at call time only.
+        self._resolver = resolver or EnvCredentialResolver()
 
     def process(self, task_id: str) -> str:
         """Process or resume a single task. Returns the resulting state value."""
@@ -63,6 +72,36 @@ class Worker:
         if current is not None and is_terminal(current.state):
             return str(current.state)
 
+        # ----------------------------------------------------------------------
+        # Ungated read loop (audit item A, T-04-04-01). The INVERSE of the write
+        # gate below: proposed reads execute IMMEDIATELY and UNGATED — they NEVER
+        # touch the approval ledger (no build_approval_request / open_approval /
+        # is_approved). Each read is recorded as a category=read / is_read=True
+        # ToolCall in EXECUTED status (tenant-scoped, DUR-02), and a STRING summary
+        # (never the raw result dict — T-04-04-03) is appended to the evidence the
+        # write-gate approval request below carries. A write smuggled into
+        # proposed_reads is still recorded category=READ unconditionally (T-04-04-02);
+        # the manifest's write-class invariant + the gateway's own validation remain.
+        read_evidence: list[str] = list(result.evidence)
+        for proposed in result.proposed_reads:
+            read_call = ToolCall(
+                task_id=task_id,
+                tenant_id=task.tenant_id,
+                tool_name=proposed["tool_name"],
+                category=ToolCategory.READ,
+                approval_required=False,
+                is_read=True,
+                status=ToolCallStatus.EXECUTED,
+                parameters=proposed.get("parameters", {}),
+                requester_id=task.requester.requester_id,
+            )
+            result_dict = self._execute(read_call)  # ungated; no approval ledger
+            executed = read_call.model_copy(update={"result": result_dict})
+            self._repo.upsert_tool_call(executed)
+            read_evidence.append(
+                f"read {read_call.tool_name}: {len(result_dict)} field(s)"
+            )
+
         if not result.proposed_writes:
             done = self._repo.transition_task(
                 task_id, TaskState.COMPLETED, note="no write actions required"
@@ -86,7 +125,7 @@ class Worker:
             )
             self._repo.upsert_tool_call(call)
             request = approvals.build_approval_request(
-                call, summary=f"Approve write: {call.tool_name}", evidence=result.evidence
+                call, summary=f"Approve write: {call.tool_name}", evidence=read_evidence
             )
             # Live issuance path: unpack (record, token) and carry the token to
             # the requester. The scaffold has no Slack/MCP postback channel yet,
@@ -170,8 +209,12 @@ class Worker:
                 "note": "no tool gateway configured; write not executed",
                 "tool": call.tool_name,
             }
-        # execute() now takes the ToolCall (04-03 Pitfall 2 — carries task/tenant
-        # correlation). No resolver is passed here: resolver=None -> credential
-        # None -> deterministic stub, preserving today's creds-free behavior.
-        # 04-04 wires the EnvCredentialResolver into this call site.
-        return self._gateway.execute(call)
+        # execute() takes the ToolCall (04-03 Pitfall 2 — carries task/tenant
+        # correlation) and the Worker's resolver (04-04 item B). The resolver is the
+        # credential-resolution authority: the gateway resolves the secret ONLY inside
+        # execute() and never returns it (D-02). Creds-free by default — every secret
+        # resolves to None -> the deterministic stub (D-11) — so both the ungated read
+        # loop and the gated write path stay green and creds-free on the default lane.
+        # The SAME call site serves reads and writes; governance (gate vs. ungated) is
+        # decided by the CALLER, never here.
+        return self._gateway.execute(call, resolver=self._resolver)

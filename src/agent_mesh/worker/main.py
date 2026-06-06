@@ -16,7 +16,22 @@ import sys
 
 from agent_mesh.services.dispatch import InProcessDispatcher, get_dispatcher
 from agent_mesh.settings import get_settings
+from agent_mesh.tools.gateway import ToolGateway
 from agent_mesh.worker.runner import Worker
+
+# Tool pack manifest the worker loads its tool registry from (audit item B). The
+# gateway resolves credentials at execution time via the Worker's resolver (default
+# EnvCredentialResolver, creds-free by default); agents never receive raw credentials.
+_TOOL_PACK_MANIFEST = os.getenv("TOOL_PACK_MANIFEST", "manifests/tool_pack_manifest.yaml")
+
+
+def _build_worker() -> Worker:
+    """Construct the live Worker with a real manifest-loaded ToolGateway (item B).
+
+    Both bootstrap paths share this so the worker boots with a real gateway +
+    resolver instead of ``tool_gateway=None`` (which silently stubbed every call).
+    """
+    return Worker(tool_gateway=ToolGateway.from_manifest(_TOOL_PACK_MANIFEST))
 
 
 def _run_pubsub() -> None:  # pragma: no cover - needs google-cloud-pubsub + creds
@@ -28,7 +43,7 @@ def _run_pubsub() -> None:  # pragma: no cover - needs google-cloud-pubsub + cre
         "TASK_SUBSCRIPTION",
         subscriber.subscription_path(settings.project_id, f"{settings.task_topic}-worker"),
     )
-    worker = Worker()
+    worker = _build_worker()
 
     def callback(message: pubsub_v1.subscriber.message.Message) -> None:
         try:
@@ -51,7 +66,7 @@ def _run_inprocess() -> None:
     dispatcher = get_dispatcher()
     if not isinstance(dispatcher, InProcessDispatcher):
         raise RuntimeError("in-process mode requires the in-process dispatcher")
-    worker = Worker()
+    worker = _build_worker()
     drained = 0
     while not dispatcher.empty():
         task_id = dispatcher.get(timeout=1)

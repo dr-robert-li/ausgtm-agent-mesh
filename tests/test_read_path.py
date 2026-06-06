@@ -166,10 +166,9 @@ def test_read_appends_string_evidence_not_raw_dict(repo):
     svc, worker = _svc_and_worker(repo)
     task = svc.create_task(_task("research acme"))
     worker.process(task.task_id)
-    done = repo.get_task(task.task_id)
-    # The completed summary path persists result_summary; evidence is threaded as strings.
-    # Assert the persisted read row carries a dict result while evidence stays string-typed
-    # (no dict leaked into the evidence list anywhere the worker built it).
+    # The read row carries a dict result; the evidence the worker threads into the
+    # approval request is a string summary (asserted via the write-trigger path below),
+    # never the raw result dict (T-04-04-03).
     reads = _read_calls(repo, task.task_id)
     assert isinstance(reads[0].result, dict)
 
