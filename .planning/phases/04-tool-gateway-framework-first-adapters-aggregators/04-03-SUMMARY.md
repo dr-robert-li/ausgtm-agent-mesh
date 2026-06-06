@@ -46,12 +46,13 @@ decisions:
   - "validation order: input validated BEFORE the no-cred/no-adapter stub fallback, so a stub call still passes the 04-02 boundary (a direct schema-less tool is BLOCKED even on the stub path, D-04)"
   - "stub-degradation branch records call.schema_validation='ok' (input passed; no SaaS call); input violation records 'input_rejected'; output violation records 'output_quarantined'"
   - "credential-leak guard: tool_event_span sets only bounded identifiers + trace_metadata correlation keys (set_span_metadata filters); never the credential or full params/result"
+  - "schema-ref anchoring (04-02 handoff): manifest schema refs are repo-root-relative; the gateway anchors them against the manifest dir (walking up to the first ancestor where the ref resolves) so validation._load works regardless of process CWD (Cloud Run Job CWD != repo root). Aggregator/directly-constructed gateways carry no refs -> no-op"
 requirements: [TOOL-01, TOOL-02, OBS-01]
 metrics:
-  duration: "~25m"
+  duration: "~35m"
   completed: "2026-06-06"
   tasks: 2
-  commits: 5
+  commits: 6
 ---
 
 # Phase 4 Plan 03: Tool Gateway Execution Engine Summary
@@ -64,7 +65,7 @@ credential only at call time (never leaked, D-02), validates the 04-02 input/out
 boundary, dispatches via `get_adapter(adapter_key_for(spec))` (or degrades to the
 deterministic stub when no adapter/credential is present, D-11), and emits exactly one
 OTel tool-event span (D-10, closing the OBS-01 tool-span leftover). Default suite green
-and creds-free: **164 passed, 6 skipped, 4 deselected** (baseline 148; +16).
+and creds-free: **165 passed, 6 skipped, 4 deselected** (baseline 148; +17).
 
 ## What Was Built
 
@@ -127,10 +128,30 @@ and creds-free: **164 passed, 6 skipped, 4 deselected** (baseline 148; +16).
 - **Files modified:** src/agent_mesh/tools/gateway.py, src/agent_mesh/tools/adapters/__init__.py
 - **Commit:** 46882f5
 
+**3. [Rule 1 - Bug] schema-ref path resolution crashed on a non-repo-root CWD**
+- **Found during:** advisor review at completion (caught a latent crash the green suite hid).
+- **Issue:** `execute()` passed `spec.input/output_schema_ref` (repo-root-relative, e.g.
+  `"schemas/..."`) straight to `validation._load` -> `Path(ref).read_text()`, which only
+  resolves when CWD == repo root. The production runner path (`runner._execute` ->
+  `execute(call)` with `resolver=None`) runs input validation BEFORE the no-cred stub
+  fallback, so from a Cloud Run Job CWD (≠ repo root) a direct read tool with a schema ref
+  raised an UNCAUGHT `FileNotFoundError` — silently breaking D-11 stub degradation for the
+  exact tools wave 4 (04-05/06/08) builds. The 04-02 handoff explicitly required the engine
+  to pass a CWD-resolvable/absolute ref; the original code did not.
+- **Fix:** `ToolGateway` records the manifest dir (`from_manifest`) and a `_resolve_ref`
+  helper anchors a relative ref against it, walking up to the first ancestor where the ref
+  resolves (handles the `manifests/` subdir layout without a fixed-depth assumption).
+  Absolute refs and directly-constructed gateways (aggregator specs carry no refs) pass
+  through unchanged. Added a regression test that calls `execute()` under
+  `monkeypatch.chdir(tmp_path)` and asserts the stub is returned with no `FileNotFoundError`
+  (verified to reproduce the crash with anchoring disabled).
+- **Files modified:** src/agent_mesh/tools/gateway.py, tests/test_gateway_engine.py
+- **Commit:** 7f270b0
+
 ## Verification
 
-- `PYTHONPATH=src .venv/bin/python -m pytest -q -m "not live"` -> **164 passed, 6 skipped,
-  4 deselected** (baseline 148 passed; +16). Creds-free; no provider SDKs installed.
+- `PYTHONPATH=src .venv/bin/python -m pytest -q -m "not live"` -> **165 passed, 6 skipped,
+  4 deselected** (baseline 148 passed; +17). Creds-free; no provider SDKs installed.
 - `ruff check src/` -> All checks passed.
 - Acceptance criteria (Task 1):
   - `grep -c integration_style src/agent_mesh/tools/gateway.py` = 3 (>= 2) ✓
@@ -205,6 +226,7 @@ until they exist. No unintended stubs.
 - `1becb78` feat(04-03): ToolSpec D-03 fields + CredentialResolver + lazy-import adapter registry (GREEN)
 - `34108cb` test(04-03): add failing tests for execute(call) engine + D-10 tool-event span (RED)
 - `46882f5` feat(04-03): real execute(call) engine + D-10 tool-event span (GREEN)
+- `7f270b0` fix(04-03): anchor repo-root-relative schema refs against manifest dir (D-11 on real CWD)
 - (this) docs(04-03): complete tool-gateway execution-engine plan
 
 ## TDD Gate Compliance
