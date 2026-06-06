@@ -54,7 +54,15 @@ def test_write_class_tools_require_approval():
 
 
 def test_every_tool_declares_an_integration_style():
-    allowed = {"direct_api", "mcp_server", "aggregate_mcp", "nango_aggregator"}
+    # All five integration styles the contract supports (CLAUDE.md §3 / AC #13):
+    # composio_aggregator and nango_aggregator are peer aggregator options.
+    allowed = {
+        "direct_api",
+        "mcp_server",
+        "aggregate_mcp",
+        "nango_aggregator",
+        "composio_aggregator",
+    }
     for tool in _manifest()["tools"]:
         assert tool.get("integration_style") in allowed, (
             f"{tool['name']} has an unknown integration_style"
