@@ -12,6 +12,7 @@ import hmac
 import json
 import os
 import time
+from contextlib import contextmanager
 from datetime import UTC, datetime
 
 from agent_mesh.contracts.enums import WRITE_CATEGORIES, ApprovalDecision, ToolCategory
@@ -155,6 +156,42 @@ def verify_approval_token(
     return requester_id
 
 
+@contextmanager
+def _approval_span(name: str, *, tenant_id: str, task_id: str, requester_id: str,
+                   approval_state: str):
+    """Open a READ-ONLY OTel telemetry span for an approval event (OBS-01).
+
+    The span carries the shared ``trace_metadata()`` keys (correlating the approval
+    event to the task under shared metadata / task_id) and NOTHING ELSE: it is
+    telemetry only. SEC-01/SEC-02 are untouched — no code branches on span data, the
+    approver is derived solely from the signed token (RF-1, T-03-03-01). The approval
+    decision fires in a separate ``/v1/approvals`` request from the model/tool spans,
+    so it correlates by ``task_id`` (not the in-process traceparent).
+
+    A no-op when OTel is unavailable (default-suite-safe)."""
+    from agent_mesh import observability as obs
+    from agent_mesh.settings import get_settings
+
+    tracer = obs.get_tracer()
+    if tracer is None:
+        yield None
+        return
+
+    settings = get_settings()
+    meta = obs.trace_metadata(
+        tenant_id=tenant_id,
+        client_slug=settings.client_slug,
+        task_id=task_id,
+        session_id=None,
+        requester_id=requester_id,
+        entrypoint="approval",
+        approval_state=approval_state,
+    )
+    with tracer.start_as_current_span(name) as span:
+        obs.set_span_metadata(span, meta)
+        yield span
+
+
 def open_approval(
     repo: Repository, request: ApprovalRequest
 ) -> tuple[ApprovalRecord, str]:
@@ -163,17 +200,24 @@ def open_approval(
     Returns ``(record, token)``. The token binds the requester to exactly this
     record/task/payload; callers thread it to the requester so the approval
     callback can present it. Both callers MUST unpack the tuple."""
-    record = ApprovalRecord(
-        approval_request_id=request.approval_request_id,
-        task_id=request.task_id,
+    with _approval_span(
+        "approval.open",
         tenant_id=request.tenant_id,
-        tool_call_id=request.tool_call_id,
-        decision=ApprovalDecision.PENDING,
-        payload_hash=request.payload_hash,
-    )
-    stored = repo.upsert_approval(record)
-    token = issue_approval_token(stored, request.requester_id)
-    return stored, token
+        task_id=request.task_id,
+        requester_id=request.requester_id,
+        approval_state="pending",
+    ):
+        record = ApprovalRecord(
+            approval_request_id=request.approval_request_id,
+            task_id=request.task_id,
+            tenant_id=request.tenant_id,
+            tool_call_id=request.tool_call_id,
+            decision=ApprovalDecision.PENDING,
+            payload_hash=request.payload_hash,
+        )
+        stored = repo.upsert_approval(record)
+        token = issue_approval_token(stored, request.requester_id)
+        return stored, token
 
 
 def record_decision(
@@ -186,15 +230,24 @@ def record_decision(
     record = repo.get_approval(approval_record_id)
     if record is None:
         raise KeyError(f"Unknown approval record {approval_record_id}")
-    updated = record.model_copy(
-        update={
-            "decision": decision.value,
-            "approver_id": approver_id,
-            "channel": channel,
-            "decided_at": datetime.now(UTC),
-        }
-    )
-    return repo.upsert_approval(updated)
+    with _approval_span(
+        "approval.decision",
+        tenant_id=record.tenant_id,
+        task_id=record.task_id,
+        # approver_id is the token-derived identity (SEC-01); the span records it
+        # for telemetry only and never gates anything on it.
+        requester_id=approver_id,
+        approval_state=decision.value,
+    ):
+        updated = record.model_copy(
+            update={
+                "decision": decision.value,
+                "approver_id": approver_id,
+                "channel": channel,
+                "decided_at": datetime.now(UTC),
+            }
+        )
+        return repo.upsert_approval(updated)
 
 
 def is_approved(record: ApprovalRecord, expected_payload: dict) -> bool:

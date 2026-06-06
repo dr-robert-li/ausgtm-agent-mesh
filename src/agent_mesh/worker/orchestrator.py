@@ -31,10 +31,12 @@ approval ledger, and the tests are framework-agnostic.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 from dataclasses import dataclass, field
 
+from agent_mesh import observability as obs
 from agent_mesh.contracts.models import TaskRecord
 
 # Test-injectable checkpointer hook. When set (by a test), ``_select_checkpointer``
@@ -151,16 +153,65 @@ def deep_agents_available() -> bool:
         return False
 
 
+def _task_trace_metadata(task: TaskRecord, *, agent_role: str | None = None) -> dict:
+    """Build the shared request-metadata dict for this task's spans (OBS-01).
+
+    Pulls the correlation keys off the durable ``TaskRecord`` so every span the
+    worker emits carries tenant_id/client_slug/task_id/session_id/requester_id/
+    entrypoint — the keys that correlate model/tool/approval events under one
+    trace and keep reads tenant-scoped (T-03-03-03)."""
+    return obs.trace_metadata(
+        tenant_id=task.tenant_id,
+        client_slug=task.client_slug,
+        task_id=task.task_id,
+        session_id=task.session_id,
+        requester_id=task.requester.requester_id,
+        entrypoint=str(getattr(task.entrypoint, "value", task.entrypoint)),
+        agent_role=agent_role,
+        model_route_profile=task.model_route_profile,
+        approval_state=str(getattr(task.state, "value", task.state)),
+    )
+
+
+@contextlib.contextmanager
+def _task_root_span(task: TaskRecord, span_name: str):
+    """Open the per-task OTel root span and yield its 32-hex trace id (OBS-01).
+
+    Restores the inbound W3C ``traceparent`` (stored at the real ingress and copied
+    onto ``TaskRecord.metadata``) as the OTel parent context, so the worker's spans
+    JOIN the trace started at ingress across the Pub/Sub boundary. When no
+    traceparent is present (or OTel is unavailable), a FRESH root trace is started
+    (no crash). The ``trace_metadata()`` keys are set as span attributes.
+
+    Yields the trace id (or ``None`` when OTel is unavailable) so callers populate
+    ``OrchestrationResult.trace_id`` from the SAME span the run roots under."""
+    tracer = obs.get_tracer()
+    if tracer is None:
+        yield None
+        return
+    parent = obs.extract_otel_context(task.metadata.get("traceparent"))
+    with tracer.start_as_current_span(span_name, context=parent) as span:
+        obs.set_span_metadata(span, _task_trace_metadata(task))
+        yield obs.span_trace_id(span)
+
+
 def run_mesh(task: TaskRecord) -> OrchestrationResult:
     """Run the agent mesh for a task.
 
     Returns the result summary plus any *proposed* write actions. Proposed
     writes are NOT executed here; the worker gates them through the approval
     ledger before any Tool Gateway execution.
-    """
-    if langgraph_available():
-        return _run_langgraph(task)
-    return _run_stub(task)
+
+    Wrapped in the per-task root span (OBS-01): the inbound traceparent is restored
+    so the worker's spans join the ingress trace, and ``trace_id`` is set on the
+    result from that span (both the stub and real-graph paths)."""
+    with _task_root_span(task, "mesh.run") as trace_id:
+        if langgraph_available():
+            result = _run_langgraph(task)
+        else:
+            result = _run_stub(task)
+        result.trace_id = trace_id
+        return result
 
 
 def _run_stub(task: TaskRecord) -> OrchestrationResult:
@@ -193,8 +244,18 @@ def _graph_config(task: TaskRecord) -> dict:
     so this is never a bare/arbitrary thread_id. The checkpointer keys on ``thread_id``
     only, so binding it to the task id is what keeps a checkpoint from being resumed
     cross-task (T-02-02-03).
+
+    OBS-01: when the langfuse v4 ``CallbackHandler`` is available, attach it via
+    ``config={"callbacks": [handler]}`` so node/model spans nest under the per-task
+    trace and token/cost telemetry lands in Langfuse. The handler is None-safe: with
+    langfuse uninstalled/unconfigured ``get_langchain_callback`` returns ``None`` and
+    no callback is attached (default suite stays green, no remote tracing).
     """
-    return {"configurable": {"thread_id": task.task_id}}
+    config: dict = {"configurable": {"thread_id": task.task_id}}
+    handler = obs.get_langchain_callback()
+    if handler is not None:  # pragma: no cover - needs langfuse + keys
+        config["callbacks"] = [handler]
+    return config
 
 
 def _run_langgraph(task: TaskRecord) -> OrchestrationResult:
@@ -263,44 +324,53 @@ def resume_mesh(task: TaskRecord, decision) -> OrchestrationResult:
     pause mechanism, the signed-token ledger is the decision authority.
 
     Returns a TERMINAL :class:`OrchestrationResult` (``proposed_writes=[]``) so the
-    worker's completion logic holds.
+    worker's completion logic holds. The per-task root span (OBS-01) wraps every
+    return path so ``trace_id`` is set on the result regardless of which branch
+    (stub / no-checkpoint / durable-resume) is taken.
     """
-    if not langgraph_available():
-        # Stub path: nothing paused via a graph interrupt; terminal no-op.
+    with _task_root_span(task, "mesh.resume") as trace_id:
+        if not langgraph_available():
+            # Stub path: nothing paused via a graph interrupt; terminal no-op.
+            return OrchestrationResult(
+                summary=f"[stub] resumed after approval: {task.prompt[:120]}",
+                proposed_writes=[],
+                evidence=[],
+                trace_id=trace_id,
+            )
+
+        # The stack is present, but a graph resume is only possible when the run was
+        # durably checkpointed. ``Command(resume=...)`` REQUIRES a checkpointer; with
+        # none configured (no DATABASE_URL, no test override) the run paused via the
+        # worker's AWAITING_APPROVAL stash, not a durable graph interrupt, so there is
+        # nothing to graph-resume. This is a VALUE check on the selected checkpointer —
+        # NOT a blanket try/except that swallows the stack-path resume (which the Task-1
+        # acceptance criterion forbids). The write still executes in
+        # runner._resume_after_approval under is_approved(); ORCH-03's durable resume is
+        # proven by the agents-gated checkpointer test that injects a real saver.
+        checkpointer = _select_checkpointer()
+        if checkpointer is None:
+            return OrchestrationResult(
+                summary=(
+                    "[mesh] resumed after approval (no durable checkpoint): "
+                    f"{task.prompt[:120]}"
+                ),
+                proposed_writes=[],
+                evidence=[],
+                trace_id=trace_id,
+            )
+
+        from langgraph.types import Command
+
+        from agent_mesh.worker.graph import build_graph
+
+        compiled = build_graph().compile(checkpointer=checkpointer)
+        # ``decision`` is the verified boolean only — never an approver_id (SEC-01).
+        final_state = compiled.invoke(Command(resume=decision), _graph_config(task))
+
         return OrchestrationResult(
-            summary=f"[stub] resumed after approval: {task.prompt[:120]}",
+            summary=final_state.get("review")
+            or f"[mesh] resumed and completed: {task.prompt[:120]}",
             proposed_writes=[],
             evidence=[],
+            trace_id=trace_id,
         )
-
-    # The stack is present, but a graph resume is only possible when the run was durably
-    # checkpointed. ``Command(resume=...)`` REQUIRES a checkpointer; with none configured
-    # (no DATABASE_URL, no test override) the run paused via the worker's AWAITING_APPROVAL
-    # stash, not a durable graph interrupt, so there is nothing to graph-resume. This is a
-    # VALUE check on the selected checkpointer — NOT a blanket try/except that swallows the
-    # stack-path resume (which the Task-1 acceptance criterion forbids). The write still
-    # executes in runner._resume_after_approval under is_approved(); ORCH-03's durable
-    # resume is proven by the agents-gated checkpointer test that injects a real saver.
-    checkpointer = _select_checkpointer()
-    if checkpointer is None:
-        return OrchestrationResult(
-            summary=f"[mesh] resumed after approval (no durable checkpoint): {task.prompt[:120]}",
-            proposed_writes=[],
-            evidence=[],
-        )
-
-    from langgraph.types import Command
-
-    from agent_mesh.worker.graph import build_graph
-
-    compiled = build_graph().compile(checkpointer=checkpointer)
-    # ``decision`` is the verified boolean only — never an approver_id (SEC-01).
-    final_state = compiled.invoke(Command(resume=decision), _graph_config(task))
-
-    return OrchestrationResult(
-        summary=final_state.get("review")
-        or f"[mesh] resumed and completed: {task.prompt[:120]}",
-        proposed_writes=[],
-        evidence=[],
-        # trace_id stays unset — Langfuse correlation is Phase 3.
-    )
