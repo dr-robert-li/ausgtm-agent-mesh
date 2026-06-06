@@ -69,3 +69,34 @@ def test_get_chat_model_returns_router_backed_model():
     from litellm import Router
 
     assert isinstance(chat._router, Router)
+
+
+# --- delegated-call cost accounting (creds-free, D-04) ----------------------
+
+
+def test_actual_cost_prices_from_usage_metadata():
+    """D-04: post-call cost is priced from AIMessage.usage_metadata, not the estimate.
+
+    Regression guard: ``chat.invoke`` returns a LangChain AIMessage whose token counts
+    live in ``usage_metadata`` (input_tokens/output_tokens), NOT a litellm ``_response``.
+    """
+    from agent_mesh.worker.graph import _actual_cost
+
+    usage = {"input_tokens": 100, "output_tokens": 50, "total_tokens": 150}
+    cost, prompt_tokens, completion_tokens = _actual_cost(
+        "anthropic/claude-sonnet-4-6", usage, fallback=999.0
+    )
+    assert prompt_tokens == 100
+    assert completion_tokens == 50
+    # A real (small, positive) priced cost — NOT the 999.0 fallback.
+    assert 0.0 < cost < 999.0
+
+
+def test_actual_cost_falls_back_when_usage_absent():
+    from agent_mesh.worker.graph import _actual_cost
+
+    cost, prompt_tokens, completion_tokens = _actual_cost(
+        "anthropic/claude-sonnet-4-6", None, fallback=0.42
+    )
+    assert cost == 0.42
+    assert prompt_tokens == 0 and completion_tokens == 0

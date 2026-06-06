@@ -81,14 +81,44 @@ def _model_credentials_present() -> bool:
     )
 
 
+def _actual_cost(
+    route_model: str, usage_metadata: object, fallback: float
+) -> tuple[float, int, int]:
+    """Derive the actual USD cost from a LangChain ``AIMessage.usage_metadata``.
+
+    ``chat.invoke`` returns a LangChain ``AIMessage`` (NOT a litellm response), whose
+    ``usage_metadata`` carries ``input_tokens`` / ``output_tokens`` (populated by
+    ChatLiteLLM._create_chat_result). We price those via ``litellm.cost_per_token`` so
+    ``record()`` persists the ACTUAL cost (D-04), not the pre-call estimate. Returns
+    ``(cost, prompt_tokens, completion_tokens)``; falls back to ``fallback`` when usage
+    metadata is missing. Pure + testable without creds.
+    """
+    import litellm
+
+    usage = usage_metadata or {}
+    prompt_tokens = int(usage.get("input_tokens", 0)) if hasattr(usage, "get") else 0
+    completion_tokens = int(usage.get("output_tokens", 0)) if hasattr(usage, "get") else 0
+    if prompt_tokens == 0 and completion_tokens == 0:
+        return fallback, prompt_tokens, completion_tokens
+    cost = sum(
+        litellm.cost_per_token(
+            model=route_model,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+        )
+    )
+    return float(cost), prompt_tokens, completion_tokens
+
+
 def _delegate(role: str, tier: str, prompt: str) -> str:  # pragma: no cover - needs creds
     """Route a single role turn through the in-process gateway Router (GW-01).
 
     Budget is wrapped around the call: a pre-call ``check`` halts (BudgetExceeded)
     before spend, the model call runs through ``get_chat_model(tier)`` (the SOLE
     construction path — no direct provider client is built here, D-06), and the
-    actual cost is recorded post-call. Only reached when credentials are present;
-    the deterministic fallback below keeps ``make test`` green with no creds.
+    actual cost (priced from the returned ``usage_metadata``, NOT the estimate) is
+    recorded post-call. Only reached when credentials are present; the deterministic
+    fallback below keeps ``make test`` green with no creds.
     """
     import litellm
 
@@ -107,7 +137,10 @@ def _delegate(role: str, tier: str, prompt: str) -> str:  # pragma: no cover - n
     budget = BudgetTracker(repo, settings)
     deployment = TIER_TO_DEPLOYMENT[tier]
     route = resolve_route(tier, settings)
-    budget_owner = settings.tenant_id  # per-deployment owner; ingress sets the real one
+    # TODO(03-02/ingress): budget_owner is the requester id, not the tenant. Until
+    # ingress threads the requester through the graph state, this falls back to the
+    # tenant id, so per-user enforcement collapses to per-tenant for delegated runs.
+    budget_owner = settings.tenant_id
 
     messages = [{"role": "user", "content": prompt}]
     prompt_tokens = litellm.token_counter(model=route.model, messages=messages)
@@ -123,15 +156,18 @@ def _delegate(role: str, tier: str, prompt: str) -> str:  # pragma: no cover - n
     chat = get_chat_model(tier, settings)
     result = chat.invoke(prompt)
 
-    actual = litellm.completion_cost(completion_response=getattr(result, "_response", None))
+    actual, actual_prompt, actual_completion = _actual_cost(
+        route.model, getattr(result, "usage_metadata", None), estimate
+    )
     budget.record(
         BudgetEvent(
             tenant_id=settings.tenant_id,
             client_slug=settings.client_slug,
             budget_owner=budget_owner,
             model=deployment,
-            prompt_tokens=prompt_tokens,
-            estimated_cost_usd=float(actual or estimate),
+            prompt_tokens=actual_prompt or prompt_tokens,
+            completion_tokens=actual_completion,
+            estimated_cost_usd=actual,
         )
     )
     return str(getattr(result, "content", result))
