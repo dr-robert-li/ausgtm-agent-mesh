@@ -67,27 +67,84 @@ def _model_credentials_present() -> bool:
     """True when a gateway/model credential is available to drive real delegation.
 
     With no creds, nodes take the deterministic path (no model call). Phase 3 wires the
-    LiteLLM-compatible gateway; until then any of these env vars signals "real model
-    reachable". Absent here and in CI, so the stub path runs.
+    LiteLLM-compatible gateway through ``get_chat_model``; any of these env vars signals
+    "real model reachable". Absent here and in CI, so the stub path runs.
     """
     return any(
         os.getenv(var)
         for var in (
-            "MODEL_GATEWAY_BASE_URL",
             "ANTHROPIC_API_KEY",
             "OPENAI_API_KEY",
-            "VERTEX_PROJECT",
+            "VERTEX_PROJECT_ID",
+            "CF_AIG_WRAPPER_URL",
         )
     )
+
+
+def _delegate(role: str, tier: str, prompt: str) -> str:  # pragma: no cover - needs creds
+    """Route a single role turn through the in-process gateway Router (GW-01).
+
+    Budget is wrapped around the call: a pre-call ``check`` halts (BudgetExceeded)
+    before spend, the model call runs through ``get_chat_model(tier)`` (the SOLE
+    construction path — no direct provider client is built here, D-06), and the
+    actual cost is recorded post-call. Only reached when credentials are present;
+    the deterministic fallback below keeps ``make test`` green with no creds.
+    """
+    import litellm
+
+    from agent_mesh.contracts.models import BudgetEvent
+    from agent_mesh.services.repository import get_repository
+    from agent_mesh.settings import get_settings
+    from agent_mesh.worker.budget import BudgetTracker
+    from agent_mesh.worker.model_gateway import (
+        TIER_TO_DEPLOYMENT,
+        get_chat_model,
+        resolve_route,
+    )
+
+    settings = get_settings()
+    repo = get_repository()
+    budget = BudgetTracker(repo, settings)
+    deployment = TIER_TO_DEPLOYMENT[tier]
+    route = resolve_route(tier, settings)
+    budget_owner = settings.tenant_id  # per-deployment owner; ingress sets the real one
+
+    messages = [{"role": "user", "content": prompt}]
+    prompt_tokens = litellm.token_counter(model=route.model, messages=messages)
+    estimate = sum(
+        litellm.cost_per_token(
+            model=route.model,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=settings.model_max_tokens,
+        )
+    )
+    budget.check(budget_owner, estimate, tenant_id=settings.tenant_id)
+
+    chat = get_chat_model(tier, settings)
+    result = chat.invoke(prompt)
+
+    actual = litellm.completion_cost(completion_response=getattr(result, "_response", None))
+    budget.record(
+        BudgetEvent(
+            tenant_id=settings.tenant_id,
+            client_slug=settings.client_slug,
+            budget_owner=budget_owner,
+            model=deployment,
+            prompt_tokens=prompt_tokens,
+            estimated_cost_usd=float(actual or estimate),
+        )
+    )
+    return str(getattr(result, "content", result))
 
 
 def planner_node(state: MeshState) -> MeshState:
     """Decompose the prompt into an ordered plan."""
     prompt = state.get("prompt", "")
-    if _model_credentials_present():  # pragma: no cover - needs model creds (Phase 3)
+    if _model_credentials_present():  # pragma: no cover - needs model creds
         from agent_mesh.worker.roster import build_roster
 
-        build_roster()  # bounded roster; real delegation wired in Phase 3
+        build_roster()  # bounded roster; high-complexity reasoning tier
+        return {"plan": _delegate("planner", "high_complexity", prompt)}
     plan = f"[plan] steps to address: {prompt[:80]}"
     return {"plan": plan}
 
@@ -95,6 +152,8 @@ def planner_node(state: MeshState) -> MeshState:
 def researcher_node(state: MeshState) -> MeshState:
     """Gather evidence / route tools off the plan (researcher / tool-router)."""
     plan = state.get("plan", "")
+    if _model_credentials_present():  # pragma: no cover - needs model creds
+        return {"research": _delegate("researcher", "low_complexity", plan)}
     research = f"[research] evidence gathered for: {plan[len('[plan] '):][:80]}"
     return {"research": research}
 
@@ -102,6 +161,8 @@ def researcher_node(state: MeshState) -> MeshState:
 def code_writer_node(state: MeshState) -> MeshState:
     """Draft code / proposed patches from the plan + research."""
     research = state.get("research", "")
+    if _model_credentials_present():  # pragma: no cover - needs model creds
+        return {"code": _delegate("code_writer", "medium_complexity", research)}
     code = f"[code] draft artifact derived from: {research[len('[research] '):][:80]}"
     return {"code": code}
 
@@ -128,6 +189,11 @@ def reviewer_node(state: MeshState) -> MeshState:
                 },
             }
         )
+    if _model_credentials_present():  # pragma: no cover - needs model creds
+        # The model reviews the draft; proposed_writes stays heuristic-derived so the
+        # RF-1 approval path is NEVER softened by model output.
+        review = _delegate("reviewer", "high_complexity", code)
+        return {"review": review, "proposed_writes": proposed}
     review = (
         f"[review] approved draft ({len(code)} chars); "
         f"{len(proposed)} write-class action(s) require approval"
