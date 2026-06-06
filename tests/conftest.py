@@ -103,3 +103,82 @@ def sql_repo(pg_dsn: str):
         yield repo
     finally:
         repo.close()
+
+
+# ---------------------------------------------------------------------------
+# Phase-3 shared scaffolding (model gateway / observability). Consumed by
+# 03-01 (this plan), 03-02, and 03-03 so those plans own zero overlapping files.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def live_creds() -> None:
+    """Skip cleanly unless real provider credentials are present.
+
+    Mirrors the ``pg_dsn`` skip-when-unset shape so the default ``make test`` run
+    never reaches a real provider. ``pytest -m live`` tests depend on this fixture
+    (or the ``live`` marker) to gate on credentials being exported.
+    """
+    if not any(
+        os.getenv(var)
+        for var in ("ANTHROPIC_API_KEY", "VERTEX_PROJECT_ID", "CF_AIG_WRAPPER_URL")
+    ):
+        pytest.skip("no provider/gateway creds exported; live tests require them")
+
+
+class _RecordingRouter:
+    """A fake ``litellm.Router`` that records every completion call and returns a
+    minimal, deterministic ``ModelResponse``-shaped result.
+
+    Used to PROVE that ``RouterChatLiteLLM`` routes ``.invoke()`` through the held
+    Router (defeating the ``litellm.py:558`` ``values["client"] = litellm`` clobber)
+    WITHOUT any network or credentials. ``calls`` captures the kwargs each call
+    received so a test can assert exactly-one call landed here (not on bare litellm).
+    """
+
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+        self.acalls: list[dict] = []
+
+    def _response(self):
+        from litellm import ModelResponse
+        from litellm.types.utils import Choices, Message
+
+        return ModelResponse(
+            choices=[
+                Choices(
+                    finish_reason="stop",
+                    index=0,
+                    message=Message(role="assistant", content="[stub-router] ok"),
+                )
+            ],
+            usage={"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3},
+        )
+
+    def completion(self, **kwargs):
+        self.calls.append(kwargs)
+        return self._response()
+
+    async def acompletion(self, **kwargs):
+        self.acalls.append(kwargs)
+        return self._response()
+
+
+@pytest.fixture
+def stub_router() -> _RecordingRouter:
+    """A call-recording fake Router (no network, no creds)."""
+    return _RecordingRouter()
+
+
+@pytest.fixture
+def span_exporter():
+    """An OpenTelemetry ``InMemorySpanExporter`` for asserting on emitted spans.
+
+    Consumed by 03-03's trace-wiring tests. Returns a fresh exporter; the test
+    wires it into a ``TracerProvider`` via a ``SimpleSpanProcessor``.
+    """
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+
+    return InMemorySpanExporter()

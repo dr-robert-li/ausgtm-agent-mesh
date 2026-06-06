@@ -22,8 +22,15 @@ runtime = [
     "mcp>=1.2",
     "slack-bolt>=1.18",
     "litellm>=1.40",
-    "langchain-litellm>=0.1",
-    "langfuse>=2.0",
+    "langchain-litellm>=0.6",
+    # langfuse 4.x is the installed/validated line; the v2 import path is DEAD
+    # under 4.x (03-RESEARCH). Pin the major to keep the trace API stable.
+    "langfuse>=4,<5",
+    # OpenTelemetry: HTTP OTLP exporter only (gRPC is intentionally NOT a dep —
+    # 03-RESEARCH Pitfall 5). Consumed by 03-02/03-03 trace wiring.
+    "opentelemetry-api>=1.42",
+    "opentelemetry-sdk>=1.42",
+    "opentelemetry-exporter-otlp-proto-http>=1.42",
 ]
 # Default REQUIRED agent stack for this variant: LangChain + LangGraph +
 # Deep Agents. The orchestration adapter degrades to a deterministic stub when
@@ -57,6 +64,15 @@ packages = ["src/agent_mesh"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+# The default suite is the deterministic stub lane (no provider/Postgres/Langfuse
+# creds). The `live` marker tags opt-in tests that need real provider/gateway
+# credentials; run them with `pytest -m live` (see `make test-live`). NOTE:
+# filterwarnings is intentionally NOT set to `error` — the langchain pydantic-v1
+# Py-3.14 UserWarning must stay a warning, never an error, or the green-suite
+# invariant breaks.
+markers = [
+    "live: opt-in test requiring real provider/gateway credentials (never in the default suite)",
+]
 
 [tool.ruff]
 line-length = 100

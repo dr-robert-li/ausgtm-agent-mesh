@@ -1,4 +1,4 @@
-.PHONY: help install install-dev schemas test lint fmt smoke run-api run-worker run-gui
+.PHONY: help install install-dev schemas test test-live lint fmt smoke run-api run-worker run-gui
 
 PY ?= python
 PYTHONPATH := src
@@ -8,7 +8,8 @@ help:
 	@echo "  install      Install base (contract/service) dependencies"
 	@echo "  install-dev  Install all dev dependencies (api + worker + test/lint)"
 	@echo "  schemas      Export JSON Schema for all contract models"
-	@echo "  test         Run the test suite"
+	@echo "  test         Run the deterministic test suite (no cloud deps; excludes 'live')"
+	@echo "  test-live    Run the opt-in live suite (pytest -m live; needs real creds)"
 	@echo "  lint         Run ruff lint checks"
 	@echo "  fmt          Auto-fix lint + format with ruff"
 	@echo "  smoke        Run the local end-to-end smoke check (no DB, no network)"
@@ -28,7 +29,10 @@ schemas:
 	PYTHONPATH=$(PYTHONPATH) $(PY) -m agent_mesh.contracts.export_schemas
 
 test:
-	PYTHONPATH=$(PYTHONPATH) $(PY) -m pytest -q
+	PYTHONPATH=$(PYTHONPATH) $(PY) -m pytest -q -m "not live"
+
+test-live:
+	PYTHONPATH=$(PYTHONPATH) $(PY) -m pytest -q -m live
 
 lint:
 	$(PY) -m ruff check src tests

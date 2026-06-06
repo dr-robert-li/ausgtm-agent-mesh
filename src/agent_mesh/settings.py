@@ -62,6 +62,29 @@ class Settings:
     model_monthly_budget_usd: float = field(
         default_factory=lambda: float(os.getenv("MODEL_MONTHLY_BUDGET_USD", "50"))
     )
+    # Per-task hard cap. Defaults to the per-user monthly cap (so a single task can,
+    # by default, spend up to the whole monthly budget) but can be tightened per
+    # deployment via MODEL_PER_TASK_CAP. The budget ledger enforces
+    # min(per-user remaining, per-task remaining) before each call (D-05).
+    model_per_task_cap: float = field(
+        default_factory=lambda: float(
+            os.getenv("MODEL_PER_TASK_CAP", os.getenv("MODEL_MONTHLY_BUDGET_USD", "50"))
+        )
+    )
+
+    # Cloudflare AI Gateway model-traffic governance plane (integration-ready;
+    # wired by 03-02). When cf_enabled is True, the LiteLLM Router routes upstream
+    # through cf_aig_wrapper_url. Inert here; shared scaffolding for wave-2 plans.
+    cf_enabled: bool = field(default_factory=lambda: _bool("CF_ENABLED", False))
+    cf_aig_wrapper_url: str = field(
+        default_factory=lambda: os.getenv("CF_AIG_WRAPPER_URL", "")
+    )
+
+    # OpenTelemetry OTLP/HTTP exporter endpoint for Langfuse trace ingestion
+    # (consumed by 03-03). Empty disables the exporter (default-suite-safe).
+    otel_exporter_otlp_endpoint: str = field(
+        default_factory=lambda: os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+    )
 
     # Langfuse observability (default required platform for this variant).
     langfuse_public_key: str = field(
