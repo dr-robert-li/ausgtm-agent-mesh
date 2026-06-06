@@ -100,6 +100,36 @@ def test_worker_restores_traceparent_and_joins_ingress_trace(
     assert result.trace_id == _TRACEID
 
 
+def test_store_then_restore_end_to_end_via_real_persisted_record(
+    tracer_provider, span_exporter
+):
+    """Full chain in ONE flow: POST /v1/tasks with a traceparent header -> read the
+    REAL persisted TaskRecord back from the repo -> run the worker on THAT record ->
+    the worker span roots under the inbound trace. This proves store AND restore
+    compose over the durable record, NOT a hand-built in-process metadata dict."""
+    from agent_mesh.worker import orchestrator
+
+    client, app_module = _client()
+    resp = client.post(
+        "/v1/tasks", json=_task_request_body(), headers={"traceparent": _TRACEPARENT}
+    )
+    assert resp.status_code == 200
+    task_id = resp.json()["task_id"]
+
+    # The REAL durable record (not a fixture-built dict).
+    record = app_module._service.repo.get_task(task_id)
+    assert record is not None
+    assert record.metadata.get("traceparent") == _TRACEPARENT
+
+    result = orchestrator.run_mesh(record)
+
+    spans = span_exporter.get_finished_spans()
+    assert spans, "expected the worker root span"
+    root = spans[-1]
+    assert format(root.context.trace_id, "032x") == _TRACEID
+    assert result.trace_id == _TRACEID
+
+
 def test_no_traceparent_starts_fresh_root_no_keyerror(tracer_provider, span_exporter):
     """A task created WITHOUT a traceparent header still runs: fresh root trace,
     no KeyError."""

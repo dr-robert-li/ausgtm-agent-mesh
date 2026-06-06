@@ -49,13 +49,13 @@ decisions:
   - "approvals._approval_span passes client_slug from get_settings() and entrypoint='approval' to trace_metadata() (which has no defaults for those two). The approval-decision span fires in a SEPARATE /v1/approvals request from the model/tool spans, so it correlates by task_id, not the in-process traceparent — consistent with the threat model."
   - "Stale Phase-2 assertion test_orchestration_graph::test_stub_fallback 'trace_id is None # Langfuse correlation is Phase 3' updated to 'trace_id is set (32-hex)' — OBS-01 (this plan) is Phase 3 and the must_haves explicitly close that P2 gap (Rule 1 fix)."
 metrics:
-  duration_min: 34
+  duration_min: 38
   completed: 2026-06-06
   tasks: 3
   files_changed: 9
-  commits: 4
-  tests_added: 13
-  default_suite: "118 passed, 6 skipped, 2 deselected"
+  commits: 5
+  tests_added: 14
+  default_suite: "119 passed, 6 skipped, 2 deselected"
 ---
 
 # Phase 3 Plan 03: Langfuse + OTel Observability Summary
@@ -95,9 +95,12 @@ cloud deps.
      sets `trace_metadata()` keys as span attributes, and yields the span's trace id.
      `OrchestrationResult.trace_id` is SET on EVERY return (run + all 3 resume branches),
      closing the P2 gap.
-   - **graph.py callback:** `_graph_config` attaches the v4 `CallbackHandler` via
-     `config={"callbacks":[handler]}` (None-safe) so node/model spans nest under the
-     task trace.
+   - **langfuse callback:** `orchestrator._graph_config` attaches the v4
+     `CallbackHandler` via `config={"callbacks":[handler]}` (None-safe) so node/model
+     spans nest under the task trace. (The wiring landed in `orchestrator.py`, not
+     `graph.py` — the plan's `files_modified` listed `graph.py`, but `_graph_config` is
+     the single point all graph invocations route their config through, so wiring it
+     there covers both `_run_langgraph` and `resume_mesh` with no `graph.py` change.)
    - **approvals.py:** `open_approval`/`record_decision` wrapped in a READ-ONLY
      `_approval_span` carrying `trace_metadata()` attrs — telemetry only; `verify_approval_token`/
      `payload_hash`/`is_approved`/replay guard untouched, approver still derived solely
@@ -115,11 +118,15 @@ cloud deps.
 
 ## Verification Evidence
 
-- `make test` (default lane, `-m "not live"`): **118 passed, 6 skipped, 2 deselected** —
+- `make test` (literal): **119 passed, 6 skipped, 2 deselected**; `make smoke`: **SMOKE OK** —
   master invariant holds with no provider/Postgres/Langfuse credentials.
-- New tests: `test_observability_otel.py` (7), `test_trace_propagation.py` (3),
+- New tests: `test_observability_otel.py` (7), `test_trace_propagation.py` (4),
   `test_langfuse_prompts.py` (3) all pass; `test_langfuse_seed_live.py` (2) SKIP cleanly
   under `-m live` without Langfuse creds.
+- **OBS-01 store→restore in ONE flow:** `test_store_then_restore_end_to_end_via_real_persisted_record`
+  POSTs the header, reads the REAL durable `TaskRecord` back from the repo, runs the
+  worker on THAT record, and asserts the worker span roots under the inbound trace —
+  proving both legs compose over the durable record (not a hand-built dict).
 - **OBS-01 dead-import gate:** `grep -vE '^[[:space:]]*#' src/agent_mesh/observability.py
   | grep -c 'from langfuse.callback import'` returns **0** (non-comment lines); the v4
   `from langfuse.langchain import CallbackHandler` is present.

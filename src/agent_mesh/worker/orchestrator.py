@@ -253,7 +253,7 @@ def _graph_config(task: TaskRecord) -> dict:
     """
     config: dict = {"configurable": {"thread_id": task.task_id}}
     handler = obs.get_langchain_callback()
-    if handler is not None:  # pragma: no cover - needs langfuse + keys
+    if handler is not None:
         config["callbacks"] = [handler]
     return config
 
