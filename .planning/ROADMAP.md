@@ -121,11 +121,16 @@ Plans:
   2. Xero executes through the aggregator path (financial category, approval-gated for writes)
   3. Each provider is independently skippable in the live lane; default suite stays green and creds-free
   4. Per-provider credential/scope setup docs extended to cover the new providers
-**Plans**: 2-3 plans (set at planning)
+**Plans**: 7 plans
 
 Plans:
-- [ ] 05-0x: Direct adapters — Webflow, Bitscale, Cal.com, Clockify, Beehiiv (TOOL-03)
-- [ ] 05-0x: Xero via aggregator + credential docs (TOOL-03)
+- [ ] 05-01-PLAN.md — Foundation: all shared-file edits — schema_refs + 18 schema files for every direct op, bitscale ops reconciled, webflow read op added, Xero flipped to composio_aggregator (wave 1) (TOOL-03)
+- [ ] 05-02-PLAN.md — Webflow direct adapter (list + draft create) (wave 2) (TOOL-03)
+- [ ] 05-03-PLAN.md — Bitscale direct adapter (grids/workspace reads + run_grid write; reads-only live lane) (wave 2) (TOOL-03)
+- [ ] 05-04-PLAN.md — Cal.com direct adapter (list + create bookings, mandatory cal-api-version header) (wave 2) (TOOL-03)
+- [ ] 05-05-PLAN.md — Clockify direct adapter (read time entries) (wave 2) (TOOL-03)
+- [ ] 05-06-PLAN.md — Beehiiv direct adapter (draft create_post, nested {data:{id}} output) (wave 2) (TOOL-03)
+- [ ] 05-07-PLAN.md — Xero via Composio (existing adapter) + shared credential index + credential-docs guard extension (wave 3) (TOOL-03)
 
 ### Phase 6: Self-Improvement
 **Goal**: Replace the `evaluate_proposal` stub with a real evaluation harness, and wire AI-BOM-on-promotion with controlled, versioned (non-hot) promotion and retained rollback — with no runtime mutation of active instructions, permissions, or routing (Option C).
