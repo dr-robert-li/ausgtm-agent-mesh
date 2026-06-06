@@ -106,7 +106,16 @@ class Worker:
             done = self._repo.transition_task(
                 task_id, TaskState.COMPLETED, note="no write actions required"
             )
-            updated = done.model_copy(update={"result_summary": result.summary})
+            # Persist the read evidence with the result summary (audit item A): on the
+            # read-only completion path there is no approval request to carry it, so the
+            # string summaries are folded into ``result_summary`` so the executed reads
+            # are durably reflected on the task (not just on the per-call ToolCall.result
+            # rows). STRING summaries only — never the raw result dicts (T-04-04-03).
+            summary = result.summary
+            read_only_evidence = read_evidence[len(result.evidence):]
+            if read_only_evidence:
+                summary = f"{summary} | evidence: {'; '.join(read_only_evidence)}"
+            updated = done.model_copy(update={"result_summary": summary})
             self._repo.create_task(updated)  # upsert
             return str(updated.state)
 

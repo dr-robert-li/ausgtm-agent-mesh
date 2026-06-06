@@ -166,11 +166,15 @@ def test_read_appends_string_evidence_not_raw_dict(repo):
     svc, worker = _svc_and_worker(repo)
     task = svc.create_task(_task("research acme"))
     worker.process(task.task_id)
-    # The read row carries a dict result; the evidence the worker threads into the
-    # approval request is a string summary (asserted via the write-trigger path below),
-    # never the raw result dict (T-04-04-03).
+    # The read row carries a dict result (durable per-call evidence)...
     reads = _read_calls(repo, task.task_id)
     assert isinstance(reads[0].result, dict)
+    # ...and on the read-only completion path the STRING summary is persisted with the
+    # result_summary (item A), never the raw result dict (T-04-04-03).
+    done = repo.get_task(task.task_id)
+    assert done.result_summary is not None
+    assert f"read {reads[0].tool_name}" in done.result_summary
+    assert "echo_parameters" not in done.result_summary  # no raw stub dict leaked
 
 
 def test_read_path_never_opens_an_approval(repo, monkeypatch):
