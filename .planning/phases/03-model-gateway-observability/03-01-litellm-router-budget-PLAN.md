@@ -158,7 +158,7 @@ From litellm (venv 1.83.7, VERIFIED):
     - settings.py exposes `model_per_task_cap`, `cf_enabled`, `cf_aig_wrapper_url`, `otel_exporter_otlp_endpoint`
     - conftest.py exposes `stub_router` and an InMemorySpanExporter fixture (consumed by 03-02 / 03-03)
   </acceptance_criteria>
-  <done>Pins + marker + Makefile target + settings fields + conftest fixtures land; default suite stays green.</done>
+  <done>Pins + marker + Makefile target + settings fields + conftest fixtures land; default suite stays green. NOTE: the 4 new settings fields (`otel_exporter_otlp_endpoint`, `cf_enabled`, `cf_aig_wrapper_url`, `model_per_task_cap`) are deliberately NOT synced to `manifests/deployment.manifest.yaml` in this phase — that manifest sync is INTENTIONALLY DEFERRED to Phase 5 / DEP-02, which owns deploy-readiness (PATTERNS.md flagged the manifest; keeping Phase 3 scope tight to runtime wiring). Do NOT add the manifest to files_modified here.</done>
 </task>
 
 <task type="auto" tdd="true">
@@ -294,3 +294,5 @@ cleanly — all while the default suite stays green with no cloud deps.
 <output>
 Create `.planning/phases/03-model-gateway-observability/03-01-SUMMARY.md` when done.
 </output>
+</content>
+</invoke>

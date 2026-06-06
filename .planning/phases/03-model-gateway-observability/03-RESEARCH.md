@@ -681,18 +681,27 @@ runtime (the proxy `general_settings` is not executed).
 | A4 | Python 3.14 pydantic-v1 warnings stay warnings (not errors) under the project's pytest config | Pitfall 5 | MEDIUM — if pytest escalates warnings, the green-suite invariant breaks; check `filterwarnings` and consider Python pin |
 | A5 | `langchain-litellm` 0.6.4 `completion_with_retry`/`acompletion_with_retry` method names are stable across the `>=0.6` floor | Finding 1 | LOW — verified in installed source; bump floor to `>=0.6` to lock the shape |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Exact Langfuse OTLP endpoint path for the deployed instance.**
+> All three are live-lane RUNTIME decisions surfaced as settings/flags, not structural
+> guesses — each is resolved in the Phase 3 plan actions as noted inline below.
+
+1. **Exact Langfuse OTLP endpoint path for the deployed instance.** **(RESOLVED — A1)**
+   Resolved by making the endpoint a SETTING (`settings.otel_exporter_otlp_endpoint`, added in
+   03-01 Task 1; consumed by 03-03 Task 1 `init_tracing`). The exact `{host}/api/public/otel/v1/traces`
+   path is a live-lane value verified opt-in, never hardcoded as a structural assumption.
    - Know: v4 ingests OTLP/HTTP; default suite uses in-memory exporter.
-   - Unclear: exact path/version of the live Langfuse the user runs.
-   - Recommendation: make `OTEL_EXPORTER_OTLP_ENDPOINT` a setting; verify in the live lane.
+   - Unclear (live-lane only): exact path/version of the live Langfuse the user runs.
 2. **Which deterministic real-Vertex-failure inducer the user prefers for GW-03 live lane**
-   (bad model id vs bad location vs empty project).
-   - Recommendation: planner picks one; confirm it triggers the general fallback in the live
-     lane (A2).
-3. **Python version pin.** venv is 3.14 with pydantic-v1 warnings.
-   - Recommendation: surface to user; either confirm 3.14 is intended or pin a tested version.
+   (bad model id vs bad location vs empty project). **(RESOLVED — A2)**
+   Resolved in 03-02: the live-lane cascade test induces a real deterministic Vertex failure (planner
+   picks the inducer) → real Anthropic fallback serves; confirmed to trigger the general fallback in
+   the live lane. The stub lane uses `mock_testing_fallbacks=True` (no creds).
+3. **Python version pin.** venv is 3.14 with pydantic-v1 warnings. **(RESOLVED — A4)**
+   Resolved in 03-01 Task 1: surfaced as a runtime decision — `filterwarnings` is verified NOT to
+   escalate the Py-3.14 pydantic-v1 UserWarning to error (ignore entry added if needed), preserving the
+   green-suite invariant. Whether to pin a different Python is left to the operator; the suite stays
+   green on 3.14 as-is.
 
 ## Environment Availability
 
