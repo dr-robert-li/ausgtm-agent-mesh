@@ -225,6 +225,37 @@ is **already built** (`api/app.py` `/slack/events`, `/mcp`, `/v1/approvals`) —
 - write-class `execute()` ↔ approval ledger (must be APPROVED + payload-hash match before the call).
 - `execute()` ↔ OTel tool-event span (D-10) ↔ Phase-3 trace_id / shared metadata.
 
+### Integration touch-points in completed phases (audit, 2026-06-06)
+
+**No backfill is required to preserve any completed-phase guarantee** — the approval gate
+(P1 SEC-01/02, payload-hash + tool-name-agnostic), the gated-write lifecycle (P1/P2 `runner.py`:
+`proposed_writes → ToolCall → approval → pause → resume → gateway.execute()` only after APPROVED +
+hash-match), interrupt/resume, the model gateway, and the OTel transport were all built **generic and
+tool-agnostic**, so they absorb 10+ providers unchanged. **However**, landing real tools means Phase 4
+**modifies files marked done in P1/P2** — these are clean stub seams being wired to live, not bug fixes.
+The planner should size these upfront (A is the one that changes plan shape):
+
+- **A — Read-tool execution path is MISSING entirely (net-new; biggest item).** `OrchestrationResult`
+  (`worker/orchestrator.py`) models only `proposed_writes` + `evidence: list[str]`. There is **no
+  executed-read seam** — reads never become `ToolCall`s and `runner.py` executes only writes. But
+  HubSpot `lookup_company`, Drive search, and the aggregator reads (all **TOOL-01 / TOOL-04**) are
+  **reads**. Phase 4 must add a read-execution seam (e.g. `proposed_reads` or a non-gated read path) and
+  route it through `gateway.execute()` **without** the approval gate. Touches `worker/orchestrator.py` +
+  `worker/graph.py` (P2). *(Latent gap the original single-write-tool Phase 4 would also have hit.)*
+- **B — Gateway is never wired into the live worker (forward wiring).** `worker/main.py` builds
+  `Worker()` with `tool_gateway=None`; `runner._execute` returns a stub when the gateway is None. Phase 4
+  wires a real `ToolGateway.from_manifest(...)` + `CredentialResolver` into worker bootstrap. Touches
+  `worker/main.py` (P1/P2).
+- **C — tool-router node hardcodes one stub write proposal (forward).** `worker/graph.py` `_run_stub`
+  emits a fixed `{"tool_name": "hubspot_create_deal", …}` proposal. Phase 4 replaces it with real
+  plan-derived tool selection (reads + writes) from the researcher/tool-router node. Touches
+  `worker/graph.py` (P2). Keep the stub path green for the default lane (D-11).
+- **D — `ToolCall` contract likely needs additive fields (additive migration, low risk).**
+  `contracts/models.py` `ToolCall` may need `integration_style`, a schema-validation outcome, and a
+  read/write marker. **Additive only** — no rewrite of the P1-era contract or existing rows.
+- **E — already tracked:** OBS-01 tool spans in `observability.py` (D-10); `gemini-1.5-flash` pricing-map
+  gap (deferred, STATE.md) — revisit if a tool path routes a model call through the low-complexity tier.
+
 </code_context>
 
 <specifics>
