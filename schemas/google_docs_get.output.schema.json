@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "google_docs_get.output",
+  "description": "Output of the Google Docs get tool: the document id, title, and extracted text.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["document_id", "text"],
+  "properties": {
+    "document_id": { "type": "string" },
+    "title": { "type": "string" },
+    "text": { "type": "string" }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "google_slides_create.output",
+  "description": "Output of the Google Slides create tool: the created presentation id the agent consumes.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["presentation_id"],
+  "properties": {
+    "presentation_id": { "type": "string" },
+    "title": { "type": "string" }
+  }
+}

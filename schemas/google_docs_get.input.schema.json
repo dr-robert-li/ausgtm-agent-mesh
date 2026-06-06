@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "google_docs_get.input",
+  "description": "Input for the Google Docs get read tool. READ-category: no approval required.",
+  "type": "object",
+  "x-tool-category": "read",
+  "x-approval-required": false,
+  "additionalProperties": false,
+  "required": ["document_id"],
+  "properties": {
+    "document_id": { "type": "string", "minLength": 1, "description": "Google Doc id to read." }
+  }
+}

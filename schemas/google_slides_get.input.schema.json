@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "google_slides_get.input",
+  "description": "Input for the Google Slides get read tool. READ-category: no approval required.",
+  "type": "object",
+  "x-tool-category": "read",
+  "x-approval-required": false,
+  "additionalProperties": false,
+  "required": ["presentation_id"],
+  "properties": {
+    "presentation_id": { "type": "string", "minLength": 1, "description": "Google Slides presentation id to read." }
+  }
+}

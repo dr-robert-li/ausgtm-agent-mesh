@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "google_calendar_list_events.output",
+  "description": "Output of the Google Calendar list-events tool.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["events"],
+  "properties": {
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["event_id"],
+        "properties": {
+          "event_id": { "type": "string" },
+          "summary": { "type": "string" },
+          "start": { "type": "string" },
+          "end": { "type": "string" }
+        }
+      }
+    }
+  }
+}

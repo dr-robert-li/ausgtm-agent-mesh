@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "google_docs_create.output",
+  "description": "Output of the Google Docs create tool: the created document id the agent consumes.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["document_id"],
+  "properties": {
+    "document_id": { "type": "string" },
+    "title": { "type": "string" }
+  }
+}
