@@ -51,6 +51,9 @@ class MeshState(TypedDict, total=False):
     """
 
     prompt: str
+    # Threaded from the orchestrator's initial state so each ``_delegate`` turn can
+    # task-scope its halt-governance ``gateway_event`` audit row (GW-03 / OBS-01).
+    task_id: str
     plan: str
     research: str
     code: str
@@ -110,7 +113,9 @@ def _actual_cost(
     return float(cost), prompt_tokens, completion_tokens
 
 
-def _delegate(role: str, tier: str, prompt: str) -> str:  # pragma: no cover - needs creds
+def _delegate(
+    role: str, tier: str, prompt: str, *, task_id: str | None = None
+) -> str:  # pragma: no cover - needs creds
     """Route a single role turn through the in-process gateway Router (GW-01).
 
     Budget is wrapped around the call: a pre-call ``check`` halts (BudgetExceeded)
@@ -119,13 +124,24 @@ def _delegate(role: str, tier: str, prompt: str) -> str:  # pragma: no cover - n
     actual cost (priced from the returned ``usage_metadata``, NOT the estimate) is
     recorded post-call. Only reached when credentials are present; the deterministic
     fallback below keeps ``make test`` green with no creds.
+
+    Halt-governance (GW-03 / OBS-01, gap-closure 03-04): when ``budget.check``
+    raises ``BudgetExceeded`` (the SOLE-enforcer pre-call spend-stop), BEFORE the
+    exception propagates we write exactly one tenant/task-scoped ``gateway_event``
+    audit row marking the halt (``model_route="budget_halt"``, ``dlp_action="block"``,
+    ``provider_status=None`` — no provider was reached). The marker rides existing
+    GatewayEvent fields (there is no free-text ``note`` column — 03-02 deviation).
+    The exception then re-raises UNCHANGED: pre-call spend-stop semantics are
+    untouched, and the orchestrator converts the propagating ``BudgetExceeded`` into
+    a governed terminal FAILED task state. ``task_id`` is threaded from MeshState so
+    the audit row is task-scoped; it is the only new wiring this hook requires.
     """
     import litellm
 
-    from agent_mesh.contracts.models import BudgetEvent
+    from agent_mesh.contracts.models import BudgetEvent, GatewayEvent
     from agent_mesh.services.repository import get_repository
     from agent_mesh.settings import get_settings
-    from agent_mesh.worker.budget import BudgetTracker
+    from agent_mesh.worker.budget import BudgetExceeded, BudgetTracker
     from agent_mesh.worker.model_gateway import (
         TIER_TO_DEPLOYMENT,
         get_chat_model,
@@ -151,7 +167,25 @@ def _delegate(role: str, tier: str, prompt: str) -> str:  # pragma: no cover - n
             completion_tokens=settings.model_max_tokens,
         )
     )
-    budget.check(budget_owner, estimate, tenant_id=settings.tenant_id)
+    try:
+        budget.check(budget_owner, estimate, tenant_id=settings.tenant_id)
+    except BudgetExceeded:
+        # Governed, observable halt: one audit row, then re-raise UNCHANGED so the
+        # orchestrator sets the terminal FAILED state. The row is written ONLY on
+        # the halt path (never on the normal path below), so a single halt produces
+        # exactly one ``budget_halt`` gateway_event for the task.
+        repo.record_gateway_event(
+            GatewayEvent(
+                tenant_id=settings.tenant_id,
+                client_slug=settings.client_slug,
+                task_id=task_id,
+                provider=None,
+                model_route="budget_halt",
+                provider_status=None,  # no provider was reached
+                dlp_action="block",
+            )
+        )
+        raise
 
     chat = get_chat_model(tier, settings)
     result = chat.invoke(prompt)
@@ -180,7 +214,11 @@ def planner_node(state: MeshState) -> MeshState:
         from agent_mesh.worker.roster import build_roster
 
         build_roster()  # bounded roster; high-complexity reasoning tier
-        return {"plan": _delegate("planner", "high_complexity", prompt)}
+        return {
+            "plan": _delegate(
+                "planner", "high_complexity", prompt, task_id=state.get("task_id")
+            )
+        }
     plan = f"[plan] steps to address: {prompt[:80]}"
     return {"plan": plan}
 
@@ -189,7 +227,11 @@ def researcher_node(state: MeshState) -> MeshState:
     """Gather evidence / route tools off the plan (researcher / tool-router)."""
     plan = state.get("plan", "")
     if _model_credentials_present():  # pragma: no cover - needs model creds
-        return {"research": _delegate("researcher", "low_complexity", plan)}
+        return {
+            "research": _delegate(
+                "researcher", "low_complexity", plan, task_id=state.get("task_id")
+            )
+        }
     research = f"[research] evidence gathered for: {plan[len('[plan] '):][:80]}"
     return {"research": research}
 
@@ -198,7 +240,11 @@ def code_writer_node(state: MeshState) -> MeshState:
     """Draft code / proposed patches from the plan + research."""
     research = state.get("research", "")
     if _model_credentials_present():  # pragma: no cover - needs model creds
-        return {"code": _delegate("code_writer", "medium_complexity", research)}
+        return {
+            "code": _delegate(
+                "code_writer", "medium_complexity", research, task_id=state.get("task_id")
+            )
+        }
     code = f"[code] draft artifact derived from: {research[len('[research] '):][:80]}"
     return {"code": code}
 
@@ -228,7 +274,9 @@ def reviewer_node(state: MeshState) -> MeshState:
     if _model_credentials_present():  # pragma: no cover - needs model creds
         # The model reviews the draft; proposed_writes stays heuristic-derived so the
         # RF-1 approval path is NEVER softened by model output.
-        review = _delegate("reviewer", "high_complexity", code)
+        review = _delegate(
+            "reviewer", "high_complexity", code, task_id=state.get("task_id")
+        )
         return {"review": review, "proposed_writes": proposed}
     review = (
         f"[review] approved draft ({len(code)} chars); "
