@@ -54,6 +54,15 @@ class Worker:
         self._repo.transition_task(task_id, TaskState.RUNNING, note="worker picked up task")
         result = run_mesh(task)
 
+        # Governed-halt guard (03-04): a budget halt makes ``run_mesh`` transition the
+        # task to the FAILED terminal state itself. Without this re-check the next
+        # ``transition_task(COMPLETED)`` would hit ``assert_transition(FAILED, COMPLETED)``
+        # and raise ``IllegalTransition``. Re-fetch and short-circuit on any terminal
+        # state so the orchestrator-owned terminal outcome is honoured.
+        current = self._repo.get_task(task_id)
+        if current is not None and is_terminal(current.state):
+            return str(current.state)
+
         if not result.proposed_writes:
             done = self._repo.transition_task(
                 task_id, TaskState.COMPLETED, note="no write actions required"
@@ -115,6 +124,13 @@ class Worker:
         # NO approver_id into resume — the approver is derived solely from the verified token
         # (SEC-01). The real per-call gate stays approvals.is_approved() below.
         resume_mesh(task, True)
+
+        # Governed-halt guard (03-04): a budget halt on the resume path makes
+        # ``resume_mesh`` transition the task to FAILED itself. Honour that terminal
+        # outcome rather than forcing COMPLETED (which would raise IllegalTransition).
+        current = self._repo.get_task(task_id)
+        if current is not None and is_terminal(current.state):
+            return str(current.state)
 
         # Execute any approved-and-unmodified write tool calls. This is the ONLY place a
         # write executes, gated by approvals.is_approved() payload re-hash (SEC-02a).

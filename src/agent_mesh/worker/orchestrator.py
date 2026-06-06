@@ -37,7 +37,10 @@ import os
 from dataclasses import dataclass, field
 
 from agent_mesh import observability as obs
+from agent_mesh.contracts.enums import TaskState
 from agent_mesh.contracts.models import TaskRecord
+from agent_mesh.services.repository import get_repository
+from agent_mesh.worker.budget import BudgetExceeded
 
 # Test-injectable checkpointer hook. When set (by a test), ``_select_checkpointer``
 # returns it verbatim instead of building a PostgresSaver from DATABASE_URL. This is the
@@ -131,6 +134,40 @@ class OrchestrationResult:
     trace_id: str | None = None
 
 
+def _governed_budget_halt(
+    task: TaskRecord, exc: BudgetExceeded, trace_id: str | None
+) -> OrchestrationResult:
+    """Convert a propagating ``BudgetExceeded`` into a governed terminal outcome.
+
+    Gap-closure 03-04 (GW-03 / SC-1 / SC-2): instead of letting the budget halt
+    surface as an untyped LangGraph node exception, transition the task to the
+    FAILED terminal ``TaskState`` (the ``_delegate`` hook already wrote the
+    ``budget_halt`` ``gateway_event`` audit row) and return an
+    ``OrchestrationResult`` shaped like every other terminal path — ``trace_id``
+    set for OBS-01 correlation, ``proposed_writes=[]`` so no write is gated. The
+    transition uses the existing repository contract with a ``note`` (the real
+    free-text channel — GatewayEvent has none) explaining the halt.
+
+    RUNNING/PLANNING/APPROVED -> FAILED are the legal predecessors (lifecycle.py);
+    the worker has already moved the task to RUNNING before ``run_mesh``. The
+    transition is best-effort guarded so a double-halt or an already-terminal task
+    cannot raise a second, masking exception."""
+    repo = get_repository()
+    note = f"budget halt: {exc}"[:500]
+    try:
+        repo.transition_task(task.task_id, TaskState.FAILED, note=note)
+    except Exception:  # pragma: no cover - defensive; task may already be terminal
+        logging.getLogger(__name__).warning(
+            "budget-halt FAILED transition skipped for task %s", task.task_id
+        )
+    return OrchestrationResult(
+        summary=f"[mesh] halted: budget exceeded for {task.prompt[:100]}",
+        proposed_writes=[],
+        evidence=[],
+        trace_id=trace_id,
+    )
+
+
 def langgraph_available() -> bool:
     """True when the default required stack (LangGraph) is importable.
 
@@ -206,10 +243,17 @@ def run_mesh(task: TaskRecord) -> OrchestrationResult:
     so the worker's spans join the ingress trace, and ``trace_id`` is set on the
     result from that span (both the stub and real-graph paths)."""
     with _task_root_span(task, "mesh.run") as trace_id:
-        if langgraph_available():
-            result = _run_langgraph(task)
-        else:
-            result = _run_stub(task)
+        try:
+            if langgraph_available():
+                result = _run_langgraph(task)
+            else:
+                result = _run_stub(task)
+        except BudgetExceeded as exc:
+            # GW-03 governed halt: the budget breach propagated out of the graph
+            # (``_delegate`` already wrote the ``budget_halt`` gateway_event). Set the
+            # terminal FAILED state and return a typed result rather than letting the
+            # exception escape ``run_mesh`` untyped. ``trace_id`` stays in scope here.
+            return _governed_budget_halt(task, exc, trace_id)
         result.trace_id = trace_id
         return result
 
@@ -286,7 +330,11 @@ def _run_langgraph(task: TaskRecord) -> OrchestrationResult:
         pass
 
     compiled = build_graph().compile(checkpointer=_select_checkpointer())
-    final_state = compiled.invoke({"prompt": task.prompt}, _graph_config(task))
+    # Thread ``task_id`` into the graph state so each ``_delegate`` turn can task-scope
+    # its halt-governance ``gateway_event`` audit row when budget halts (GW-03/OBS-01).
+    final_state = compiled.invoke(
+        {"prompt": task.prompt, "task_id": task.task_id}, _graph_config(task)
+    )
 
     # When the write_gate interrupt fired, the run is paused: surface the proposed writes
     # so the worker opens the signed-token approval and parks the task in AWAITING_APPROVAL.
@@ -365,7 +413,14 @@ def resume_mesh(task: TaskRecord, decision) -> OrchestrationResult:
 
         compiled = build_graph().compile(checkpointer=checkpointer)
         # ``decision`` is the verified boolean only — never an approver_id (SEC-01).
-        final_state = compiled.invoke(Command(resume=decision), _graph_config(task))
+        # The resume re-enters at the ``write_gate`` interrupt, so ``_delegate`` does
+        # not re-run and a budget halt here is essentially unreachable; the catch is
+        # cheap belt-and-suspenders so the plan's "cover BOTH entry paths" holds and a
+        # halt on resume is still governed (FAILED terminal, typed result) not untyped.
+        try:
+            final_state = compiled.invoke(Command(resume=decision), _graph_config(task))
+        except BudgetExceeded as exc:
+            return _governed_budget_halt(task, exc, trace_id)
 
         return OrchestrationResult(
             summary=final_state.get("review")
