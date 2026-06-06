@@ -17,7 +17,9 @@ from agent_mesh.contracts.enums import TaskState
 from agent_mesh.contracts.lifecycle import assert_transition
 from agent_mesh.contracts.models import (
     ApprovalRecord,
+    BudgetEvent,
     EvaluationResult,
+    GatewayEvent,
     PromotionRecord,
     SelfImprovementProposal,
     TaskEvent,
@@ -51,6 +53,15 @@ class Repository(Protocol):
     ) -> list[EvaluationResult]: ...
     def upsert_promotion(self, promotion: PromotionRecord) -> PromotionRecord: ...
     def get_promotion(self, promotion_id: str) -> PromotionRecord | None: ...
+    # -- budget ledger + gateway events (GW-01 / D-04 / DUR-02) --
+    def record_budget_event(self, event: BudgetEvent) -> BudgetEvent: ...
+    def budget_month_to_date(
+        self, tenant_id: str, budget_owner: str, since: datetime
+    ) -> float: ...
+    def record_gateway_event(self, event: GatewayEvent) -> GatewayEvent: ...
+    def list_gateway_events(
+        self, task_id: str, tenant_id: str
+    ) -> list[GatewayEvent]: ...
 
 
 class InMemoryRepository:
@@ -65,6 +76,8 @@ class InMemoryRepository:
         self._proposals: dict[str, SelfImprovementProposal] = {}
         self._evaluations: dict[str, EvaluationResult] = {}
         self._promotions: dict[str, PromotionRecord] = {}
+        self._budget_events: dict[str, BudgetEvent] = {}
+        self._gateway_events: dict[str, GatewayEvent] = {}
 
     def create_task(self, task: TaskRecord) -> TaskRecord:
         with self._lock:
@@ -179,6 +192,45 @@ class InMemoryRepository:
     def get_promotion(self, promotion_id: str) -> PromotionRecord | None:
         with self._lock:
             return self._promotions.get(promotion_id)
+
+    # -- budget ledger + gateway events ------------------------------------
+    def record_budget_event(self, event: BudgetEvent) -> BudgetEvent:
+        with self._lock:
+            # Append-only with ON CONFLICT DO NOTHING semantics: a re-record of the
+            # same id must not double-count (mirrors the SQL ON CONFLICT clause).
+            self._budget_events.setdefault(event.budget_event_id, event)
+            return event
+
+    def budget_month_to_date(
+        self, tenant_id: str, budget_owner: str, since: datetime
+    ) -> float:
+        with self._lock:
+            # Tenant-scoped SUM since `since` (DUR-02): never cross-tenant.
+            return float(
+                sum(
+                    e.estimated_cost_usd
+                    for e in self._budget_events.values()
+                    if e.tenant_id == tenant_id
+                    and e.budget_owner == budget_owner
+                    and e.created_at >= since
+                )
+            )
+
+    def record_gateway_event(self, event: GatewayEvent) -> GatewayEvent:
+        with self._lock:
+            self._gateway_events.setdefault(event.gateway_event_id, event)
+            return event
+
+    def list_gateway_events(self, task_id: str, tenant_id: str) -> list[GatewayEvent]:
+        with self._lock:
+            return sorted(
+                (
+                    e
+                    for e in self._gateway_events.values()
+                    if e.task_id == task_id and e.tenant_id == tenant_id
+                ),
+                key=lambda e: e.created_at,
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -418,6 +470,63 @@ def _row_to_promotion(row: tuple) -> PromotionRecord:
     )
 
 
+def _row_to_budget_event(row: tuple) -> BudgetEvent:
+    (
+        budget_event_id,
+        tenant_id,
+        client_slug,
+        budget_owner,
+        task_id,
+        model,
+        prompt_tokens,
+        completion_tokens,
+        estimated_cost_usd,
+        created_at,
+    ) = row
+    return BudgetEvent(
+        budget_event_id=budget_event_id,
+        tenant_id=tenant_id,
+        client_slug=client_slug,
+        budget_owner=budget_owner,
+        task_id=task_id,
+        model=model,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        # NUMERIC(12,6) comes back as Decimal; BudgetEvent.estimated_cost_usd is float.
+        estimated_cost_usd=float(estimated_cost_usd),
+        created_at=created_at,
+    )
+
+
+def _row_to_gateway_event(row: tuple) -> GatewayEvent:
+    (
+        gateway_event_id,
+        tenant_id,
+        client_slug,
+        task_id,
+        cf_aig_request_id,
+        litellm_request_id,
+        provider,
+        model_route,
+        provider_status,
+        dlp_action,
+        created_at,
+    ) = row
+    return GatewayEvent(
+        gateway_event_id=gateway_event_id,
+        tenant_id=tenant_id,
+        client_slug=client_slug,
+        task_id=task_id,
+        cf_aig_request_id=cf_aig_request_id,
+        litellm_request_id=litellm_request_id,
+        provider=provider,
+        model_route=model_route,
+        provider_status=provider_status,
+        dlp_action=dlp_action,
+        created_at=created_at,
+    )
+
+
 _TASK_COLS = (
     "task_id, tenant_id, client_slug, entrypoint, session_id, requester, prompt, "
     "state, model_route_profile, result_summary, error, "
@@ -448,6 +557,15 @@ _PROMOTION_COLS = (
     "promotion_id, proposal_id, tenant_id, client_slug, approval_record_id, "
     "evaluation_id, promoted_version, previous_version, patch_hash, "
     "ai_bom_snapshot_id, rolled_back, rollback_reason, promoted_by, created_at"
+)
+_BUDGET_COLS = (
+    "budget_event_id, tenant_id, client_slug, budget_owner, task_id, model, "
+    "prompt_tokens, completion_tokens, estimated_cost_usd, created_at"
+)
+_GATEWAY_COLS = (
+    "gateway_event_id, tenant_id, client_slug, task_id, cf_aig_request_id, "
+    "litellm_request_id, provider, model_route, provider_status, dlp_action, "
+    "created_at"
 )
 
 
@@ -828,6 +946,75 @@ class RepositorySQL:
                 (promotion_id,),
             ).fetchone()
         return _row_to_promotion(row) if row else None
+
+    # -- budget ledger + gateway events (GW-01 / D-04 / DUR-02) -------------
+    def record_budget_event(self, event: BudgetEvent) -> BudgetEvent:
+        with self._pool.connection() as conn:
+            conn.execute(
+                "INSERT INTO budget_ledger (budget_event_id, tenant_id, "
+                "client_slug, budget_owner, task_id, model, prompt_tokens, "
+                "completion_tokens, estimated_cost_usd, created_at) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
+                "ON CONFLICT (budget_event_id) DO NOTHING",
+                (
+                    event.budget_event_id,
+                    event.tenant_id,
+                    event.client_slug,
+                    event.budget_owner,
+                    event.task_id,
+                    event.model,
+                    event.prompt_tokens,
+                    event.completion_tokens,
+                    event.estimated_cost_usd,
+                    event.created_at,
+                ),
+            )
+        return event
+
+    def budget_month_to_date(
+        self, tenant_id: str, budget_owner: str, since: datetime
+    ) -> float:
+        # Tenant-scoped aggregate over the idx_budget_owner_month index (DUR-02).
+        with self._pool.connection() as conn:
+            row = conn.execute(
+                "SELECT COALESCE(SUM(estimated_cost_usd), 0) FROM budget_ledger "
+                "WHERE tenant_id=%s AND budget_owner=%s AND created_at>=%s",
+                (tenant_id, budget_owner, since),
+            ).fetchone()
+        return float(row[0]) if row else 0.0
+
+    def record_gateway_event(self, event: GatewayEvent) -> GatewayEvent:
+        with self._pool.connection() as conn:
+            conn.execute(
+                "INSERT INTO gateway_events (gateway_event_id, tenant_id, "
+                "client_slug, task_id, cf_aig_request_id, litellm_request_id, "
+                "provider, model_route, provider_status, dlp_action, created_at) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
+                "ON CONFLICT (gateway_event_id) DO NOTHING",
+                (
+                    event.gateway_event_id,
+                    event.tenant_id,
+                    event.client_slug,
+                    event.task_id,
+                    event.cf_aig_request_id,
+                    event.litellm_request_id,
+                    event.provider,
+                    event.model_route,
+                    event.provider_status,
+                    event.dlp_action,
+                    event.created_at,
+                ),
+            )
+        return event
+
+    def list_gateway_events(self, task_id: str, tenant_id: str) -> list[GatewayEvent]:
+        with self._pool.connection() as conn:
+            rows = conn.execute(
+                f"SELECT {_GATEWAY_COLS} FROM gateway_events "
+                "WHERE task_id = %s AND tenant_id = %s ORDER BY created_at",
+                (task_id, tenant_id),
+            ).fetchall()
+        return [_row_to_gateway_event(r) for r in rows]
 
 
 _SINGLETON: Repository | None = None
