@@ -115,13 +115,43 @@ the module importable creds-free).
 
 ## Deviations from Plan
 
-None — plan executed as written. (The plan's `<verify>` block writes `python`; the
-environment requires `.venv/bin/python` — used throughout, not a code deviation.)
+### Auto-fixed Issues
+
+**1. [Rule 1 - Bug] Escape single-quotes in the Drive `q` query**
+- **Found during:** advisor review at completion (a latent live-lane crash the
+  default suite could not catch — the read path runs only in the opt-in live lane).
+- **Issue:** `_drive_search` f-string-interpolated the raw query into the Drive
+  `q` grammar (`fullText contains '{query}'`). The grammar single-quotes the literal,
+  so a query containing an apostrophe (common: "O'Brien", "client's deck") produced
+  malformed query syntax and the real API call would error — breaking the plan's
+  must-have "google_drive_search executes a real Drive call".
+- **Fix:** escape backslashes then single-quotes
+  (`query.replace("\\", "\\\\").replace("'", "\\'")`) before interpolation. Added a
+  unit test (`test_drive_search_escapes_single_quote_in_query`) capturing the `q`
+  kwarg and asserting the escaped form. No impact on the green suite or any acceptance
+  grep.
+- **Files modified:** src/agent_mesh/tools/adapters/google_workspace.py,
+  tests/test_gws_adapter.py
+- **Commit:** `c5cdc71`
+
+### Note
+
+The plan's `<verify>` block writes `python`; the environment requires
+`.venv/bin/python` — used throughout, not a code deviation.
+
+### Inspection-only coverage (within plan scope)
+
+The plan scopes the mapping unit test to the Drive read only; `_gmail_send` /
+`_sheets_append` mappings are inspection-verified (both write-class and approval-gated,
+so unrunnable in this lane). Their output schemas are `additionalProperties: true`
+(low-risk); the dangerous strict `additionalProperties: false` schema is Drive's, which
+IS schema-validated in a unit test.
 
 ## Verification
 
-- `PYTHONPATH=src .venv/bin/python -m pytest -q -m "not live"` -> **171 passed, 6 skipped,
-  5 deselected** (baseline 165/6/4). Creds-free; no provider SDKs installed.
+- `PYTHONPATH=src .venv/bin/python -m pytest -q -m "not live"` -> **172 passed, 6 skipped,
+  5 deselected** (baseline 165/6/4; +7 adapter tests including the quote-escape guard).
+  Creds-free; no provider SDKs installed.
 - `PYTHONPATH=src .venv/bin/python -m pytest -q -m live tests/test_gws_live.py` -> **1
   skipped** when `GOOGLE_WORKSPACE_OAUTH` unset (SKIPS, does not error). Collects under
   `--co -q`.
@@ -196,5 +226,7 @@ paths. No unintended stubs.
 
 ## Commits
 
-- (feat) `feat(04-06): Google Workspace direct suite — Drive/Gmail/Sheets dispatcher + auth scaffold`
-- (this) `docs(04-06): complete Google Workspace direct-suite plan`
+- `2e2b063` feat(04-06): Google Workspace direct suite — Drive/Gmail/Sheets dispatcher + auth scaffold
+- `b53aa3e` docs(04-06): complete Google Workspace direct-suite plan (initial SUMMARY)
+- `c5cdc71` fix(04-06): escape single-quotes in the Drive search query (Rule 1)
+- `<docs>` docs(04-06): record Drive-quote-escape deviation + commit hashes in SUMMARY
