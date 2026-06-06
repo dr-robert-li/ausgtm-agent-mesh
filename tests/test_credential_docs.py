@@ -21,8 +21,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
-
 _REPO = Path(__file__).resolve().parents[1]
 _TESTS = _REPO / "tests"
 _ADAPTERS = _REPO / "src" / "agent_mesh" / "tools" / "adapters"
