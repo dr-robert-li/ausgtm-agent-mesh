@@ -186,3 +186,30 @@ def test_drive_search_maps_fake_service_to_output_schema(monkeypatch):
     # Tie the assertion to the REAL schema file, not just the dict above.
     schema = _load(str(REPO_ROOT / "schemas" / "google_drive_search.output.schema.json"))
     assert validate_output(schema, result) == []
+
+
+def test_drive_search_escapes_single_quote_in_query(monkeypatch):
+    """An apostrophe in the query MUST be escaped — the Drive `q` grammar single-quotes
+    the literal, so 'client's deck' unescaped is malformed syntax (live-call error)."""
+    mod = _gws_module()
+    monkeypatch.setattr(mod, "_build_credentials", lambda credential, scopes: object())
+    captured: dict[str, str] = {}
+
+    class _FakeList:
+        def execute(self):
+            return {"files": []}
+
+    class _FakeFiles:
+        def list(self, **kwargs):
+            captured["q"] = kwargs["q"]
+            return _FakeList()
+
+    class _FakeService:
+        def files(self):
+            return _FakeFiles()
+
+    monkeypatch.setattr(mod, "_service", lambda product, version, creds: _FakeService())
+    mod._drive_search(
+        _spec("google_drive_search"), {"query": "client's deck"}, credential="c"
+    )
+    assert captured["q"] == "fullText contains 'client\\'s deck'"

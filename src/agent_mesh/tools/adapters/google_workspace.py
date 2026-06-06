@@ -99,7 +99,10 @@ def _drive_search(spec: ToolSpec, params: dict, *, credential: str | None) -> di
         return None
     creds = _build_credentials(credential, [_DRIVE_READONLY])
     service = _service("drive", "v3", creds)
-    query = params["query"]
+    # Escape backslashes then single-quotes: the Drive `q` grammar single-quotes the
+    # literal, so an unescaped apostrophe ("O'Brien", "client's deck") would produce
+    # malformed query syntax and the API call would error.
+    query = params["query"].replace("\\", "\\\\").replace("'", "\\'")
     max_results = params.get("max_results", 10)
     list_kwargs: dict[str, Any] = {
         "q": f"fullText contains '{query}'",
