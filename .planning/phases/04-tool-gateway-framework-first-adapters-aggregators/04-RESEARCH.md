@@ -480,16 +480,19 @@ if tracer is not None:
 | A6 | All package version pins (`[ASSUMED]` — slopcheck unavailable) | Standard Stack, Audit | Slopsquat/version risk → planner gates each behind `checkpoint:human-verify` |
 | A7 | Drive write op uses `drive.file` scope (least-privilege) vs full `drive` | Google scopes table | If broad Drive write needed, use `https://www.googleapis.com/auth/drive` |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Per-product GWS operation set (read + key writes).**
    - What we know: full suite live (D-08); reads ungated, writes/sends gated.
    - What's unclear: exactly which write op per product (e.g. Calendar create-event vs update; Docs create vs batchUpdate).
    - Recommendation: planner picks one representative read + one representative write per product; size as one plan unit per product (adapter+manifest+2 schemas).
+   - RESOLVED: planner chose ONE representative read + ONE representative write per product (04-06 Drive/Gmail/Sheets, 04-07 Calendar/Docs/Slides). The exact ops are pinned in 04-06/04-07 (e.g. Calendar events().list/insert, Docs documents().get/create, Slides presentations().get/create).
 2. **`jsonschema` placement: core dep vs `tools` extra.**
    - Recommendation: core dep (small, pure, no creds) so the schema boundary is never an optional import; provider SDKs stay extras.
+   - RESOLVED: `jsonschema` is a CORE dependency (04-01) so the validation boundary is never an optional import; the schema FILES live separately under `schemas/`, decoupled from the manifest; provider SDKs remain opt-in extras.
 3. **Composio user_id / connected-account model for one tenant.**
    - Recommendation: use `composio.create(user_id="<tenant_slug>")`; the managed-auth connection is set up once via the D-12 doc.
+   - RESOLVED: use `composio.create(user_id="<tenant_slug>")`; the managed-auth connection is set up once via the D-12 doc (docs/credentials/composio.md). The Composio `session.tools()` input-schema key (`input_parameters` vs `inputSchema`) is confirmed at implementation via one live dump (04-08 A1/A2) and fed into the runtime aggregate-schema cache.
 
 ## Environment Availability
 

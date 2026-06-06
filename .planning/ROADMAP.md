@@ -104,8 +104,8 @@ Plans:
 Plans:
 - [ ] 04-01-PLAN.md — Contract + manifest + deps foundation: ToolCall additive fields + migration 0003 + repo ripple; all GWS manifest entries + schemas; pyproject tools/aggregators extras + jsonschema core (TOOL-01, TOOL-02) [wave 1]
 - [ ] 04-02-PLAN.md — JSON-Schema validation boundary: Draft 2020-12, asymmetric input-reject/output-quarantine, fail-closed-direct-only (TOOL-02) [wave 2, depends 04-01]
-- [ ] 04-03-PLAN.md — Tool Gateway execution engine: ToolSpec D-03 fields + CredentialResolver + adapter-dispatch registry + real execute(call) + D-10 tool-event span (TOOL-01, TOOL-02, OBS-01 leftover) [wave 2, depends 04-01]
-- [ ] 04-04-PLAN.md — Read-execution seam (item A) + worker gateway wiring: proposed_reads ungated post-run, runner/main/graph wiring; read path never touches the approval gate (TOOL-01) [wave 3, depends 04-01/04-03]
+- [ ] 04-03-PLAN.md — Tool Gateway execution engine: ToolSpec D-03 fields + CredentialResolver + adapter-dispatch registry + real execute(call) + D-10 tool-event span (TOOL-01, TOOL-02, OBS-01 leftover) [wave 3, depends 04-01]
+- [ ] 04-04-PLAN.md — Read-execution seam (item A) + worker gateway wiring: proposed_reads ungated post-run, runner/main/graph wiring; read path never touches the approval gate (TOOL-01) [wave 4, depends 04-01/04-03]
 - [ ] 04-05-PLAN.md — HubSpot direct adapter: lookup_company (read) + create_deal (approval-gated write, sandbox), live-proven (TOOL-01) [wave 3, depends 04-01/04-03]
 - [ ] 04-06-PLAN.md — Google Workspace adapters part 1: shared refresh-token auth scaffold + Drive/Gmail/Sheets, live-proven (TOOL-01) [wave 3, depends 04-01/04-03]
 - [ ] 04-07-PLAN.md — Google Workspace adapters part 2: Calendar/Docs/Slides completing the full six-product suite (TOOL-01) [wave 4, depends 04-06]
