@@ -12,6 +12,16 @@ completes the existing runnable scaffold — replacing every stubbed component w
 real, locally-validated implementation — so the platform is end-to-end testable and
 ready for GCP deployment configuration.
 
+**Re-scope (2026-06-07):** following a deep-research review of 2025–2026 self-evolving-agent
+SOTA, this is explicitly a **governed self-evolving-agent build**, not merely a static-agent
+scaffold completion. Phase 6 delivers the real, Option-C-safe self-improvement **loop** —
+held-out evaluation harness, a GEPA-style offline **inert** reflective proposer + bounded loop,
+and CycloneDX ML-BOM-on-promotion with versioned **non-hot** promotion + rollback (SI-01 +a–d,
+SI-02 +a–b, SI-03). Self-improvement stays inert, human-gated, and local this milestone (no
+runtime autonomous mutation; deploy-ready-only still holds). The broader self-evolving surfaces —
+memory/skill-library growth and multi-agent topology/routing evolution (SI-04, SI-05) — are
+deferred to a new **"Self-Evolving Surfaces"** milestone (create via `/gsd:new-milestone`).
+
 ## Core Value
 
 A long-running agent mesh can take a real client request through ingress, durable
@@ -102,6 +112,7 @@ approves it — and the entire run is observable and auditable. If everything el
 | Fix `/v1/approvals` auth this milestone | Critical finding bypasses the core write-approval gate — the platform's Core Value — so it cannot wait for a hardening milestone | — Pending |
 | Coarse granularity, standard (horizontal-layer) phasing | Work replaces real technical layers (durability → orchestration → model/observability → tools/SI) over a working E2E scaffold; a final phase assembles + validates | — Pending |
 | Quality model profile (Opus for planning agents) | Real framework-integration wiring (LangGraph checkpointer, Deep Agents, Cloudflare) rewards deeper planning | — Pending |
+| Governed self-evolving build; Phase 6 = real SI loop (2026-06-07) | Deep-research review of 2025–2026 SOTA: log-driven reflective proposal (GEPA) is production-viable, reward hacking is pervasive (→ score on held-out, never the optimization signal), DGM-style autonomous self-mod stays out (Option C). Pulled the full loop into Phase 6 (SI-01 +a–d, SI-02 +a–b, SI-03), split memory/topology (SI-04/05) to a new milestone for verifiable boundaries | — Pending |
 
 ## Evolution
 

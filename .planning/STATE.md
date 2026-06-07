@@ -99,6 +99,7 @@ Items acknowledged and carried forward:
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
 | Deploy | Live GCP provisioning + FinOps review (DEP-03, DEP-04) | Deferred to v2 | Init |
+| Self-improvement | SI-04 (memory/skill-library evolution) + SI-05 (multi-agent topology/routing-depth evolution) | Deferred to new **"Self-Evolving Surfaces"** milestone (create via `/gsd:new-milestone`) | Phase 06 discuss (2026-06-07) |
 | Tools | TOOL-03 (reference adapters) + TOOL-04 (aggregators) | **Promoted v2→v1 2026-06-06** — TOOL-04 + flagship adapters in Phase 4; TOOL-03 in Phase 5 | Re-scoped Phase 04 |
 | Hardening | Immutable ledger, egress controls, kill switches, signed images, GDPR deletion, HA | Production hardening (caveats) | Init |
 | Observability | OBS-01 tool-event spans — wire OTel spans on tool calls | **Scheduled for Phase 04** (D-10, framework emits them once a real adapter exists) | Phase 03 (03-VERIFICATION Gap 2) |
