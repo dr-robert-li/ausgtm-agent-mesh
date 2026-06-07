@@ -15,6 +15,13 @@ This module mirrors ``test_e2e_mcp_durable_job.py`` on the Postgres/transport ax
 Both axes skip loudly and named when their dependency is unavailable, so the default suite
 stays green when neither is present.
 
+NO module-level ``pytestmark`` / ``live`` marker is set here (intentionally — see below): the
+D-03-corrected body forbids a ``live`` marker on the Postgres lane (it is TEST_DATABASE_URL-
+gated, not creds-gated), and a module-wide ``pytestmark = pytest.mark.live`` would deselect
+the Postgres lane from ``make test -m "not live"`` so it could never run even with a DSN set.
+Gating is therefore per-function via the ``pg_dsn`` / ``_backend_available`` skip guards
+below, not a module ``pytestmark``.
+
 DUR-02: the Postgres resume keys on ``thread_id == the tenant-scoped task_id`` (``tenant-t::``
 form), the same cross-task-resume guard the default lane asserts.
 
