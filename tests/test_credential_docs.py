@@ -2,13 +2,13 @@
 
 This test proves the credential index (`docs/credentials/README.md`) is a *complete*,
 drift-resistant D-12 deliverable: every env var the adapters' live lane actually reads
-is documented, every per-provider setup doc exists, and the index links all four.
+is documented, every per-provider setup doc exists, and the index links them all.
 
 Drift resistance (threat T-04-09-02): instead of hardcoding the env var set, we DERIVE
-it from the source of truth — the four live-test files (each gates on its provider's
-creds via ``os.getenv("VAR")``) UNIONED with any ``os.getenv`` reads in the adapter
-source. If a future adapter/live-test adds an env var, this guard fails until the index
-documents it.
+it from the source of truth — the per-provider live-test files (each gates on its
+provider's creds via ``os.getenv("VAR")``) UNIONED with any ``os.getenv`` reads in the
+adapter source. If a future adapter/live-test adds an env var, this guard fails until the
+index documents it.
 
 Creds-free + import-free: every file is read as TEXT (open + regex). We never import the
 adapter or live-test modules (that could trigger optional-SDK imports in the default
@@ -27,19 +27,38 @@ _ADAPTERS = _REPO / "src" / "agent_mesh" / "tools" / "adapters"
 _CRED_DOCS = _REPO / "docs" / "credentials"
 _INDEX = _CRED_DOCS / "README.md"
 
-# The four live-test files are the authoritative enumeration of the in-scope live-lane
-# providers (deriving from the manifest's credential_secret_name would also pull in
-# out-of-scope providers — Xero/Webflow/Bitscale/Cal.com/Clockify/Beehiiv — that have no
-# adapter or doc this phase). We scan these PLUS the adapter source for completeness.
+# The live-test files are the authoritative enumeration of the in-scope live-lane
+# providers. Phase 4 landed HubSpot/Google Workspace/Composio/Nango; Phase 5
+# (reference-adapter breadth, TOOL-03) added the five direct adapters
+# (Webflow/Bitscale/Cal.com/Clockify/Beehiiv) and Xero-via-Composio — so those providers
+# are now IN scope and enumerated here. We scan these PLUS the adapter source for
+# completeness.
 _LIVE_TEST_FILES = [
     "test_hubspot_live.py",
     "test_gws_live.py",
     "test_composio_live.py",
     "test_nango_live.py",
+    "test_webflow_live.py",
+    "test_bitscale_live.py",
+    "test_calcom_live.py",
+    "test_clockify_live.py",
+    "test_beehiiv_live.py",
+    "test_xero_live.py",
 ]
 
-# The four per-provider setup docs the index must link + summarize (one per live lane).
-_PROVIDER_DOCS = ["hubspot.md", "google_workspace.md", "composio.md", "nango.md"]
+# The per-provider setup docs the index must link + summarize (one per live lane).
+_PROVIDER_DOCS = [
+    "hubspot.md",
+    "google_workspace.md",
+    "composio.md",
+    "nango.md",
+    "webflow.md",
+    "bitscale.md",
+    "calcom.md",
+    "clockify.md",
+    "beehiiv.md",
+    "xero.md",
+]
 
 # Floor / anchors: the credential-proper env var that keys each provider's resolver.
 # The derived set must be non-empty, meet this floor, and contain every anchor — so an
@@ -49,8 +68,16 @@ _ANCHOR_ENV_VARS = {
     "GOOGLE_WORKSPACE_OAUTH",
     "COMPOSIO_API_KEY",
     "NANGO_SECRET_KEY",
+    # Phase 5 direct-adapter provider keys (Xero reuses COMPOSIO_API_KEY — no new anchor):
+    "WEBFLOW_API_TOKEN",
+    "BITSCALE_API_KEY",
+    "CALCOM_API_KEY",
+    "CLOCKIFY_API_KEY",
+    "BEEHIIV_API_KEY",
 }
-_MIN_ENV_VARS = 7  # the seven live-lane env vars in scope this phase
+# 12 live-lane env vars in scope: 7 Phase-4 (HubSpot/GWS/Composio + 4 Nango) + 5 new
+# Phase-5 provider keys. Xero reuses COMPOSIO_API_KEY, so it adds no new env var.
+_MIN_ENV_VARS = 12
 
 # In the live-test files (the authoritative enumeration), provider creds appear as
 # all-caps, underscore-bearing string literals — both directly (`os.getenv("VAR")`) and
@@ -63,8 +90,13 @@ _ENV_LITERAL_RE = re.compile(r"""["']([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)["']""")
 _ENV_READ_RE = re.compile(
     r"""os\.(?:getenv|environ(?:\.get)?)\s*[(\[]\s*["']([A-Z][A-Z0-9_]+)["']"""
 )
-# Guard against future false positives from the shape-based scan of the live-test files.
-_NON_ENV: set[str] = set()
+# Excluded from the derived credential set. This is NOT (only) for shape false-positives:
+# BEEHIIV_LIVE_PUBLICATION_ID is a genuine os.getenv read in test_beehiiv_live.py, but it
+# is a non-secret resource toggle (it opts the Beehiiv live lane into a real create vs a
+# shape-only assertion), not a credential to document. The guard's contract is "every
+# CREDENTIAL the live lane reads is documented", so this real-but-non-credential env var
+# is deliberately excluded to keep the derived floor at exactly 12.
+_NON_ENV: set[str] = {"BEEHIIV_LIVE_PUBLICATION_ID"}
 
 
 def _derive_live_lane_env_vars() -> set[str]:
@@ -112,14 +144,14 @@ def test_every_live_lane_env_var_is_documented_in_the_index():
     )
 
 
-def test_index_links_all_four_per_provider_docs():
-    """The index ties the four per-provider docs together (D-12 deliverable)."""
+def test_index_links_all_per_provider_docs():
+    """The index ties every per-provider doc together (D-12 deliverable)."""
     index_text = _INDEX.read_text(encoding="utf-8")
     missing = [doc for doc in _PROVIDER_DOCS if doc not in index_text]
     assert not missing, f"credential index does not link per-provider doc(s): {missing}"
 
 
-def test_all_four_per_provider_docs_exist_and_are_non_empty():
+def test_all_per_provider_docs_exist_and_are_non_empty():
     """Each per-provider setup doc must exist on disk and carry real content."""
     for doc in _PROVIDER_DOCS:
         path = _CRED_DOCS / doc
