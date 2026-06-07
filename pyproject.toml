@@ -63,6 +63,14 @@ aggregators = [
     "composio>=0.13,<1",
     # Nango: NO python dep — integrates via core httpx against the Nango REST proxy (04-RESEARCH Pitfall 1).
 ]
+# CycloneDX ML-BOM generation (SI-02a). Opt-in extra; the OWASP CycloneDX reference
+# library (NOT the cyclonedx-bom CLI). Pure data-model + serializer, needs NO creds,
+# and MUST be importable in the default (creds-free) lane for the ML-BOM test. Install
+# is gated behind the blocking supply-chain human-verify checkpoint T-06-SC (06-01
+# Task 1) — declared here as inert until vetted on pypi.org. NOT installed by this edit.
+aibom = [
+    "cyclonedx-python-lib>=8,<12",
+]
 # GUI admin / operator app.
 gui = [
     "streamlit>=1.36",
