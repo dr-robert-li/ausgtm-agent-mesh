@@ -29,6 +29,16 @@ from agent_mesh.contracts.models import (
 )
 
 
+class ConcurrentModification(RuntimeError):
+    """Raised when a guarded state transition loses a race.
+
+    ``transition_task`` performs the state change with a conditional
+    ``UPDATE ... WHERE task_id=%s AND state=%s``. If another connection already
+    advanced the task out of the expected state, the UPDATE matches no row and
+    this is raised so the caller can retry rather than silently double-advancing
+    the state and appending a duplicate audit event (WR-02)."""
+
+
 class Repository(Protocol):
     def create_task(self, task: TaskRecord) -> TaskRecord: ...
     def get_task(self, task_id: str) -> TaskRecord | None: ...
@@ -754,13 +764,24 @@ class RepositorySQL:
         # Coerce a bare TaskState enum to its string value (Pitfall 6): str() on a
         # str-mixin enum yields 'TaskState.RUNNING', so use .value when available.
         target_value = _enum_value(target)
-        # Single transaction: UPDATE state AND append the audit event atomically
-        # (Pitfall 7) so a crash cannot advance state without the audit row.
+        current_value = _enum_value(current.state)
+        # Single transaction: conditionally UPDATE the state AND append the audit
+        # event atomically (Pitfall 7) so a crash cannot advance state without the
+        # audit row. The UPDATE is GUARDED on the state we validated the transition
+        # from (WR-02): if a concurrent caller already advanced the task out of that
+        # state, the UPDATE matches no row and we raise ConcurrentModification rather
+        # than double-advancing and writing a duplicate audit event.
         with self._pool.connection() as conn:
-            conn.execute(
-                "UPDATE tasks SET state=%s, updated_at=now() WHERE task_id=%s",
-                (target_value, task_id),
-            )
+            updated = conn.execute(
+                "UPDATE tasks SET state=%s, updated_at=now() "
+                "WHERE task_id=%s AND state=%s",
+                (target_value, task_id, current_value),
+            ).rowcount
+            if not updated:
+                raise ConcurrentModification(
+                    f"task {task_id} was not in state {current_value!r} at update "
+                    "time; transition lost the race"
+                )
             conn.execute(
                 "INSERT INTO task_events (event_id, task_id, tenant_id, state, note) "
                 "VALUES (%s,%s,%s,%s,%s)",
