@@ -374,21 +374,25 @@ json_str = make_outputter(bom, OutputFormat.JSON, SchemaVersion.V1_7).output_as_
 
 **Note:** External SOTA claims (GEPA, reward-hacking rates, position bias, calibration, MIRAGE-Bench, CycloneDX ECMA-424) are `[CITED]` from the commissioned deep-research report (06-CONTEXT Canonical References, 23 verified primary sources) — not re-verified this session per the objective.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Exact gate numerics (iteration cap, held-out size, item-threshold θ, judge alpha/TPR-FPR).**
    - Known: Claude's Discretion (D-15) + research establishes the *method*, not POC numbers.
    - Recommendation: planner picks conservative defaults (e.g. iteration cap = 3–5, held-out ≥ 10 frozen items, θ as a configurable setting); make them config-driven, not hardcoded.
+   - RESOLVED: config-driven conservative defaults adopted (D-15) — gate numerics are settings with conservative defaults, not hardcoded constants; planned in 06-02/06-03 via the config + frozen-fixture lane.
 
 2. **Where the baseline scores live for reproducible offline gating.**
    - Known: must be readable creds-free in the default lane.
    - Recommendation: store the promoted version's `EvaluationResult` (or a committed golden JSON fixture) keyed by version; gate reads it offline. Possibly `0003` migration.
+   - RESOLVED: a committed golden-JSON baseline fixture (keyed by version, read creds-free in the default lane) is established in 06-02; the offline gate reads it — no migration needed for the baseline.
 
 3. **`current_active_version` storage shape (06-05).**
    - Recommendation: a tiny tenant-scoped pointer table (or reuse latest non-rolled-back `PromotionRecord.promoted_version`) read once at boot. Decide whether rollback writes a new pointer row or flips state.
+   - RESOLVED: a tenant-scoped `self_improvement_active_version` pointer table + `ai_bom_snapshots` table are created in the `0004_active_version.sql` migration (06-01), with `current_active_version`/`set_active_version` repo methods read once at boot via `version_pin.py` (06-06); rollback re-points the pointer to `previous_version` (D-13), it does not merely flip state.
 
 4. **CycloneDX output API exact symbols in installed version.**
    - Recommendation: at impl time, `python -c "from cyclonedx.output import make_outputter; from cyclonedx.schema import SchemaVersion, OutputFormat"` to confirm before writing the generator (see A2).
+   - RESOLVED: cyclonedx install is gated by the 06-01 blocking human-verify checkpoint (T-06-SC), which runs the V1_7/make_outputter import probe and records the confirmed exact symbols in the 06-01 SUMMARY for 06-05 to consume before writing the generator.
 
 ## Environment Availability
 
