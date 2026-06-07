@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# CATCH-ALL fake wrangler shim for the DEP harness.
+#
+# Same contract as the fake gcloud shim: record FULL argv to $SHIM_LOG and exit 0
+# by default so cf_deploy_ai_gateway_worker.sh (set -euo pipefail) runs to
+# completion (`wrangler whoami`, `wrangler deploy --env ...`). Optionally report a
+# non-0 ("absent"/failure) when the joined argv matches $SHIM_ABSENT_PATTERN.
+#
+# Record-and-exit only: this shim NEVER hands off to a real binary (closes
+# T-07-10). It is shadowed onto PATH ONLY inside subprocess.run(env=...).
+
+argv="$*"
+
+if [ -n "${SHIM_LOG:-}" ]; then
+  printf '%s\n' "${argv}" >> "${SHIM_LOG}"
+fi
+
+if [ -n "${SHIM_ABSENT_PATTERN:-}" ]; then
+  if printf '%s' "${argv}" | grep -Eq -- "${SHIM_ABSENT_PATTERN}"; then
+    printf 'fake-wrangler: ABSENT match for: %s\n' "${argv}" >&2
+    exit 1
+  fi
+fi
+
+# `wrangler whoami` prints account info on the real cli; emit a placeholder so the
+# script's authentication check looks satisfied.
+case "${argv}" in
+  *whoami* ) printf 'fake-wrangler: authenticated as test@example.com\n' ;;
+esac
+
+exit 0
