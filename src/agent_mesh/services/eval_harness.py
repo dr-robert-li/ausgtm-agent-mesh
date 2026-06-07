@@ -30,12 +30,22 @@ version kwarg.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
+from pathlib import Path
+from statistics import mean
 from typing import Any
 
 # --- Config-driven defaults (module constants, not call-site literals) ------
 # The held-out pool VERSION pins which frozen set + golden baseline the gate uses.
 HELD_OUT_VERSION = "2026-06-07"
+# Per-item regression tolerance: a single item may not drop more than this below
+# its baseline score, even when the aggregate holds (D-03 masking guard).
+DEFAULT_ITEM_THRESHOLD = 0.05
+# The committed golden baseline (creds-free, version-keyed JSON under git history).
+_BASELINE_PATH = (
+    Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "holdout_baseline.json"
+)
 # The versioned held-out snapshots. Deterministic, in-repo, distinct from any
 # optimization signal the proposer (06-03) consumes. Each is a context snapshot;
 # build_frozen_items() freezes it into a LocalExperimentItem-shaped dict.
@@ -171,3 +181,65 @@ def scores_by_item(result: Any, *, evaluator: str = "exact_match") -> dict[str, 
         if value is not None:
             scores[item_id] = float(value)
     return scores
+
+
+def load_baseline(*, version: str = HELD_OUT_VERSION) -> dict[str, float]:
+    """Load the committed golden baseline scores for ``version`` (creds-free).
+
+    The baseline is a version-keyed JSON fixture under git history (T-06-06: a
+    committed, code-reviewed baseline is accepted for the POC; production would
+    sign it). Chosen over durable storage to keep 06-02 off repository.py / the
+    0004 migration (06-RESEARCH Open-Q2). Returns ``{item_id: score}``.
+    """
+    data = json.loads(_BASELINE_PATH.read_text())
+    scores = data[version]
+    return {item_id: float(score) for item_id, score in scores.items()}
+
+
+def passes_no_regression(
+    candidate: dict[str, float],
+    baseline: dict[str, float],
+    *,
+    item_threshold: float = DEFAULT_ITEM_THRESHOLD,
+) -> tuple[bool, list[dict[str, Any]]]:
+    """Promotion-eligibility gate: aggregate AND item-level no-regression (SI-01b).
+
+    Two-stage by design (D-03): the aggregate mean check alone hides per-item
+    regressions, so a candidate that games the average must still clear every item.
+
+    * Candidate mean < baseline mean -> ``(False, [{"reason": "aggregate_below_baseline"}])``.
+    * Any item where ``baseline - candidate > item_threshold`` -> ``(False, [regressions])``.
+    * Otherwise ``(True, [])``.
+
+    Pure stdlib so it is reproducible and creds-free (never inside run_experiment).
+    Items present in the baseline but missing from the candidate are treated as a
+    regression to 0.0 (a dropped item is the worst possible regression).
+    """
+    if not baseline:
+        return True, []
+
+    candidate_mean = mean(candidate.values()) if candidate else 0.0
+    baseline_mean = mean(baseline.values())
+    if candidate_mean < baseline_mean:
+        return False, [
+            {
+                "reason": "aggregate_below_baseline",
+                "candidate_mean": candidate_mean,
+                "baseline_mean": baseline_mean,
+            }
+        ]
+
+    regressions: list[dict[str, Any]] = []
+    for item_id, baseline_score in baseline.items():
+        candidate_score = candidate.get(item_id, 0.0)
+        delta = baseline_score - candidate_score
+        if delta > item_threshold:
+            regressions.append(
+                {
+                    "item_id": item_id,
+                    "baseline_score": baseline_score,
+                    "candidate_score": candidate_score,
+                    "delta": delta,
+                }
+            )
+    return (not regressions), regressions

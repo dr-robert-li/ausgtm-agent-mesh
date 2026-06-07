@@ -41,7 +41,7 @@ from agent_mesh.contracts.models import (
     SelfImprovementProposal,
     TaskRecord,
 )
-from agent_mesh.services import approvals
+from agent_mesh.services import approvals, eval_harness
 from agent_mesh.services.repository import Repository
 
 # Proposal types that touch active instructions, permissions, routing, schemas,
@@ -175,21 +175,54 @@ def evaluate_proposal(
         _set_status(repo, proposal, ProposalStatus.PENDING_EVALUATION)
         return result
 
-    checks = deterministic_checks or [{"name": "non_empty_patch", "passed": True}]
-    passed = bool(proposal.proposed_patch.strip()) and all(c.get("passed") for c in checks)
-    result = EvaluationResult(
-        proposal_id=proposal_id,
-        tenant_id=proposal.tenant_id,
-        passed=passed,
-        pending=False,
-        checks=checks,
-        summary="passed" if passed else "failed deterministic checks",
-    )
+    if deterministic_checks is not None:
+        # Explicit-checks override path: run the supplied deterministic checks as-is.
+        # Preserved so callers (and tests) that pass their own checks keep the old,
+        # fully-deterministic behaviour without touching the held-out harness.
+        passed = bool(proposal.proposed_patch.strip()) and all(
+            c.get("passed") for c in deterministic_checks
+        )
+        result = EvaluationResult(
+            proposal_id=proposal_id,
+            tenant_id=proposal.tenant_id,
+            passed=passed,
+            pending=False,
+            checks=deterministic_checks,
+            evaluator="deterministic-checks",
+            summary="passed" if passed else "failed deterministic checks",
+        )
+    else:
+        # Default real-evaluation path: score the candidate over the held-out pool
+        # via a creds-free run_experiment, then gate on aggregate + item-level
+        # no-regression vs the committed golden baseline (SI-01/SI-01b). The default
+        # offline replay candidate matches the baseline by construction; real
+        # candidate-vs-baseline discrimination is the live LLM judge in 06-04.
+        experiment = eval_harness.run_candidate(
+            eval_harness.held_out_pool(),
+            eval_harness.replay_task,
+            evaluators=[eval_harness.exact_match],
+        )
+        candidate_scores = eval_harness.scores_by_item(experiment)
+        baseline_scores = eval_harness.load_baseline()
+        passed, regressions = eval_harness.passes_no_regression(
+            candidate_scores, baseline_scores
+        )
+        result = EvaluationResult(
+            proposal_id=proposal_id,
+            tenant_id=proposal.tenant_id,
+            passed=passed,
+            pending=False,
+            checks=regressions,
+            evaluator="holdout-harness",
+            summary="passed held-out no-regression gate"
+            if passed
+            else "failed held-out no-regression gate",
+        )
     repo.upsert_evaluation(result)
     _set_status(
         repo,
         proposal,
-        ProposalStatus.EVALUATION_PASSED if passed else ProposalStatus.EVALUATION_FAILED,
+        ProposalStatus.EVALUATION_PASSED if result.passed else ProposalStatus.EVALUATION_FAILED,
     )
     return result
 

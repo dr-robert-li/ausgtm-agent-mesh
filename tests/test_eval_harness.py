@@ -45,3 +45,53 @@ def test_run_candidate_creds_free(monkeypatch, frozen_holdout_items):
     assert set(scores) == {it["metadata"]["item_id"] for it in items}
     # The deterministic replay task returns expected_output -> exact_match == 1.0.
     assert all(v == 1.0 for v in scores.values())
+
+
+def test_no_regression_gate():
+    """SI-01b: aggregate-fail, item-regression-fail, and pass branches."""
+    baseline = {"a": 1.0, "b": 1.0, "c": 1.0}
+
+    # 1) Pass: candidate >= baseline aggregate AND no item delta beyond threshold.
+    ok, regressions = eh.passes_no_regression(
+        {"a": 1.0, "b": 1.0, "c": 1.0}, baseline, item_threshold=0.1
+    )
+    assert ok is True
+    assert regressions == []
+
+    # 2) Aggregate-fail: candidate mean below baseline mean.
+    ok, regressions = eh.passes_no_regression(
+        {"a": 0.0, "b": 0.0, "c": 0.0}, baseline, item_threshold=0.1
+    )
+    assert ok is False
+    assert any(r.get("reason") == "aggregate_below_baseline" for r in regressions)
+
+    # 3) Item-regression-fail: aggregate holds (one item up, one down) but a single
+    #    item drops beyond the threshold -> caught at item level (D-03 masking guard).
+    ok, regressions = eh.passes_no_regression(
+        {"a": 2.0, "b": 0.0, "c": 1.0}, baseline, item_threshold=0.1
+    )
+    assert ok is False
+    assert any(r.get("item_id") == "b" for r in regressions)
+
+
+def test_baseline_loader_is_creds_free():
+    """The committed golden baseline loads with no creds and covers the held-out pool."""
+    baseline = eh.load_baseline()
+    assert set(baseline) == eh.held_out_item_ids()
+    assert all(isinstance(v, float) for v in baseline.values())
+
+
+def test_default_lane_candidate_matches_baseline(monkeypatch):
+    """End-to-end (creds-free): the default replay candidate passes the gate vs baseline.
+
+    Proves the baseline was generated from the SAME replay_task -> candidate == baseline
+    by construction, so the gate returns (True, []) with no keys set.
+    """
+    for var in ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_HOST"):
+        monkeypatch.delenv(var, raising=False)
+    result = eh.run_candidate(eh.held_out_pool(), eh.replay_task, evaluators=[eh.exact_match])
+    candidate = eh.scores_by_item(result)
+    ok, regressions = eh.passes_no_regression(
+        candidate, eh.load_baseline(), item_threshold=eh.DEFAULT_ITEM_THRESHOLD
+    )
+    assert ok is True, regressions
