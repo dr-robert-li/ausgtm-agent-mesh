@@ -124,7 +124,7 @@ Plans:
 **Plans**: 7 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Foundation: all shared-file edits — schema_refs + 18 schema files for every direct op, bitscale ops reconciled, webflow read op added, Xero flipped to composio_aggregator (wave 1) (TOOL-03)
+- [x] 05-01-PLAN.md — Foundation: all shared-file edits — schema_refs + 18 schema files for every direct op, bitscale ops reconciled, webflow read op added, Xero flipped to composio_aggregator (wave 1) (TOOL-03)
 - [ ] 05-02-PLAN.md — Webflow direct adapter (list + draft create) (wave 2) (TOOL-03)
 - [ ] 05-03-PLAN.md — Bitscale direct adapter (grids/workspace reads + run_grid write; reads-only live lane) (wave 2) (TOOL-03)
 - [ ] 05-04-PLAN.md — Cal.com direct adapter (list + create bookings, mandatory cal-api-version header) (wave 2) (TOOL-03)

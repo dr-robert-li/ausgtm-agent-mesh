@@ -120,6 +120,22 @@ so commits did not shell `python`.
 
 No Rule 1/2/3 auto-fixes were needed; no architectural (Rule 4) changes.
 
+### State-tracking corrections
+- **ROADMAP.md:** `roadmap.update-plan-progress 05` returned `"no matching checkbox found"`
+  (known issue, observation 5636 — the per-plan stubs use a `- [ ] 05-01-PLAN.md — ...` format
+  the SDK matcher does not target). The 05-01 plan checkbox at ROADMAP line 127 was therefore
+  marked `[x]` manually.
+- **TOOL-03:** the SDK's `requirements.mark-complete TOOL-03` flipped the checkbox to `[x]`
+  AND split its line (`**TOOL-03\n**:`). Reverted to `[ ]` + single-line — TOOL-03 reads
+  "adapters *functional*," which is FALSE after only the foundation lands (wave-2 adapters
+  pending). 05-07 lists TOOL-03 in its frontmatter, so it is not orphaned and will be marked
+  when the adapters are actually functional.
+
+### Foundation contract proven (not just inferred)
+Direct manifest-ref → on-disk-file resolution verified end-to-end:
+`for every input/output_schema_ref in the manifest, os.path.exists(ref)` → all resolve. This
+is THE D-04 reachability invariant every wave-2 plan inherits.
+
 ## Known Stubs
 
 None. This plan adds no execution code — it only declares manifest surfaces and JSON schemas.
