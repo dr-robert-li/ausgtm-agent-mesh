@@ -134,7 +134,7 @@ Plans:
 
 ### Phase 6: Self-Improvement (real loop)
 **Goal**: Replace the `evaluate_proposal` stub with a real **held-out** evaluation harness; add a
-GEPA-style **offline, separated, inert** reflective proposer + bounded improvement loop; and wire
+GEPA-style offline reflective proposer + bounded improvement loop; and wire
 **CycloneDX ML-BOM-on-promotion** with controlled, versioned (non-hot) promotion and retained
 rollback — Option-C-safe: proposals stay inert, promotion is the single human-gated chokepoint,
 and no active instructions/permissions/routing are mutated at runtime.
@@ -180,11 +180,15 @@ Plans:
   2. An MCP request runs a long checkpointed mesh job and returns an artifact
   3. A failure E2E demonstrates model fallback, job retry, and budget-limit halt together
   4. The `gcloud` bootstrap/deploy and Cloudflare `wrangler` scripts pass lint + dry-run/syntax checks, and their resource-detection branches are unit-tested with a mocked `gcloud` (idempotency *logic* proven locally — true end-to-end idempotency against a live project is deferred to DEP-03); the deployment + tool-pack manifests are schema-consistent
-**Plans**: 2 plans
+**Plans**: 4 plans
+
+> **Plan-count note (2026-06-08):** the ROADMAP stub proposed 2 plans (one E2E suite, one deploy). Planning split the E2E suite into three per-proof plans (each E2E criterion is a distinct subsystem with its own ~50% context budget and zero file overlap → all parallelizable in one wave) and kept deploy-readiness standalone. The three open design decisions surfaced by the pattern-mapper are resolved in-plan: (1) E2E-03's "job retry" leg = litellm in-cascade recovery (07-03) PLUS Pub/Sub `--max-delivery-attempts=5` deploy-config consistency (07-04), no new fault harness (honors D-05); (2) E2E-02 MCP entry = in-process `request_from_mcp` (no `/mcp` HTTP route exists); (3) D-11 manifest-consistency = a NEW dedicated validator (export_schemas only does Pydantic→JSON-Schema, never reads YAML manifests).
 
 Plans:
-- [ ] 07-01: End-to-end test suite — Slack write-gated action, MCP checkpointed artifact, failure modes (E2E-01, E2E-02, E2E-03)
-- [ ] 07-02: Deploy-readiness validation — idempotent gcloud/wrangler scripts + manifest consistency (DEP-01, DEP-02)
+- [ ] 07-01-PLAN.md — E2E-01: Slack write-gated action through the real FastAPI TestClient (default lane) + reversible draft/sandbox live variant (E2E-01) [wave 1, D-01/02/03/07]
+- [ ] 07-02-PLAN.md — E2E-02: MCP in-process request → durable checkpointed job (sqlite drop/reopen restart-resume; Postgres opt-in lane) returning a surviving artifact (E2E-02) [wave 1, D-01/02/03/04]
+- [ ] 07-03-PLAN.md — E2E-03: single combined failure run — fallback + in-cascade retry-recovery → governed budget_halt → FAILED; cents-cap live variant (E2E-03) [wave 1, D-05/06/08]
+- [ ] 07-04-PLAN.md — Deploy-readiness: PATH-shim gcloud/wrangler idempotency-logic harness + bash -n floor + loud-skip lint + NEW manifest-consistency validator + Pub/Sub redelivery-config assertion (DEP-01, DEP-02) [wave 1, D-09/10/11]
 
 ## Progress
 
@@ -198,5 +202,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 3. Model Gateway & Observability | 4/4 | Complete | 2026-06-06 |
 | 4. Tool Gateway Framework + First Adapters + Aggregators | 9/9 | Complete | 2026-06-06 |
 | 5. Reference Adapter Breadth | 7/7 | Complete | 2026-06-07 |
-| 6. Self-Improvement (real loop) | 0/6 | Planned | - |
-| 7. E2E Validation & Deploy-Readiness | 0/2 | Not started | - |
+| 6. Self-Improvement (real loop) | 6/6 | Complete | 2026-06-08 |
+| 7. E2E Validation & Deploy-Readiness | 0/4 | Planned | - |
