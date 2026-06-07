@@ -16,6 +16,7 @@ from typing import Protocol
 from agent_mesh.contracts.enums import TaskState
 from agent_mesh.contracts.lifecycle import assert_transition
 from agent_mesh.contracts.models import (
+    AIBOMSnapshot,
     ApprovalRecord,
     BudgetEvent,
     EvaluationResult,
@@ -53,6 +54,15 @@ class Repository(Protocol):
     ) -> list[EvaluationResult]: ...
     def upsert_promotion(self, promotion: PromotionRecord) -> PromotionRecord: ...
     def get_promotion(self, promotion_id: str) -> PromotionRecord | None: ...
+    # -- active-version pointer (SI-02b) + AI-BOM persistence (SI-02) --
+    def current_active_version(self, tenant_id: str) -> str | None: ...
+    def set_active_version(
+        self, tenant_id: str, version: str, promotion_id: str | None = None
+    ) -> None: ...
+    def upsert_ai_bom(self, snapshot: AIBOMSnapshot) -> AIBOMSnapshot: ...
+    def get_ai_bom(
+        self, snapshot_id: str, tenant_id: str
+    ) -> AIBOMSnapshot | None: ...
     # -- budget ledger + gateway events (GW-01 / D-04 / DUR-02) --
     def record_budget_event(self, event: BudgetEvent) -> BudgetEvent: ...
     def budget_month_to_date(
@@ -76,6 +86,10 @@ class InMemoryRepository:
         self._proposals: dict[str, SelfImprovementProposal] = {}
         self._evaluations: dict[str, EvaluationResult] = {}
         self._promotions: dict[str, PromotionRecord] = {}
+        # tenant_id -> (active_version, promotion_id | None)
+        self._active_version: dict[str, tuple[str, str | None]] = {}
+        # snapshot_id -> AIBOMSnapshot
+        self._ai_bom_snapshots: dict[str, AIBOMSnapshot] = {}
         self._budget_events: dict[str, BudgetEvent] = {}
         self._gateway_events: dict[str, GatewayEvent] = {}
 
@@ -192,6 +206,36 @@ class InMemoryRepository:
     def get_promotion(self, promotion_id: str) -> PromotionRecord | None:
         with self._lock:
             return self._promotions.get(promotion_id)
+
+    # -- active-version pointer (SI-02b) + AI-BOM persistence (SI-02) -------
+    def current_active_version(self, tenant_id: str) -> str | None:
+        with self._lock:
+            # Tenant-scoped (DUR-02): never returns another tenant's pointer.
+            entry = self._active_version.get(tenant_id)
+            return entry[0] if entry is not None else None
+
+    def set_active_version(
+        self, tenant_id: str, version: str, promotion_id: str | None = None
+    ) -> None:
+        with self._lock:
+            # Upsert semantics (mirrors upsert_promotion / the SQL ON CONFLICT).
+            self._active_version[tenant_id] = (version, promotion_id)
+
+    def upsert_ai_bom(self, snapshot: AIBOMSnapshot) -> AIBOMSnapshot:
+        with self._lock:
+            # ON CONFLICT DO NOTHING semantics: first write of a snapshot_id wins
+            # (an AI-BOM snapshot is immutable at a point in time).
+            self._ai_bom_snapshots.setdefault(snapshot.snapshot_id, snapshot)
+            return snapshot
+
+    def get_ai_bom(self, snapshot_id: str, tenant_id: str) -> AIBOMSnapshot | None:
+        with self._lock:
+            snap = self._ai_bom_snapshots.get(snapshot_id)
+            # Tenant-scoped (DUR-02): a tenant-A snapshot is never returned for
+            # tenant-B; unknown id returns None.
+            if snap is None or snap.tenant_id != tenant_id:
+                return None
+            return snap
 
     # -- budget ledger + gateway events ------------------------------------
     def record_budget_event(self, event: BudgetEvent) -> BudgetEvent:
@@ -476,6 +520,33 @@ def _row_to_promotion(row: tuple) -> PromotionRecord:
     )
 
 
+def _row_to_ai_bom(row: tuple) -> AIBOMSnapshot:
+    (
+        snapshot_id,
+        tenant_id,
+        client_slug,
+        version,
+        agents,
+        tools,
+        skills,
+        prompts,
+        model_routes,
+        created_at,
+    ) = row
+    return AIBOMSnapshot(
+        snapshot_id=snapshot_id,
+        tenant_id=tenant_id,
+        client_slug=client_slug,
+        version=version,
+        agents=agents or [],
+        tools=tools or [],
+        skills=skills or [],
+        prompts=prompts or [],
+        model_routes=model_routes or {},
+        created_at=created_at,
+    )
+
+
 def _row_to_budget_event(row: tuple) -> BudgetEvent:
     (
         budget_event_id,
@@ -564,6 +635,10 @@ _PROMOTION_COLS = (
     "promotion_id, proposal_id, tenant_id, client_slug, approval_record_id, "
     "evaluation_id, promoted_version, previous_version, patch_hash, "
     "ai_bom_snapshot_id, rolled_back, rollback_reason, promoted_by, created_at"
+)
+_AI_BOM_COLS = (
+    "snapshot_id, tenant_id, client_slug, version, agents, tools, skills, "
+    "prompts, model_routes, created_at"
 )
 _BUDGET_COLS = (
     "budget_event_id, tenant_id, client_slug, budget_owner, task_id, model, "
@@ -960,6 +1035,67 @@ class RepositorySQL:
                 (promotion_id,),
             ).fetchone()
         return _row_to_promotion(row) if row else None
+
+    # -- active-version pointer (SI-02b) + AI-BOM persistence (SI-02) -------
+    def current_active_version(self, tenant_id: str) -> str | None:
+        # Tenant-scoped read (DUR-02): never another tenant's pointer.
+        with self._pool.connection() as conn:
+            row = conn.execute(
+                "SELECT active_version FROM self_improvement_active_version "
+                "WHERE tenant_id = %s",
+                (tenant_id,),
+            ).fetchone()
+        return row[0] if row else None
+
+    def set_active_version(
+        self, tenant_id: str, version: str, promotion_id: str | None = None
+    ) -> None:
+        # Upsert the per-tenant pointer (mirrors the upsert_promotion shape).
+        with self._pool.connection() as conn:
+            conn.execute(
+                "INSERT INTO self_improvement_active_version "
+                "(tenant_id, active_version, promotion_id, updated_at) "
+                "VALUES (%s,%s,%s,now()) "
+                "ON CONFLICT (tenant_id) DO UPDATE SET "
+                "active_version=EXCLUDED.active_version, "
+                "promotion_id=EXCLUDED.promotion_id, updated_at=now()",
+                (tenant_id, version, promotion_id),
+            )
+
+    def upsert_ai_bom(self, snapshot: AIBOMSnapshot) -> AIBOMSnapshot:
+        from psycopg.types.json import Jsonb
+
+        with self._pool.connection() as conn:
+            conn.execute(
+                "INSERT INTO ai_bom_snapshots (snapshot_id, tenant_id, "
+                "client_slug, version, agents, tools, skills, prompts, "
+                "model_routes, created_at) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
+                "ON CONFLICT (snapshot_id) DO NOTHING",
+                (
+                    snapshot.snapshot_id,
+                    snapshot.tenant_id,
+                    snapshot.client_slug,
+                    snapshot.version,
+                    Jsonb(snapshot.model_dump(mode="json")["agents"]),
+                    Jsonb(snapshot.model_dump(mode="json")["tools"]),
+                    Jsonb(snapshot.model_dump(mode="json")["skills"]),
+                    Jsonb(snapshot.model_dump(mode="json")["prompts"]),
+                    Jsonb(snapshot.model_dump(mode="json")["model_routes"]),
+                    snapshot.created_at,
+                ),
+            )
+        return snapshot
+
+    def get_ai_bom(self, snapshot_id: str, tenant_id: str) -> AIBOMSnapshot | None:
+        # Tenant-scoped read (DUR-02): a tenant mismatch returns None.
+        with self._pool.connection() as conn:
+            row = conn.execute(
+                f"SELECT {_AI_BOM_COLS} FROM ai_bom_snapshots "
+                "WHERE snapshot_id = %s AND tenant_id = %s",
+                (snapshot_id, tenant_id),
+            ).fetchone()
+        return _row_to_ai_bom(row) if row else None
 
     # -- budget ledger + gateway events (GW-01 / D-04 / DUR-02) -------------
     def record_budget_event(self, event: BudgetEvent) -> BudgetEvent:

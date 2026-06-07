@@ -11,7 +11,6 @@ pointer/snapshot owned by tenant A must NEVER be returned for tenant B.
 from agent_mesh.contracts.models import AIBOMSnapshot
 from agent_mesh.services.repository import InMemoryRepository
 
-
 # ---------------------------------------------------------------------------
 # Active-version pointer (SI-02b)
 # ---------------------------------------------------------------------------

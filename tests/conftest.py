@@ -189,3 +189,61 @@ def span_exporter():
     )
 
     return InMemorySpanExporter()
+
+
+# ---------------------------------------------------------------------------
+# Phase-6 shared scaffolding (self-improvement). Consumed by 06-02/06-03's
+# default-lane (creds-free) tests so those plans own zero overlapping files.
+# ---------------------------------------------------------------------------
+
+
+class _RecordingReflector:
+    """A recording fake reflector (mirrors ``_RecordingRouter`` above).
+
+    Records the evidence passed to each ``reflect`` call and returns a canned,
+    non-empty diff string — no network, no creds, fully deterministic. Lets a
+    downstream test assert exactly-which evidence the proposer mined without a
+    real model call.
+    """
+
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+        self.diff = "--- a/prompt\n+++ b/prompt\n@@\n-old\n+improved\n"
+
+    def reflect(self, *, evidence=None, **kwargs):
+        self.calls.append({"evidence": evidence, **kwargs})
+        return self.diff
+
+
+@pytest.fixture
+def stub_reflector() -> _RecordingReflector:
+    """A call-recording fake reflector (no network, no creds)."""
+    return _RecordingReflector()
+
+
+@pytest.fixture
+def frozen_holdout_items() -> list[dict]:
+    """A small deterministic held-out experiment set (LocalExperimentItem-shaped).
+
+    Each item is a ``{"input", "expected_output", "metadata": {"item_id"}}`` dict
+    keyed by a stable ``item_id`` so downstream 06-02/06-03 eval-baseline tests
+    are reproducible. Mirrors langfuse's ``LocalExperimentItem`` TypedDict shape
+    (``input`` / ``expected_output`` / ``metadata``).
+    """
+    return [
+        {
+            "input": "Summarize the Q1 revenue report.",
+            "expected_output": "Q1 revenue grew 12% QoQ.",
+            "metadata": {"item_id": "holdout-001", "category": "summary"},
+        },
+        {
+            "input": "Classify sentiment: 'This release is fantastic.'",
+            "expected_output": "positive",
+            "metadata": {"item_id": "holdout-002", "category": "classification"},
+        },
+        {
+            "input": "Extract the due date from: 'Invoice due 2026-07-01.'",
+            "expected_output": "2026-07-01",
+            "metadata": {"item_id": "holdout-003", "category": "extraction"},
+        },
+    ]
