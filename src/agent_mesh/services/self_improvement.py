@@ -200,6 +200,22 @@ def evaluate_proposal(
             evaluator="deterministic-checks",
             summary="passed" if passed else "failed deterministic checks",
         )
+    elif not proposal.proposed_patch.strip():
+        # Empty-patch guard (WR-01): the default creds-free replay candidate matches
+        # the golden baseline by construction, so the held-out no-regression gate
+        # passes for ANY patch — including an empty one. Mirror the explicit-checks
+        # path's bool(proposed_patch.strip()) gate so an empty proposal is rejected
+        # rather than rubber-stamped EVALUATION_PASSED. Real candidate-vs-baseline
+        # discrimination is the live LLM judge (06-04) or caller deterministic_checks.
+        result = EvaluationResult(
+            proposal_id=proposal_id,
+            tenant_id=proposal.tenant_id,
+            passed=False,
+            pending=False,
+            checks=[{"reason": "empty_proposed_patch"}],
+            evaluator="holdout-harness",
+            summary="empty proposed_patch; rejected",
+        )
     else:
         # Default real-evaluation path: score the candidate over the held-out pool
         # via a creds-free run_experiment, then gate on aggregate + item-level
