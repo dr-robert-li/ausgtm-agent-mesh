@@ -78,6 +78,8 @@ def generate_ml_bom(
 
 The two manifest paths default to the fixed repo locations, so the 06-06 call site need not source them. Pass the returned id into `PromotionRecord.ai_bom_snapshot_id`.
 
+**06-06 CWD caveat (latent FileNotFoundError):** the relative manifest defaults are read via bare `Path(path).read_text()`, so they resolve against the **process CWD**, not the repo root. The codebase already establishes that CWD ≠ repo root in a Cloud Run Job worker (`gateway.py` anchors relative schema refs with the "CWD is NOT the repo root in a Cloud Run Job (04-02 handoff)" comment). `generate_ml_bom` is called from `promote_proposal`, which runs in that worker context. If 06-06's call site is not guaranteed repo-root, it MUST pass **repo-root-anchored absolute** `deployment_manifest_path` / `tool_pack_manifest_path`. The default-lane tests pass only because pytest runs from the worktree root; they cannot catch this.
+
 ## Task Commits
 1. **Task 1 (TDD):**
    - RED — `fc58358` (test: 6 failing tests, `ModuleNotFoundError: agent_mesh.services.ai_bom`)
