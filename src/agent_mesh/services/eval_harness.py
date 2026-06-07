@@ -172,7 +172,13 @@ def scores_by_item(result: Any, *, evaluator: str = "exact_match") -> dict[str, 
         item = getattr(item_result, "item", {}) or {}
         item_id = (item.get("metadata") or {}).get("item_id")
         if item_id is None:
-            continue
+            # Raise rather than skip (WR-06): a silently-dropped item becomes a
+            # missing candidate key in passes_no_regression, which treats it as a
+            # 0.0 score — manufacturing a phantom regression of up to 1.0 against an
+            # item that was never scored, with no diagnostic. Fail loudly instead.
+            raise ValueError(
+                f"eval item missing metadata.item_id; cannot score: {item!r}"
+            )
         value = None
         for ev in getattr(item_result, "evaluations", []) or []:
             if getattr(ev, "name", None) == evaluator:
