@@ -25,6 +25,7 @@ Hard safety boundaries enforced here (POC):
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 from agent_mesh.contracts.enums import (
     NON_AUTO_PROMOTE_RISK,
@@ -41,8 +42,16 @@ from agent_mesh.contracts.models import (
     SelfImprovementProposal,
     TaskRecord,
 )
-from agent_mesh.services import approvals, eval_harness
+from agent_mesh.services import ai_bom, approvals, eval_harness
 from agent_mesh.services.repository import Repository
+
+# Repo root anchor (services -> agent_mesh -> src -> repo root). promote_proposal
+# runs in a worker whose CWD is not the repo root (gateway.py 04-02 handoff), so
+# the 06-05 ML-BOM generator must be handed REPO-ROOT-ANCHORED ABSOLUTE manifest
+# paths or it raises FileNotFoundError on the (relative-by-default) manifests.
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_DEPLOYMENT_MANIFEST = str(_REPO_ROOT / "manifests" / "deployment.manifest.yaml")
+_TOOL_PACK_MANIFEST = str(_REPO_ROOT / "manifests" / "tool_pack_manifest.yaml")
 
 # Proposal types that touch active instructions, permissions, routing, schemas,
 # or write policy. These are inherently at least HIGH risk: they always require
@@ -303,12 +312,33 @@ def promote_proposal(
         raise PromotionRefused(f"approval record for {proposal_id} not found")
 
     # Bind the approval to the exact artifact (payload-hash check), mirroring the
-    # tool-call approval gate.
+    # tool-call approval gate. Everything below runs ONLY after this chokepoint,
+    # so the refusal tests still short-circuit before any ML-BOM / manifest read.
     if not approvals.is_approved(record, {"proposed_patch": proposal.proposed_patch}):
         raise PromotionRefused(
             f"proposal {proposal_id} is not approved for its current artifact; "
             "promotion refused"
         )
+
+    # Generate the 06-05 CycloneDX ML-BOM so the promotion is AI-BOM-traceable
+    # (SI-02). A real snapshot id is ALWAYS produced on promote; the kwarg only
+    # lets a caller override with a pre-built snapshot. Manifest paths are passed
+    # repo-root-anchored absolute (the generator's defaults are relative and would
+    # break in the worker CWD — 06-05 handoff). The dataset/route labels are
+    # config-driven optional metadata with fallback defaults (D-15), never null,
+    # so ai_bom_snapshot_id can never remain unset.
+    snapshot_id = ai_bom_snapshot_id or ai_bom.generate_ml_bom(
+        repo,
+        promoted_version=promoted_version,
+        previous_version=previous_version,
+        dataset_version=proposal.metadata.get("dataset_version", "unversioned"),
+        evaluation_id=passing.evaluation_id,
+        tenant_id=proposal.tenant_id,
+        client_slug=proposal.client_slug,
+        route_profile=proposal.metadata.get("model_route_profile", "mixed-cascade"),
+        deployment_manifest_path=_DEPLOYMENT_MANIFEST,
+        tool_pack_manifest_path=_TOOL_PACK_MANIFEST,
+    )
 
     promotion = PromotionRecord(
         proposal_id=proposal_id,
@@ -319,10 +349,15 @@ def promote_proposal(
         promoted_version=promoted_version,
         previous_version=previous_version,
         patch_hash=proposal.patch_hash or "",
-        ai_bom_snapshot_id=ai_bom_snapshot_id,
+        ai_bom_snapshot_id=snapshot_id,
         promoted_by=promoted_by,
     )
     repo.upsert_promotion(promotion)
+    # Write the active-version pointer (SI-02b). This is NON-HOT: it updates the
+    # durable store only. The running process keeps serving whatever version it
+    # read at boot via version_pin.active_version() until an explicit, human-owned
+    # reload re-reads this pointer. We deliberately do NOT call any loader here.
+    repo.set_active_version(proposal.tenant_id, promoted_version, promotion.promotion_id)
     _set_status(repo, proposal, ProposalStatus.PROMOTED)
     return promotion
 
@@ -341,6 +376,15 @@ def rollback_promotion(
         update={"rolled_back": True, "rollback_reason": reason}
     )
     repo.upsert_promotion(updated)
+    # Re-point the active pointer to previous_version (D-13): rollback must
+    # actually restore the prior version, not merely flip a status flag. The next
+    # boot's load_active_version_at_boot() reads the restored version. set_active_version
+    # requires a str, so a promotion that had no previous_version (the very first
+    # promote) cannot be re-pointed — leave the pointer untouched in that case.
+    if promotion.previous_version is not None:
+        repo.set_active_version(
+            promotion.tenant_id, promotion.previous_version, promotion.promotion_id
+        )
     proposal = repo.get_proposal(promotion.proposal_id)
     if proposal is not None:
         _set_status(repo, proposal, ProposalStatus.ROLLED_BACK)
