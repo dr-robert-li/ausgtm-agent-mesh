@@ -174,33 +174,53 @@ tools:
     freshness_sla: "live"
     rate_limit_notes: "Respect HubSpot app rate limits."
 
-  # ---------------- Xero (financial) ----------------
+  # ---------------- Xero (financial — via Composio aggregator) ----------------
+  # Xero rides the EXISTING composio.py adapter (verb-agnostic session.execute),
+  # so no new Xero module and no nango.py edit. Aggregate tools get NO schema
+  # refs (D-04 permissive/runtime branch validates against the runtime provider
+  # schema). Composio brokers the Xero OAuth + tenant.
   - name: "xero_read_invoices"
     provider: "xero"
-    integration_style: "nango_aggregator"
+    integration_style: "composio_aggregator"
     category: "read"
     description: "Read invoices/contacts for financial context."
     approval_required: false
-    credential_secret_name: "XERO_OAUTH"
+    credential_secret_name: "COMPOSIO_API_KEY"
     resource_bindings:
-      tenant_id: "REPLACE_WITH_XERO_TENANT_ID"
+      tool_slug: "XERO_LIST_INVOICES"
+      user_id: "mesh-tenant-example"
     freshness_sla: "1h"
     rate_limit_notes: "Respect Xero API rate limits."
 
   - name: "xero_create_invoice"
     provider: "xero"
-    integration_style: "nango_aggregator"
+    integration_style: "composio_aggregator"
     category: "financial"
     description: "Create a draft Xero invoice (never auto-finalised)."
     approval_required: true
-    credential_secret_name: "XERO_OAUTH"
+    credential_secret_name: "COMPOSIO_API_KEY"
     resource_bindings:
-      tenant_id: "REPLACE_WITH_XERO_TENANT_ID"
-      account_code: "REPLACE_WITH_ACCOUNT_CODE"
+      tool_slug: "XERO_CREATE_INVOICE"
+      user_id: "mesh-tenant-example"
     freshness_sla: "live"
     rate_limit_notes: "Respect Xero API rate limits."
 
-  # ---------------- Webflow (publishing) ----------------
+  # ---------------- Webflow (read + publishing) ----------------
+  - name: "webflow_list_cms_items"
+    provider: "webflow"
+    integration_style: "direct_api"
+    category: "read"
+    description: "List Webflow CMS collection items for grounding/evidence."
+    approval_required: false
+    credential_secret_name: "WEBFLOW_API_TOKEN"
+    resource_bindings:
+      site_id: "REPLACE_WITH_SITE_ID"
+      collection_id: "REPLACE_WITH_COLLECTION_ID"
+    input_schema_ref: "schemas/webflow_list_cms_items.input.schema.json"
+    output_schema_ref: "schemas/webflow_list_cms_items.output.schema.json"
+    freshness_sla: "15m"
+    rate_limit_notes: "Respect Webflow API rate limits."
+
   - name: "webflow_create_cms_item"
     provider: "webflow"
     integration_style: "direct_api"
@@ -211,21 +231,55 @@ tools:
     resource_bindings:
       site_id: "REPLACE_WITH_SITE_ID"
       collection_id: "REPLACE_WITH_COLLECTION_ID"
+    input_schema_ref: "schemas/webflow_create_cms_item.input.schema.json"
+    output_schema_ref: "schemas/webflow_create_cms_item.output.schema.json"
     freshness_sla: "live"
     rate_limit_notes: "Respect Webflow API rate limits."
 
-  # ---------------- Bitscale (read) ----------------
-  - name: "bitscale_enrich"
+  # ---------------- Bitscale (read + write) ----------------
+  # Real direct httpx adapter: base https://api.bitscale.ai/api/v1, X-API-Key.
+  # Reads (list_grids, get_workspace) are credit-free; run_grid is a write that
+  # consumes the client's paid credits → approval-gated AND stubbed even in the
+  # live lane (credit-safety). Ops match the wave-2 _BITSCALE_OPS dispatch keys.
+  - name: "bitscale_list_grids"
     provider: "bitscale"
     integration_style: "direct_api"
     category: "read"
-    description: "Enrich lead/account data for grounding."
+    description: "List Bitscale grids (credit-free) for grounding/evidence."
     approval_required: false
     credential_secret_name: "BITSCALE_API_KEY"
     resource_bindings:
-      workspace_id: "REPLACE_WITH_BITSCALE_WORKSPACE_ID"
+      grid_id: "REPLACE_WITH_BITSCALE_GRID_ID"
+    input_schema_ref: "schemas/bitscale_list_grids.input.schema.json"
+    output_schema_ref: "schemas/bitscale_list_grids.output.schema.json"
     freshness_sla: "1h"
     rate_limit_notes: "Respect Bitscale workspace limits."
+
+  - name: "bitscale_get_workspace"
+    provider: "bitscale"
+    integration_style: "direct_api"
+    category: "read"
+    description: "Read Bitscale workspace details (plan, credits, members) — credit-free."
+    approval_required: false
+    credential_secret_name: "BITSCALE_API_KEY"
+    input_schema_ref: "schemas/bitscale_get_workspace.input.schema.json"
+    output_schema_ref: "schemas/bitscale_get_workspace.output.schema.json"
+    freshness_sla: "1h"
+    rate_limit_notes: "Respect Bitscale workspace limits."
+
+  - name: "bitscale_run_grid"
+    provider: "bitscale"
+    integration_style: "direct_api"
+    category: "write"
+    description: "Run a Bitscale grid (appends a row + triggers enrichment) — consumes paid credits."
+    approval_required: true
+    credential_secret_name: "BITSCALE_API_KEY"
+    resource_bindings:
+      grid_id: "REPLACE_WITH_BITSCALE_GRID_ID"
+    input_schema_ref: "schemas/bitscale_run_grid.input.schema.json"
+    output_schema_ref: "schemas/bitscale_run_grid.output.schema.json"
+    freshness_sla: "live"
+    rate_limit_notes: "Respect Bitscale workspace limits; run_grid burns paid credits."
 
   # ---------------- Cal.com (read + write) ----------------
   - name: "calcom_list_bookings"
@@ -235,6 +289,8 @@ tools:
     description: "List upcoming bookings for scheduling context."
     approval_required: false
     credential_secret_name: "CALCOM_API_KEY"
+    input_schema_ref: "schemas/calcom_list_bookings.input.schema.json"
+    output_schema_ref: "schemas/calcom_list_bookings.output.schema.json"
     freshness_sla: "15m"
     rate_limit_notes: "Respect Cal.com API limits."
 
@@ -247,6 +303,8 @@ tools:
     credential_secret_name: "CALCOM_API_KEY"
     resource_bindings:
       event_type_id: "REPLACE_WITH_EVENT_TYPE_ID"
+    input_schema_ref: "schemas/calcom_create_booking.input.schema.json"
+    output_schema_ref: "schemas/calcom_create_booking.output.schema.json"
     freshness_sla: "live"
     rate_limit_notes: "Respect Cal.com API limits."
 
@@ -260,6 +318,9 @@ tools:
     credential_secret_name: "CLOCKIFY_API_KEY"
     resource_bindings:
       workspace_id: "REPLACE_WITH_CLOCKIFY_WORKSPACE_ID"
+      user_id: "REPLACE_WITH_CLOCKIFY_USER_ID"
+    input_schema_ref: "schemas/clockify_read_time_entries.input.schema.json"
+    output_schema_ref: "schemas/clockify_read_time_entries.output.schema.json"
     freshness_sla: "1h"
     rate_limit_notes: "Respect Clockify API limits."
 
@@ -305,5 +366,7 @@ tools:
     credential_secret_name: "BEEHIIV_API_KEY"
     resource_bindings:
       publication_id: "REPLACE_WITH_PUBLICATION_ID"
+    input_schema_ref: "schemas/beehiiv_create_post.input.schema.json"
+    output_schema_ref: "schemas/beehiiv_create_post.output.schema.json"
     freshness_sla: "live"
     rate_limit_notes: "Respect Beehiiv API limits."
