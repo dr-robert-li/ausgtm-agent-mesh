@@ -23,11 +23,40 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from agent_mesh.contracts.enums import ToolCategory
 from agent_mesh.tools import aggregate_schema
 from agent_mesh.tools.adapters import register
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from agent_mesh.tools.gateway import ToolSpec
+
+
+def _enforce_financial_draft(spec: ToolSpec, params: dict) -> dict:
+    """FORCE financial writes to DRAFT (T-05-07-01).
+
+    The aggregator seam is verb-agnostic and passes ``params`` to the Tool Router
+    verbatim — so unlike the direct publishing adapters (webflow ``isDraft:true``,
+    beehiiv ``status:"draft"``), there is no provider module to host a draft-force.
+    This cross-cutting rule supplies the in-code FORCE counterpart, gated by
+    ``category == FINANCIAL`` (currently only ``xero_create_invoice``) rather than by
+    provider, so the seam stays generic: a financial write is NEVER auto-finalised.
+
+    Any caller-supplied non-DRAFT ``Status`` (e.g. ``AUTHORISED``, ``SUBMITTED``) is
+    rejected loudly — an agent trying to finalise a financial document is a real
+    signal, not something to silently coerce. Otherwise ``Status: DRAFT`` is injected.
+    Returns a new dict; never mutates the caller's params. The approval gate
+    (payload-hash bound) remains the primary control; this is defence-in-depth.
+    """
+    if spec.category != ToolCategory.FINANCIAL:
+        return params
+    requested = params.get("Status")
+    if requested is not None and str(requested).upper() != "DRAFT":
+        raise ValueError(
+            "composio financial write: refusing non-DRAFT "
+            f"Status={requested!r} — POC financial writes are DRAFT-only "
+            "(never auto-finalised or authorised)"
+        )
+    return {**params, "Status": "DRAFT"}
 
 
 def composio_adapter(spec: ToolSpec, params: dict, *, credential: str | None) -> dict:
@@ -47,6 +76,10 @@ def composio_adapter(spec: ToolSpec, params: dict, *, credential: str | None) ->
     """
     if credential is None:
         return None  # type: ignore[return-value]  # defensive; engine stubs before here
+
+    # T-05-07-01: force financial writes to DRAFT BEFORE the SDK import, so the
+    # non-DRAFT rejection path is exercisable in the default lane (no composio SDK).
+    params = _enforce_financial_draft(spec, params)
 
     # LAZY SDK import — keeps the module import-safe (and the registration reachable)
     # without the composio package installed in the default lane.

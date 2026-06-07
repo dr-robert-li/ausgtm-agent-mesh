@@ -88,3 +88,54 @@ def test_nango_adapter_has_no_nango_package_import():
     assert "import nango" not in text
     assert "from nango" not in text
     assert "proxy" in text  # the httpx proxy path is present
+
+
+# --- T-05-07-01: financial writes forced to DRAFT in the verb-agnostic composio seam ---
+
+from agent_mesh.contracts.enums import ToolCategory  # noqa: E402
+from agent_mesh.tools.adapters.composio import _enforce_financial_draft  # noqa: E402
+from agent_mesh.tools.gateway import ToolSpec  # noqa: E402
+
+
+def _spec(category: ToolCategory) -> ToolSpec:
+    return ToolSpec(
+        name="xero_create_invoice" if category is ToolCategory.FINANCIAL else "xero_read_invoices",
+        provider="xero",
+        category=category,
+        description="test",
+        approval_required=category is ToolCategory.FINANCIAL,
+        credential_secret_name="COMPOSIO_API_KEY",
+        resource_bindings={"tool_slug": "XERO_CREATE_INVOICE"},
+        integration_style="composio_aggregator",
+    )
+
+
+def test_financial_write_forces_draft_when_no_status():
+    out = _enforce_financial_draft(_spec(ToolCategory.FINANCIAL), {"contactId": "abc"})
+    assert out["Status"] == "DRAFT"
+    assert out["contactId"] == "abc"
+
+
+def test_financial_write_overwrites_lowercase_draft_to_canonical():
+    out = _enforce_financial_draft(_spec(ToolCategory.FINANCIAL), {"Status": "draft"})
+    assert out["Status"] == "DRAFT"
+
+
+def test_financial_write_rejects_non_draft_status():
+    import pytest as _pytest
+
+    for bad in ("AUTHORISED", "SUBMITTED", "PAID"):
+        with _pytest.raises(ValueError, match="DRAFT-only"):
+            _enforce_financial_draft(_spec(ToolCategory.FINANCIAL), {"Status": bad})
+
+
+def test_financial_guard_does_not_mutate_caller_params():
+    original = {"contactId": "abc"}
+    _enforce_financial_draft(_spec(ToolCategory.FINANCIAL), original)
+    assert "Status" not in original  # new dict returned; caller params untouched
+
+
+def test_non_financial_category_is_untouched():
+    params = {"page": 1}
+    out = _enforce_financial_draft(_spec(ToolCategory.READ), params)
+    assert out is params and "Status" not in out  # read path: no injection, no copy

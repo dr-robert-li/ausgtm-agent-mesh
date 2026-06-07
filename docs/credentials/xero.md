@@ -45,8 +45,12 @@ Both entries live in `manifests/tool_pack_manifest.yaml` under `provider: xero`,
 
 - **Approval-gated upstream** — it is reached only after the human-in-the-loop
   write-approval gate (payload-hash bound), like every write-class tool.
-- **DRAFT-only** — the created invoice is `Status: DRAFT` and is **never auto-finalised**
-  or authorised. Finalising/sending a Xero invoice is out of scope for the POC.
+- **DRAFT-only (code-enforced)** — the composio adapter's `_enforce_financial_draft`
+  forces `Status: DRAFT` on every `category: financial` call before dispatch and
+  **rejects any caller-supplied non-DRAFT `Status`** (`AUTHORISED`/`SUBMITTED`/…), so the
+  created invoice is **never auto-finalised** or authorised. This is the aggregator-seam
+  counterpart of the direct adapters' draft-force (webflow `isDraft`, beehiiv `status`).
+  Finalising/sending a Xero invoice is out of scope for the POC.
 
 It is **not exercised in the live lane**; its mapping rides Composio's verb-agnostic
 `session.execute` and is proven structurally (the default-lane resolution test asserts it
