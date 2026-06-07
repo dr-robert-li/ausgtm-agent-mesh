@@ -1086,6 +1086,11 @@ class RepositorySQL:
     def upsert_ai_bom(self, snapshot: AIBOMSnapshot) -> AIBOMSnapshot:
         from psycopg.types.json import Jsonb
 
+        # Serialize once and reuse (WR-03): five separate model_dump(mode="json")
+        # calls re-serialize the whole model each time, and any per-call datetime
+        # coercion variance could persist slightly different JSONB across the
+        # columns of a single snapshot row. One dump guarantees consistency.
+        dumped = snapshot.model_dump(mode="json")
         with self._pool.connection() as conn:
             conn.execute(
                 "INSERT INTO ai_bom_snapshots (snapshot_id, tenant_id, "
@@ -1098,11 +1103,11 @@ class RepositorySQL:
                     snapshot.tenant_id,
                     snapshot.client_slug,
                     snapshot.version,
-                    Jsonb(snapshot.model_dump(mode="json")["agents"]),
-                    Jsonb(snapshot.model_dump(mode="json")["tools"]),
-                    Jsonb(snapshot.model_dump(mode="json")["skills"]),
-                    Jsonb(snapshot.model_dump(mode="json")["prompts"]),
-                    Jsonb(snapshot.model_dump(mode="json")["model_routes"]),
+                    Jsonb(dumped["agents"]),
+                    Jsonb(dumped["tools"]),
+                    Jsonb(dumped["skills"]),
+                    Jsonb(dumped["prompts"]),
+                    Jsonb(dumped["model_routes"]),
                     snapshot.created_at,
                 ),
             )
