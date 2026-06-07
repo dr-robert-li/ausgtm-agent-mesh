@@ -114,7 +114,20 @@ def _run_grid(
         return None
     import httpx  # noqa: PLC0415
 
-    grid_id = (spec.resource_bindings or {}).get("grid_id") or params.get("grid_id")
+    # Operator binding wins ONLY when it is a real id. The shipped manifest carries a
+    # ``REPLACE_WITH_*`` placeholder; left truthy it would beat the schema-validated
+    # ``params['grid_id']`` and get POSTed verbatim — a credit-consuming write to a
+    # garbage URL. Reject placeholder/empty bindings, then hard-fail before dispatch if
+    # nothing real resolved (CR-02 / WR-01).
+    binding_grid = (spec.resource_bindings or {}).get("grid_id")
+    if not binding_grid or binding_grid.startswith("REPLACE_WITH_"):
+        binding_grid = None
+    grid_id = binding_grid or params.get("grid_id")
+    if not grid_id or grid_id.startswith("REPLACE_WITH_"):
+        raise ValueError(
+            "bitscale_run_grid: grid_id unresolved or still a placeholder; "
+            "refusing credit-consuming POST"
+        )
     body = {"inputs": params.get("inputs", {})}
     resp = httpx.request(
         "POST",

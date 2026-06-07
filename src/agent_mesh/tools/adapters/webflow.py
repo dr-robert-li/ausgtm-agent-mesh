@@ -116,6 +116,11 @@ def _create_cms_item(
     resp.raise_for_status()  # accept the 202 staged-item response
     body = resp.json()
 
+    if not isinstance(body, dict) or body.get("id") is None:
+        raise ValueError(
+            "webflow_create_cms_item: unexpected response shape (missing 'id'); "
+            "refusing to map"
+        )
     result: dict[str, Any] = {"id": str(body["id"])}
     for key in ("fieldData", "isDraft", "lastPublished", "lastUpdated", "createdOn"):
         if key in body and body[key] is not None:

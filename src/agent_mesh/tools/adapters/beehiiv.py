@@ -86,7 +86,7 @@ def _create_post(
 
     resp = httpx.post(
         f"{_BEEHIIV_API_BASE}/publications/{publication_id}/posts",
-        headers={"Authorization": f"Bearer {credential}"},
+        headers={"Authorization": f"Bearer {credential}", "Accept": "application/json"},
         json=body,
         timeout=30,
     )
@@ -94,9 +94,17 @@ def _create_post(
     payload = resp.json()
 
     # NESTED mapping: the real 201 body is {"data": {"id": ...}}; preserve the nesting
-    # (do NOT flatten to {"id": ...}) so it conforms to the output schema.
-    post_id = payload["data"]["id"]
-    return {"data": {"id": str(post_id)}}
+    # (do NOT flatten to {"id": ...}) so it conforms to the output schema. Guard the
+    # double-subscript — a tier-gated/changed endpoint can return a 2xx with another
+    # shape, and an unguarded KeyError would abort the worker rather than surface a
+    # clean error (CR-01).
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(data, dict) or data.get("id") is None:
+        raise ValueError(
+            "beehiiv_create_post: unexpected 2xx response shape "
+            "(expected {'data': {'id': ...}}); refusing to map"
+        )
+    return {"data": {"id": str(data["id"])}}
 
 
 # spec.name -> op. The SINGLE dispatcher routes by spec.name even though Beehiiv has one
