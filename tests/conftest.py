@@ -5,9 +5,16 @@ import pytest
 
 from agent_mesh.services.repository import InMemoryRepository
 
-_MIGRATIONS = ("0001_init.sql", "0002_self_improvement.sql", "0003_tool_call_fields.sql")
+_MIGRATIONS = (
+    "0001_init.sql",
+    "0002_self_improvement.sql",
+    "0003_tool_call_fields.sql",
+    "0004_active_version.sql",
+)
 _TABLES = (
     # Truncated between tests for isolation. CASCADE handles FK dependents.
+    "self_improvement_active_version",
+    "ai_bom_snapshots",
     "self_improvement_promotions",
     "self_improvement_evaluations",
     "self_improvement_proposals",
