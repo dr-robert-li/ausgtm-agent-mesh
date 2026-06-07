@@ -35,7 +35,6 @@ from __future__ import annotations
 import os
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any
 
 from agent_mesh.contracts.enums import ProposalType
 from agent_mesh.contracts.models import (
@@ -46,11 +45,41 @@ from agent_mesh.contracts.models import (
 from agent_mesh.services import self_improvement
 from agent_mesh.services.repository import Repository
 
-# --- Config-driven defaults (module constants, not call-site literals) ------
+# --- Config-driven defaults (config helpers, not call-site literals) --------
 # Conservative iteration cap for the bounded improvement loop (RESEARCH Q1/D-15:
-# config-driven conservative default, e.g. 3-5). Read once from the environment so
-# the loop bound is NEVER a bare integer literal at the call site (T-06-10).
-DEFAULT_MAX_ITERATIONS = int(os.getenv("SI_IMPROVE_MAX_ITERATIONS", "3"))
+# config-driven conservative default, e.g. 3-5). The loop bound is NEVER a bare
+# integer literal at the call site (T-06-10).
+
+
+def _parse_max_iterations() -> int:
+    """Resolve SI_IMPROVE_MAX_ITERATIONS lazily, with a clear error (WR-05).
+
+    Parsing at IMPORT time (the old ``int(os.getenv(...))`` module constant) means a
+    non-integer env var raises a ``ValueError`` from import machinery, crashing the
+    worker before any useful diagnostics. Resolving on first use surfaces a precise,
+    actionable message instead.
+    """
+    raw = os.getenv("SI_IMPROVE_MAX_ITERATIONS", "3")
+    try:
+        value = int(raw)
+    except ValueError:
+        raise ValueError(
+            f"SI_IMPROVE_MAX_ITERATIONS must be an integer; got {raw!r}"
+        ) from None
+    if value < 1:
+        raise ValueError(f"SI_IMPROVE_MAX_ITERATIONS must be >= 1; got {value}")
+    return value
+
+
+def __getattr__(name: str) -> int:
+    """Lazily resolve ``DEFAULT_MAX_ITERATIONS`` on attribute access (PEP 562).
+
+    Keeps ``reflective_proposer.DEFAULT_MAX_ITERATIONS`` working for callers/tests
+    while deferring the env parse out of import time so a bad env var never crashes
+    module import (WR-05)."""
+    if name == "DEFAULT_MAX_ITERATIONS":
+        return _parse_max_iterations()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 # The proposer's train/dev item-id surface. DELIBERATELY in a distinct namespace
 # from the eval harness held-out ids (``holdout-0xx``) so the disjointness proven
@@ -161,15 +190,16 @@ def improve_loop(
     reflect_fn: Callable[..., str],
     *,
     gate_fn: Callable[[SelfImprovementProposal], bool] | None = None,
-    max_iterations: int = DEFAULT_MAX_ITERATIONS,
+    max_iterations: int | None = None,
 ) -> ImproveLoopResult:
     """Run a BOUNDED reflective-improvement loop (SI-03).
 
     Each round: mine traces → reflect → emit an inert DRAFT proposal → re-validate
     the candidate on the held-out set via ``gate_fn``. The loop stops EARLY once the
     gate passes; otherwise it halts at exactly ``max_iterations`` (never unbounded —
-    T-06-10). ``max_iterations`` defaults to the config-driven module constant
-    ``DEFAULT_MAX_ITERATIONS`` (no bare literal at the call site).
+    T-06-10). ``max_iterations`` defaults to the config-driven, lazily-resolved
+    ``_parse_max_iterations()`` (``SI_IMPROVE_MAX_ITERATIONS``; no bare literal at the
+    call site, and a bad env var never crashes module import).
 
     ``gate_fn`` is injectable: the default is the 06-02 held-out gate
     (``_default_gate``); a test injects an always-fail gate to prove boundedness.
@@ -177,6 +207,10 @@ def improve_loop(
     reflection signal."""
     if gate_fn is None:
         gate_fn = lambda proposal: _default_gate(repo, proposal)  # noqa: E731
+    # Resolve the config-driven cap lazily so a bad env var never crashes import
+    # (WR-05); an explicit caller value still wins.
+    if max_iterations is None:
+        max_iterations = _parse_max_iterations()
 
     last: SelfImprovementProposal | None = None
     iterations = 0
@@ -188,5 +222,12 @@ def improve_loop(
             passed = True
             break
 
-    assert last is not None  # max_iterations >= 1 guarantees at least one round
+    # Explicit guard, not assert (WR-04): python -O strips assert, and production
+    # workers often run with PYTHONOPTIMIZE=1. A zero/empty loop would otherwise
+    # fall through to use an unbound `last`. Raise a clear error instead.
+    if last is None:
+        raise RuntimeError(
+            "improve_loop exited without producing a proposal; "
+            "max_iterations may be zero or the train set is empty"
+        )
     return ImproveLoopResult(proposal=last, iterations=iterations, passed=passed)
