@@ -187,6 +187,41 @@ def test_promotion_refused_if_artifact_mutated_after_approval(repo):
         si.promote_proposal(repo, proposal.proposal_id, promoted_version="v2")
 
 
+def test_promote_refused_for_rolled_back_proposal(repo):
+    """CR-01: a rolled-back proposal cannot be re-promoted without fresh approval.
+
+    The passing evaluation and APPROVED approval record both survive a rollback, so
+    without a status guard ``promote_proposal`` would silently re-advance the active
+    version — bypassing the single human-gated chokepoint. The status guard refuses
+    it because the proposal is now ROLLED_BACK, not APPROVED.
+    """
+    task = _task(repo)
+    proposal = si.reflect_on_task(
+        repo,
+        task,
+        proposal_type=ProposalType.RUNBOOK_DOC_PATCH,
+        title="doc tweak",
+        rationale="x",
+        proposed_patch="content",
+    )
+    si.evaluate_proposal(repo, proposal.proposal_id)
+    si.open_promotion_approval(repo, proposal.proposal_id)
+    si.record_approval_decision(
+        repo, proposal.proposal_id, ApprovalDecision.APPROVED, "human:1", "slack"
+    )
+    promotion = si.promote_proposal(
+        repo, proposal.proposal_id, promoted_version="v2", previous_version="v1"
+    )
+    si.rollback_promotion(repo, promotion.promotion_id, reason="regression")
+    assert (
+        repo.get_proposal(proposal.proposal_id).status
+        == ProposalStatus.ROLLED_BACK.value
+    )
+    # Re-promotion with NO fresh approval must be refused.
+    with pytest.raises(si.PromotionRefused):
+        si.promote_proposal(repo, proposal.proposal_id, promoted_version="v3")
+
+
 def test_pending_evaluation_does_not_pass(repo):
     task = _task(repo)
     proposal = si.reflect_on_task(

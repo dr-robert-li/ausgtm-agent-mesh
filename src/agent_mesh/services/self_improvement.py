@@ -296,6 +296,18 @@ def promote_proposal(
     if proposal is None:
         raise KeyError(f"unknown proposal {proposal_id}")
 
+    # Refuse any proposal not currently in the APPROVED state. record_approval_decision
+    # sets APPROVED; rollback_promotion sets ROLLED_BACK and a successful promote sets
+    # PROMOTED. Without this guard a ROLLED_BACK proposal would re-promote (its passing
+    # evaluation + APPROVED approval record both still exist), and an already-PROMOTED
+    # proposal could double-promote — both silently bypass the single human-gated
+    # chokepoint (CR-01). A fresh promotion always requires a fresh APPROVED status.
+    if proposal.status != ProposalStatus.APPROVED.value:
+        raise PromotionRefused(
+            f"proposal {proposal_id} is {proposal.status!r}; only "
+            f"{ProposalStatus.APPROVED.value!r} proposals may be promoted"
+        )
+
     evaluations = repo.list_evaluations(proposal_id, proposal.tenant_id)
     passing = next((e for e in evaluations if e.passed and not e.pending), None)
     if passing is None:
