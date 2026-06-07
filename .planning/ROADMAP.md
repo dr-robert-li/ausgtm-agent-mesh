@@ -164,7 +164,7 @@ milestone via `/gsd:new-milestone` as a follow-up).
 **Plans**: 6 plans
 
 Plans:
-- [ ] 06-01-PLAN.md — Foundation (all shared-file edits): migration 0004 active-version pointer + repository.py current_active_version read/write (3 layers) + conftest stub-reflector/frozen-item fixtures + [aibom] extra + blocking cyclonedx supply-chain checkpoint (SI-02b) [wave 1]
+- [x] 06-01-PLAN.md — Foundation (all shared-file edits): migration 0004 active-version pointer + ai_bom_snapshots + repository.py current_active_version/set_active_version + upsert_ai_bom/get_ai_bom (3 layers) + conftest stub-reflector/frozen-item fixtures + [aibom] extra (cyclonedx 11.8.0 vetted) + blocking cyclonedx supply-chain checkpoint (SI-02b) [wave 1] _(completed 2026-06-07)_
 - [ ] 06-02-PLAN.md — Real held-out evaluation harness: creds-free Langfuse run_experiment over versioned frozen items + pure-Python item+run no-regression gate + evaluate_proposal body swap (SI-01, SI-01a, SI-01b, SI-01c) [wave 2, depends 06-01]
 - [ ] 06-03-PLAN.md — GEPA-style offline inert reflective proposer + bounded re-validated loop; held-out zero-overlap test (SI-03, SI-01a) [wave 3, depends 06-01/06-02]
 - [ ] 06-04-PLAN.md — Opt-in `live`-lane LLM-judge: order-swap position-bias control + TPR/FPR calibration + finite-sample Type-I gate + close-margin non-sole-arbiter guard (SI-01d) [wave 3, depends 06-01/06-02]

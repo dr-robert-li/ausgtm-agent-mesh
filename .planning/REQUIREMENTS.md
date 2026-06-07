@@ -79,7 +79,8 @@ expanded from stub-replacement to the real, Option-C-safe self-improvement **loo
   - [ ] **SI-02a**: The promotion snapshot is a **CycloneDX ML-BOM** (ECMA-424 v1.7) generated
     from the deployment + tool-pack manifests (prompts/tools/models/routes/dataset version/eval
     results), bound to the promoted version and retained for rollback + audit
-  - [ ] **SI-02b**: The promoted artifact is referenceable **only via versioned, non-hot wiring
+  - [x] **SI-02b
+**: The promoted artifact is referenceable **only via versioned, non-hot wiring
     read at next start/deploy**; rollback re-points the active version to `previous_version`;
     both proven by tests (a promotion does not change running config until an explicit
     reload/boot step)
