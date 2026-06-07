@@ -46,8 +46,14 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 # first-class home in the v1.7 schema (ModelCard gap #912).
 _PROP_NS = "agentmesh"
 
-_DEFAULT_DEPLOYMENT_MANIFEST = "manifests/deployment.manifest.yaml"
-_DEFAULT_TOOL_PACK_MANIFEST = "manifests/tool_pack_manifest.yaml"
+# Repo-root-anchored absolute defaults (WR-08): bare CWD-relative strings are a
+# latent FileNotFoundError for any future caller that omits the path kwargs in a
+# worker whose CWD is not the repo root. Anchor to this module's location
+# (services -> agent_mesh -> src -> repo root), matching self_improvement.py.
+_MODULE_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _MODULE_DIR.parents[2]
+_DEFAULT_DEPLOYMENT_MANIFEST = str(_REPO_ROOT / "manifests" / "deployment.manifest.yaml")
+_DEFAULT_TOOL_PACK_MANIFEST = str(_REPO_ROOT / "manifests" / "tool_pack_manifest.yaml")
 
 
 def cyclonedx_available() -> bool:
