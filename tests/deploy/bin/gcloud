@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# CATCH-ALL fake gcloud shim for the DEP-01 idempotency-logic harness.
+#
+# Contract (D-09 / T-07-10 mitigation):
+#   * Records its FULL argv (one line) to the file named by $SHIM_LOG.
+#   * Defaults to exit 0 ("resource exists" / reuse) so the linear, set -euo
+#     pipefail bootstrap script runs to completion and every argv is recorded.
+#   * Returns non-0 ("absent") ONLY when the joined argv matches the regex in
+#     $SHIM_ABSENT_PATTERN. The harness keys that pattern on a SPECIFIC describe
+#     verb (e.g. "artifacts repositories describe") so only the targeted
+#     reuse-vs-create branch flips; create/enable/add-iam-policy-binding always
+#     succeed and the script never aborts mid-run.
+#
+# This shim NEVER hands off to a real binary: it is record-and-exit only. There
+# is deliberately no delegation line (closes T-07-10; the no-delegate grep in the
+# acceptance criteria asserts this file mentions no real cli on an exec line).
+#
+# It is shadowed onto PATH ONLY inside subprocess.run(env=...); it never touches
+# the parent/session PATH.
+
+argv="$*"
+
+if [ -n "${SHIM_LOG:-}" ]; then
+  printf '%s\n' "${argv}" >> "${SHIM_LOG}"
+fi
+
+# Narrow "absent" decision: only a describe-class probe may report absent, and
+# only when it matches the test-supplied pattern. This guarantees create/enable/
+# binding calls always return 0, so the bootstrap script cannot abort under set -e.
+if [ -n "${SHIM_ABSENT_PATTERN:-}" ]; then
+  case "${argv}" in
+    *describe* )
+      if printf '%s' "${argv}" | grep -Eq -- "${SHIM_ABSENT_PATTERN}"; then
+        # Emit a tiny diagnostic to stderr (mirrors gcloud's not-found chatter)
+        # then report ABSENT so the `... describe ... || create` leg fires.
+        printf 'fake-gcloud: ABSENT match for: %s\n' "${argv}" >&2
+        exit 1
+      fi
+      ;;
+  esac
+fi
+
+# Some gcloud invocations are consumed via command substitution for a value
+# (e.g. projects describe --format='value(projectNumber)', sql instances
+# describe --format='value(connectionName)'). Emit a harmless placeholder so the
+# caller's variable is non-empty and downstream branches behave deterministically.
+case "${argv}" in
+  *--format=*projectNumber* ) printf '%s\n' "111111111111" ;;
+  *--format=*connectionName* ) printf '%s\n' "fake-project:australia-southeast1:fake-instance" ;;
+esac
+
+exit 0
