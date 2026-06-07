@@ -56,8 +56,37 @@ platform end-to-end and validate deploy-readiness. Each maps to a roadmap phase.
 
 ### Self-Improvement
 
-- [ ] **SI-01**: A real evaluation harness replaces the `evaluate_proposal` stub
-- [ ] **SI-02**: Promotion generates an AI-BOM snapshot and wires controlled, versioned (non-hot) promotion; rollback retained; no runtime mutation of active instructions/permissions/routing
+_Re-scoped 2026-06-07 (deep-research review of 2025–2026 self-evolving-agent SOTA): Phase 6
+expanded from stub-replacement to the real, Option-C-safe self-improvement **loop**. See
+`.planning/phases/06-self-improvement/06-CONTEXT.md` and `docs/self-improvement-loop.md`._
+
+- [ ] **SI-01**: A real evaluation harness replaces the `evaluate_proposal` stub — proposals are
+  scored by a Langfuse experiment run over a versioned held-out dataset, with item-level +
+  run-level no-regression gating vs the promoted baseline
+  - [ ] **SI-01a**: Proposals are scored on a held-out/realistic task set **distinct from any
+    signal the proposer optimized against** (anti-reward-hack control); the gate never reads the
+    optimization signal
+  - [ ] **SI-01b**: Promotion-eligibility requires candidate ≥ baseline on aggregate gate metrics
+    **AND** no item-level regression beyond a configured threshold
+  - [ ] **SI-01c**: Held-out eval items are deterministic frozen-context snapshots so candidate
+    and baseline are scored on identical inputs
+  - [ ] **SI-01d**: Any LLM-judge dimension runs **only** in the `live` opt-in lane, with
+    position-bias control (order-swap), calibrated against a human-labelled set (TPR/FPR) under a
+    statistically valid below-threshold / finite-sample Type-I gate, and is never the sole arbiter
+    for close-margin proposals; the default suite stays creds-free
+- [ ] **SI-02**: Promotion generates an AI-BOM snapshot and wires controlled, versioned (non-hot)
+  promotion; rollback retained; no runtime mutation of active instructions/permissions/routing
+  - [ ] **SI-02a**: The promotion snapshot is a **CycloneDX ML-BOM** (ECMA-424 v1.7) generated
+    from the deployment + tool-pack manifests (prompts/tools/models/routes/dataset version/eval
+    results), bound to the promoted version and retained for rollback + audit
+  - [ ] **SI-02b**: The promoted artifact is referenceable **only via versioned, non-hot wiring
+    read at next start/deploy**; rollback re-points the active version to `previous_version`;
+    both proven by tests (a promotion does not change running config until an explicit
+    reload/boot step)
+- [ ] **SI-03**: A log-driven reflective proposer (GEPA-style), run as a **separated, offline
+  meta-agent**, mines collected traces and emits **inert** prompt/workflow diffs only (never
+  applies, never auto-promotes); the improvement loop caps optimization iterations and
+  re-validates on the held-out set each round (held-out protected from proposer visibility)
 
 ### Validation
 
@@ -78,6 +107,17 @@ Deferred to future milestones. Tracked, not in current roadmap.
 
 - **DEP-03**: Live provisioning of Cloud SQL + Cloud Run in `australia-southeast1` and a live E2E run
 - **DEP-04**: FinOps review of live telemetry against the USD $65 infra and USD $50 model guardrails
+
+### Self-Evolving Surfaces (new milestone — "Self-Evolving Surfaces")
+
+_Deferred from Phase 6 (2026-06-07). A different evolve-surface than prompts/tools/routes; needs
+new data models and new regression controls. Flows through the same Phase-6 proposal→eval→ML-BOM→
+promotion gate, Option-C-safe._
+
+- **SI-04**: Memory growth/compression + skill-library promotion as governed, inert proposals,
+  with memory-poisoning regression controls
+- **SI-05**: Multi-agent topology / routing-depth evolution as governed, inert proposals, with
+  co-evolutionary-drift controls
 
 _(TOOL-03 and TOOL-04 promoted v2→v1 on 2026-06-06 — see Tools under v1. Driver: user reframed POC as MVP requiring viable general tool coverage, not a single-adapter proof.)_
 
@@ -117,8 +157,11 @@ Explicitly excluded. Documented to prevent scope creep.
 | TOOL-02 | Phase 4 | Pending |
 | TOOL-04 | Phase 4 | Pending |
 | TOOL-03 | Phase 5 | Pending |
-| SI-01 | Phase 6 | Pending |
-| SI-02 | Phase 6 | Pending |
+| SI-01 (+SI-01a–d) | Phase 6 | Pending |
+| SI-02 (+SI-02a–b) | Phase 6 | Pending |
+| SI-03 | Phase 6 | Pending |
+| SI-04 | Milestone "Self-Evolving Surfaces" | Deferred (v2) |
+| SI-05 | Milestone "Self-Evolving Surfaces" | Deferred (v2) |
 | E2E-01 | Phase 7 | Pending |
 | E2E-02 | Phase 7 | Pending |
 | E2E-03 | Phase 7 | Pending |
@@ -126,13 +169,24 @@ Explicitly excluded. Documented to prevent scope creep.
 | DEP-02 | Phase 7 | Pending |
 
 **Coverage:**
-- v1 requirements: 25 total
-- Mapped to phases: 25
+- v1 requirements: 26 top-level (SI-03 added; SI-01/SI-02 sub-IDs SI-01a–d, SI-02a–b are
+  acceptance facets of their parents, not separately counted)
+- Mapped to phases: 26
 - Unmapped: 0 ✓
+- Deferred to "Self-Evolving Surfaces" milestone (v2): SI-04, SI-05
 
 **Re-scope note (2026-06-06):** TOOL-03/04 promoted v2→v1; tool work split across Phases 4–5,
 self-improvement moved to Phase 6, E2E + deploy-readiness to Phase 7. Milestone grew 5→7 phases.
 
+**Re-scope note (2026-06-07):** Deep-research review of 2025–2026 self-evolving-agent SOTA.
+Phase 6 expanded from stub-replacement to the real Option-C self-improvement **loop**: SI-01
+sharpened (+SI-01a–d: held-out-distinct, item+run no-regression, frozen-context snapshots,
+opt-in calibrated judge), SI-02 sharpened (+SI-02a–b: CycloneDX ML-BOM, non-hot wiring +
+rollback), **SI-03 added** (GEPA-style offline inert proposer + bounded loop). Memory/skill/
+topology evolution deferred to a new "Self-Evolving Surfaces" milestone (SI-04, SI-05). The
+milestone is re-scoped to a governed self-evolving-agent build (PROJECT.md update + new-milestone
+creation are follow-up steps via `/gsd:new-milestone`).
+
 ---
 *Requirements defined: 2026-06-05*
-*Last updated: 2026-06-06 — TOOL-03/04 promoted v2→v1 (POC-as-MVP full tool coverage); re-phased to 7 phases*
+*Last updated: 2026-06-07 — Phase 6 expanded to the real self-improvement loop (SI-01 +a–d, SI-02 +a–b, SI-03); SI-04/SI-05 deferred to new milestone (deep-research-driven)*

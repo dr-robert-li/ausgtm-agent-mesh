@@ -30,7 +30,7 @@ resources.
 - [x] **Phase 3: Model Gateway & Observability** - Live LiteLLM gateway with budgets/cascades, Cloudflare AI Gateway upstream, Langfuse telemetry + prompt/eval management _(completed 2026-06-06; GW-01/02/03, OBS-01/02 — governed budget-halt closed via gap plan 03-04; OBS-01 tool-spans deferred to Phase 4)_
 - [x] **Phase 4: Tool Gateway Framework + First Adapters + Aggregators** - Reusable Tool Gateway execution engine (execution-time credential resolution, JSON-Schema in/out validation, tool-event OTel spans), HubSpot + Google Workspace direct adapters, Composio (primary) + Nango (fallback) aggregator styles _(completed 2026-06-06; TOOL-01, TOOL-02, TOOL-04 + OBS-01 tool-spans; framework verified against source 5/5 must-haves + 8 invariants, 215 tests green creds-free; live SC-1/SC-3 lanes opt-in and deferred to operator per milestone deploy-ready-only scope — run `make test-live` with creds)_
 - [x] **Phase 5: Reference Adapter Breadth** - Remaining reference providers — Webflow, Bitscale, Cal.com, Clockify, Beehiiv direct adapters; Xero via aggregator _(completed 2026-06-07; TOOL-03; 5 direct adapters + Xero-via-Composio (no new module) verified against source 4/4 success criteria, 242 tests green creds-free; live lanes opt-in/deferred to operator — `make test-live` with creds; code review 4 findings fixed in 80e6d4e, 1 by-design)_
-- [ ] **Phase 6: Self-Improvement** - Real evaluation harness replaces the stub; AI-BOM-on-promotion + controlled versioned (non-hot) promotion with rollback _(SI-01, SI-02)_
+- [ ] **Phase 6: Self-Improvement (real loop)** - Real held-out evaluation harness + GEPA-style offline inert proposer & bounded loop; CycloneDX ML-BOM-on-promotion + controlled versioned (non-hot) promotion with rollback. Option-C-safe (inert, human-gated, no runtime mutation) _(SI-01 +a–d, SI-02 +a–b, SI-03; expanded 2026-06-07 by deep-research; memory/skill/topology → new "Self-Evolving Surfaces" milestone as SI-04/SI-05)_
 - [ ] **Phase 7: E2E Validation & Deploy-Readiness** - Full end-to-end proofs + failure modes + idempotent deploy-script validation _(E2E-01/02/03, DEP-01/02)_
 
 > **Re-scope (2026-06-06):** POC reframed as MVP requiring viable general tool coverage. TOOL-03/04 promoted v2→v1; the old "Phase 4: Tools & Self-Improvement" split into a tool-framework phase (4), an adapter-breadth phase (5), and a self-improvement phase (6); E2E/deploy-readiness moved to Phase 7. Milestone grew 5→7 phases.
@@ -132,20 +132,44 @@ Plans:
 - [x] 05-06-PLAN.md — Beehiiv direct adapter (draft create_post, nested {data:{id}} output) (wave 2) (TOOL-03)
 - [x] 05-07-PLAN.md — Xero via Composio (existing adapter) + shared credential index + credential-docs guard extension (wave 3) (TOOL-03)
 
-### Phase 6: Self-Improvement
-**Goal**: Replace the `evaluate_proposal` stub with a real evaluation harness, and wire AI-BOM-on-promotion with controlled, versioned (non-hot) promotion and retained rollback — with no runtime mutation of active instructions, permissions, or routing (Option C).
+### Phase 6: Self-Improvement (real loop)
+**Goal**: Replace the `evaluate_proposal` stub with a real **held-out** evaluation harness; add a
+GEPA-style **offline, separated, inert** reflective proposer + bounded improvement loop; and wire
+**CycloneDX ML-BOM-on-promotion** with controlled, versioned (non-hot) promotion and retained
+rollback — Option-C-safe: proposals stay inert, promotion is the single human-gated chokepoint,
+and no active instructions/permissions/routing are mutated at runtime.
 **Depends on**: Phase 5
-**Requirements**: SI-01, SI-02
+**Requirements**: SI-01 (+SI-01a–d), SI-02 (+SI-02a–b), SI-03
+**Scope note**: Expanded 2026-06-07 from a 2-plan stub-replacement following a deep-research
+review of 2025–2026 self-evolving-agent SOTA (see `06-CONTEXT.md` → Canonical References).
+Memory/skill/topology evolution (SI-04/SI-05) deferred to a new **"Self-Evolving Surfaces"**
+milestone; this milestone is re-scoped to a governed self-evolving build (PROJECT.md + new
+milestone via `/gsd:new-milestone` as a follow-up).
 **Success Criteria** (what must be TRUE):
-  1. A self-improvement proposal is scored by a real evaluation harness, not a stub
-  2. Promotion generates an AI-BOM snapshot from the deployment + tool-pack manifests and records a versioned promotion with rollback
-  3. No active instructions/permissions/routing are mutated at runtime; the promoted artifact is referenceable only via versioned, non-hot wiring read at next start/deploy
-  4. Default suite stays green and creds-free; any LLM-judge scoring runs only in the opt-in lane
-**Plans**: 2 plans (set at planning)
+  1. A proposal is scored by a real Langfuse-experiment harness over a versioned **held-out**
+     dataset (deterministic frozen-context snapshots) **distinct from any signal the proposer
+     optimized against** — not a stub (SI-01, SI-01a, SI-01c)
+  2. Promotion-eligibility requires candidate ≥ baseline on aggregate metrics AND no item-level
+     regression beyond threshold (SI-01b)
+  3. A GEPA-style offline proposer mines traces and emits **inert** prompt/workflow diffs only;
+     the loop caps iterations and re-validates on the held-out set each round (held-out protected
+     from proposer visibility) (SI-03)
+  4. Promotion generates a **CycloneDX ML-BOM** snapshot from the deployment + tool-pack manifests
+     bound to a versioned promotion with rollback (SI-02, SI-02a)
+  5. No active instructions/permissions/routing mutated at runtime; promoted artifact referenceable
+     only via versioned non-hot wiring read at next start/deploy; rollback re-points to
+     `previous_version` (both proven by tests) (SI-02b)
+  6. Default suite stays green and creds-free; any LLM-judge scoring + judge calibration
+     (TPR/FPR, Type-I gate, order-swap) runs only in the `live` opt-in lane (SI-01d)
+**Plans**: set at planning (expanded scope — no longer 2)
 
 Plans:
-- [ ] 06-01: Real evaluation harness replacing the `evaluate_proposal` stub (SI-01)
-- [ ] 06-02: AI-BOM-on-promotion + controlled versioned (non-hot) promotion wiring + rollback (SI-02)
+- [ ] 06-01: Real held-out evaluation harness (Langfuse experiment runner, frozen-context
+  snapshots, item+run no-regression vs baseline; held-out distinct from optimization signal) (SI-01, SI-01a–c)
+- [ ] 06-02: GEPA-style offline inert reflective proposer + bounded re-validated loop (SI-03)
+- [ ] 06-03: Opt-in `live`-lane LLM-judge with position-bias control + calibration/Type-I gate (SI-01d)
+- [ ] 06-04: CycloneDX ML-BOM generator on promotion from manifests (SI-02, SI-02a)
+- [ ] 06-05: Versioned non-hot promotion wiring (boot-time version loader) + rollback re-point (SI-02b)
 
 ### Phase 7: E2E Validation & Deploy-Readiness
 **Goal**: Assemble all layers and prove the platform end-to-end — a write-gated Slack action from evidence, an MCP-triggered long checkpointed job returning an artifact, and the failure modes — then validate that the `gcloud` and `wrangler` deployment scripts are idempotent and GCP-ready without provisioning live resources.
@@ -174,5 +198,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 3. Model Gateway & Observability | 4/4 | Complete | 2026-06-06 |
 | 4. Tool Gateway Framework + First Adapters + Aggregators | 9/9 | Complete | 2026-06-06 |
 | 5. Reference Adapter Breadth | 0/7 | Planned | - |
-| 6. Self-Improvement | 0/2 | Not started | - |
+| 6. Self-Improvement (real loop) | 0/~5 | Not started | - |
 | 7. E2E Validation & Deploy-Readiness | 0/2 | Not started | - |
