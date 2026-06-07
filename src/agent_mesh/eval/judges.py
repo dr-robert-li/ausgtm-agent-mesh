@@ -238,6 +238,11 @@ def binomial_upper_tail(wins: int, n: int, p: float) -> float:
     """
     if n < 0 or not (0.0 <= p <= 1.0):
         raise ValueError("require n >= 0 and 0 <= p <= 1")
+    if wins < 0:
+        # Negative wins is a caller contract violation (IN-02): it would otherwise
+        # fall into the wins <= 0 branch and return 1.0 "correct by coincidence",
+        # masking a logic bug upstream. Reject it explicitly.
+        raise ValueError(f"wins must be >= 0; got {wins}")
     if wins <= 0:
         return 1.0
     if wins > n:
