@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 5 planned — 7 plans, plan-checker PASS; decisions Xero→Composio + Bitscale→real direct httpx (live-verified)
-last_updated: "2026-06-06T23:54:46.994Z"
-last_activity: 2026-06-06 -- Phase 05 execution started
+stopped_at: "Completed 05-01-PLAN.md (foundation: manifest + 18 schemas)"
+last_updated: "2026-06-07T00:04:57.791Z"
+last_activity: 2026-06-07
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 26
-  completed_plans: 19
-  percent: 73
+  completed_plans: 20
+  percent: 77
 ---
 
 # Project State
@@ -26,12 +26,12 @@ See: .planning/PROJECT.md (updated 2026-06-05)
 ## Current Position
 
 Phase: 05 (reference-adapter-breadth) — EXECUTING
-Plan: 1 of 7
+Plan: 2 of 7
 Plans: 05-01 foundation (all shared-file edits) → 05-02..06 parallel direct adapters → 05-07 Xero+docs+guard
-Status: Executing Phase 05
-Last activity: 2026-06-06 -- Phase 05 execution started
+Status: Ready to execute
+Last activity: 2026-06-07
 
-Progress: [██████░░░░] 57% (4/7 phases)
+Progress: [████████░░] 77%
 
 **Phase 4 result:** Tool Gateway execution engine (call-time credential resolution never leaked, Draft-2020-12 in/out validation with fail-closed-direct/permissive-aggregate, one tool-event OTel span per call). Adapters: HubSpot (single dispatcher), Google Workspace (9 ops / 6 products, one dispatcher + shared refresh-token scaffold), Composio (key `composio`) + Nango (key `nango`, httpx REST proxy, NO pip dep — PyPI `nango` confirmed unrelated/squatted). Read path executes ungated; writes stay payload-hash-ledger gated (SEC-01/02 intact). Supply-chain package-legitimacy gates T-04-05/06/08-SC recorded with operator sign-off (12-mo audit). **Deferred (operator, live creds):** SC-1 real HubSpot CRM call + SC-3 real Composio/Nango calls — `make test-live` per docs/credentials/README.md.
 
@@ -104,8 +104,8 @@ Items acknowledged and carried forward:
 
 ## Session Continuity
 
-Last session: --stopped-at
-Stopped at: Phase 5 planned — 7 plans, plan-checker PASS; decisions Xero→Composio + Bitscale→real direct httpx (live-verified)
+Last session: 2026-06-07T00:04:57.787Z
+Stopped at: Completed 05-01-PLAN.md (foundation: manifest + 18 schemas)
 
 **Planned Phase:** 05 (reference-adapter-breadth) — 7 plans — 2026-06-07
 Decisions (live-evidenced): Xero via Composio (key provisioned, proxy-execute off); Bitscale = real direct httpx adapter (api.bitscale.ai/api/v1, X-API-Key), reads-only live lane, run_grid credit-safe-stubbed. COMPOSIO_API_KEY + BITSCALE_API_KEY in .env (gitignored).
