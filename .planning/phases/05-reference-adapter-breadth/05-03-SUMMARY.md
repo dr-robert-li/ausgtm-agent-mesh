@@ -103,6 +103,15 @@ predate this plan (present at base cd596d8) and are untouched by it — out of s
 executor deviation rules (logged here, not fixed). The Bitscale adapter + its tests are fully green
 and creds-free.
 
+**Acceptance criterion #9 / the plan's third `<automated>` verify command (`pytest -q -m "not live"`
+exits 0) is ENVIRONMENT-blocked, not code-blocked.** The full suite is red in this lean worktree venv
+solely because the optional deps above are not installed (every failure is a `ModuleNotFoundError` for
+`opentelemetry`/`langgraph`/`langchain`/docker — none reference bitscale). Installing them is excluded
+from auto-fix (Rule 3, package installs). Proof the Bitscale change is not the cause: the additive
+own-file module leaves the shared registry/gateway intact, so the peer `test_hubspot_adapter.py` stays
+green alongside the 5 Bitscale tests. In an environment with the optional deps present, criterion #9
+passes.
+
 ## Self-Check: PASSED
 
 - FOUND: src/agent_mesh/tools/adapters/bitscale.py
