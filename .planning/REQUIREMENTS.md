@@ -50,7 +50,8 @@ platform end-to-end and validate deploy-readiness. Each maps to a roadmap phase.
 
 - [ ] **TOOL-01**: At least one real SaaS tool adapter (Google Workspace or HubSpot) executes a real call locally behind the Tool Gateway with credential resolution at execution time
 - [ ] **TOOL-02**: Tool input and output are validated against JSON Schema at the tool boundary
-- [ ] **TOOL-03**: Remaining reference tool adapters functional — Webflow, Bitscale, Cal.com, Clockify, Beehiiv as direct adapters; Xero via aggregator _(promoted v2→v1 2026-06-06: POC-as-MVP full tool coverage)_
+- [x] **TOOL-03
+**: Remaining reference tool adapters functional — Webflow, Bitscale, Cal.com, Clockify, Beehiiv as direct adapters; Xero via aggregator _(promoted v2→v1 2026-06-06: POC-as-MVP full tool coverage)_
 - [ ] **TOOL-04**: Aggregate-MCP, Nango-aggregator, and Composio-aggregator (MCP-native) integration styles exercised end-to-end. Composio primary + Nango fallback (peer aggregator options — MCP-native single-endpoint vs open-source unified-API); see Spike 001 (`.planning/spikes/001-composio-vs-nango-coverage/`) _(promoted v2→v1 2026-06-06)_
 
 ### Self-Improvement

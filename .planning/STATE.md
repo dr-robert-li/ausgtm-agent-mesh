@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Completed 05-01-PLAN.md (foundation: manifest + 18 schemas)"
-last_updated: "2026-06-07T00:23:11.642Z"
+stopped_at: "Completed 05-07-PLAN.md (final Phase-5 plan: Xero-via-Composio + credential index + drift-guard extension)"
+last_updated: "2026-06-07T00:31:12.512Z"
 last_activity: 2026-06-07
 progress:
   total_phases: 7
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 26
-  completed_plans: 25
-  percent: 96
+  completed_plans: 26
+  percent: 100
 ---
 
 # Project State
@@ -25,13 +25,13 @@ See: .planning/PROJECT.md (updated 2026-06-05)
 
 ## Current Position
 
-Phase: 05 (reference-adapter-breadth) — EXECUTING
-Plan: 2 of 7
-Plans: 05-01 foundation (all shared-file edits) → 05-02..06 parallel direct adapters → 05-07 Xero+docs+guard
-Status: Ready to execute
+Phase: 05 (reference-adapter-breadth) — COMPLETE (all 7 plans merged)
+Plan: 7 of 7 (final)
+Plans: 05-01 foundation (all shared-file edits) → 05-02..06 parallel direct adapters → 05-07 Xero+docs+guard ✓
+Status: Phase 05 complete — ready to plan Phase 06 (self-improvement, SI-01/02)
 Last activity: 2026-06-07
 
-Progress: [████████░░] 77%
+Progress: [██████████] 100%
 
 **Phase 4 result:** Tool Gateway execution engine (call-time credential resolution never leaked, Draft-2020-12 in/out validation with fail-closed-direct/permissive-aggregate, one tool-event OTel span per call). Adapters: HubSpot (single dispatcher), Google Workspace (9 ops / 6 products, one dispatcher + shared refresh-token scaffold), Composio (key `composio`) + Nango (key `nango`, httpx REST proxy, NO pip dep — PyPI `nango` confirmed unrelated/squatted). Read path executes ungated; writes stay payload-hash-ledger gated (SEC-01/02 intact). Supply-chain package-legitimacy gates T-04-05/06/08-SC recorded with operator sign-off (12-mo audit). **Deferred (operator, live creds):** SC-1 real HubSpot CRM call + SC-3 real Composio/Nango calls — `make test-live` per docs/credentials/README.md.
 
@@ -68,6 +68,7 @@ Suite on main: 135 passed, 10 skipped (live opt-in), ruff clean, smoke OK.
 - Trend: —
 
 *Updated after each plan completion*
+| Phase 05 P07 | 15 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,7 @@ Recent decisions affecting current work:
 - Init: Deploy-ready only — no live GCP provisioning this milestone
 - Init: Fix the critical `/v1/approvals` auth bypass this milestone (Phase 1)
 - Init: Coarse granularity, standard (horizontal-layer) phasing, quality model profile
+- 05-07: Xero rides existing composio adapter (no new module); BEEHIIV_LIVE_PUBLICATION_ID excluded via _NON_ENV (non-credential toggle) to keep credential-docs floor at 12
 
 ### Pending Todos
 
@@ -104,8 +106,8 @@ Items acknowledged and carried forward:
 
 ## Session Continuity
 
-Last session: 2026-06-07T00:04:57.787Z
-Stopped at: Completed 05-01-PLAN.md (foundation: manifest + 18 schemas)
+Last session: 2026-06-07T00:31:12.508Z
+Stopped at: Completed 05-07-PLAN.md (final Phase-5 plan: Xero-via-Composio + credential index + drift-guard extension)
 
 **Planned Phase:** 05 (reference-adapter-breadth) — 7 plans — 2026-06-07
 Decisions (live-evidenced): Xero via Composio (key provisioned, proxy-execute off); Bitscale = real direct httpx adapter (api.bitscale.ai/api/v1, X-API-Key), reads-only live lane, run_grid credit-safe-stubbed. COMPOSIO_API_KEY + BITSCALE_API_KEY in .env (gitignored).
