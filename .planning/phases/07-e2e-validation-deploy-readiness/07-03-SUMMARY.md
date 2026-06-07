@@ -38,7 +38,7 @@ key-decisions:
 
 patterns-established:
   - "Comment-immune AC greps: default-lane module must have ZERO `^pytestmark = pytest.mark.live` matches; live module must have exactly one (statement-anchored)"
-  - "Live spend bound (D-08/T-07-07): few-cents cap routed at the cheapest tier + a _boom leak guard proves the real provider is never reached past the halt, so the halt leg costs zero model tokens"
+  - "Live spend bound (D-08/T-07-07): few-cents cap + a seeded over-cap ledger row make the real budget.check halt DETERMINISTIC (robust to litellm price-map gaps and the planner's hard-coded high_complexity tier); a _boom leak guard proves the real provider is never reached past the halt, so the halt leg costs zero model tokens"
 
 requirements-completed: [E2E-03]
 
@@ -61,7 +61,7 @@ completed: 2026-06-07
 
 ## Accomplishments
 - **E2E-03 default lane (ROADMAP SC-3):** `test_e2e_failure_modes.py` composes the Phase-3 seams into ONE combined run — Stage A builds the real litellm Router via `build_router()` and forces `mock_testing_fallbacks=True` so the primary (`low-complexity`/`gemini-1.5-flash`) raises and the configured fallback (`gemini-1.5-pro`) serves (the mid-run retry-recovery); Stage B pins a singleton repo + tenant, records an over-cap budget row, forces the real `_delegate` path, and drives `Worker.process` to a governed `FAILED` terminal with exactly one `budget_halt` gateway_event (`provider_status is None`) and a `_boom` leak guard proving no provider was reached. **Verified PASSING** end-to-end with the litellm extra installed.
-- **E2E-03 live variant (D-06/D-08):** `test_e2e_failure_modes_live.py` is whole-module `pytest.mark.live` + `live_creds`-gated. Stage A wires a real broken-Vertex -> real-Anthropic fallback; Stage B sets a `$0.02` cap routed at the cheapest tier and drives the PRODUCTION `Worker.process` halt path to `FAILED` with the auto-emitted `budget_halt` event, leak-guarded so the halt fires before any spend. **Verified SKIPPING loudly** with no creds.
+- **E2E-03 live variant (D-06/D-08):** `test_e2e_failure_modes_live.py` is whole-module `pytest.mark.live` + `live_creds`-gated. Stage A wires a real broken-Vertex -> real-Anthropic fallback; Stage B sets a `$0.02` cap AND seeds a tiny over-cap ledger row so the real `budget.check` in the PRODUCTION `Worker.process` -> `_delegate` path raises `BudgetExceeded` DETERMINISTICALLY, halting to `FAILED` with the auto-emitted `budget_halt` event, leak-guarded so the halt fires before any spend. **Verified SKIPPING loudly** with no creds.
 - **Open design decision 1 resolved** (the retry leg has no deterministic standalone analog): in-cascade litellm recovery is read as the mid-run retry (option b); the literal Pub/Sub job-redelivery (`--max-delivery-attempts=5` + `--dead-letter-topic`) is asserted as deploy-config consistency in DEP-01 (plan 07-04). No new fault-injection harness — honors D-05.
 
 ## Task Commits

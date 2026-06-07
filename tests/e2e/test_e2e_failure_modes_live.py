@@ -13,17 +13,25 @@ boundaries:
     error propagates and the REAL Anthropic deployment serves — a real provider error
     is NOT a faked boundary (contrast the stub lane).
 
-  STAGE B (real cents-cap halt, D-08): a FEW-CENTS budget cap routed at the cheapest
-    tier makes the REAL pre-call ``BudgetTracker.check`` estimate exceed the cap, so the
-    PRODUCTION ``Worker.process`` -> ``graph._delegate`` halt path fires for PENNIES and
-    transitions the task to a governed FAILED terminal with an auto-emitted
-    ``budget_halt`` gateway_event. NO provider call happens beyond the cap (a leak guard
-    proves it), so the real spend is bounded to ZERO model tokens for the halt leg and a
-    single tiny Anthropic call for the fallback leg.
+  STAGE B (real cents-cap halt, D-08): a FEW-CENTS budget cap ($0.02) is set AND a tiny
+    over-cap ledger row is seeded so the REAL pre-call ``BudgetTracker.check`` in the
+    PRODUCTION ``Worker.process`` -> ``graph._delegate`` path raises ``BudgetExceeded``
+    DETERMINISTICALLY and the run halts for PENNIES, transitioning the task to a governed
+    FAILED terminal with an auto-emitted ``budget_halt`` gateway_event. NO provider call
+    happens beyond the cap (a leak guard proves it), so the halt leg spends ZERO model
+    tokens; only the Stage-A fallback makes a single tiny real Anthropic call.
 
 D-08 SPEND BOUND (T-07-07 mitigation): the cap is a few cents
-(``MODEL_MONTHLY_BUDGET_USD`` / per-task cap = $0.02) routed at the cheapest tier; the
-real halt fires BEFORE the model call, so the run never burns toward the $50 cap.
+(``MODEL_MONTHLY_BUDGET_USD`` / per-task cap = $0.02) and the halt fires BEFORE any model
+call, so the run never burns toward the $50 cap.
+
+DETERMINISM NOTE (robustness): the production graph enters at ``planner_node``, which
+delegates at a HARD-CODED ``high_complexity`` tier (not from ``MODEL_ROUTE_PROFILE``), and
+the pre-call estimate is computed via ``litellm.cost_per_token`` whose price map can have
+per-model gaps (STATE.md: ``gemini-1.5-flash`` low-complexity route unmapped). Rather than
+rely on the natural estimate happening to exceed $0.02, Stage B seeds a small over-cap
+``BudgetEvent`` (mirroring the default lane), so the REAL ``budget.check`` halt is robust
+to the pricing-map state while Stage A still exercises the REAL provider boundary.
 
 LIVE-LANE INDUCER (Stage A, runtime decision; mirrors test_cascade_live.py): the broken
 primary uses a NONEXISTENT Vertex model id so it deterministically errors into litellm's
@@ -45,7 +53,7 @@ import os
 import pytest
 
 from agent_mesh.contracts.enums import Entrypoint, TaskState
-from agent_mesh.contracts.models import TaskRecord
+from agent_mesh.contracts.models import BudgetEvent, TaskRecord
 from agent_mesh.services import repository as repo_module
 from agent_mesh.services.repository import InMemoryRepository
 from agent_mesh.worker import graph as graph_module
@@ -120,16 +128,16 @@ def test_e2e_03_live_real_fallback_then_real_cents_cap_halt(live_creds, monkeypa
 
     # =====================================================================
     # STAGE B — REAL cents-cap budget halt (D-08): drive the PRODUCTION
-    # Worker.process -> graph._delegate halt path with a few-cents cap at the
-    # cheapest tier. The real BudgetTracker.check raises BEFORE any provider call,
-    # so the run halts to FAILED for pennies (zero model tokens spent on this leg).
+    # Worker.process -> graph._delegate halt path with a few-cents cap. The real
+    # BudgetTracker.check raises BEFORE any provider call, so the run halts to FAILED
+    # for pennies (zero model tokens spent on this leg). The over-cap ledger row makes
+    # the halt deterministic regardless of the litellm price-map state (see docstring).
     # =====================================================================
     monkeypatch.setenv("TENANT_ID", _TENANT)
     monkeypatch.setenv("CLIENT_SLUG", _CLIENT)
-    # Few-cents cap routed at the cheapest tier (D-08 spend bound, T-07-07).
+    # Few-cents cap (D-08 spend bound, T-07-07): the breach fires for pennies.
     monkeypatch.setenv("MODEL_MONTHLY_BUDGET_USD", str(_CENTS_CAP))
     monkeypatch.setenv("MODEL_PER_TASK_CAP", str(_CENTS_CAP))
-    monkeypatch.setenv("MODEL_ROUTE_PROFILE", "low-complexity")  # cheapest tier
 
     repo = InMemoryRepository()
     monkeypatch.setattr(repo_module, "_SINGLETON", repo)
@@ -145,9 +153,25 @@ def test_e2e_03_live_real_fallback_then_real_cents_cap_halt(live_creds, monkeypa
     repo.create_task(task)
     repo.transition_task(task.task_id, TaskState.QUEUED, note="queued")
 
-    # Force the real _delegate path. The cents cap makes the pre-call estimate exceed
-    # budget, so budget.check raises BEFORE get_chat_model — a leak guard proves no
-    # real provider call (and therefore no real spend) happens past the cap.
+    # Seed a tiny over-cap ledger row for the budget owner (== settings.tenant_id) so
+    # the next real budget.check raises BEFORE any model call — deterministic against the
+    # cents cap, robust to litellm price-map gaps (the planner delegates at a hard-coded
+    # high_complexity tier; we don't rely on the natural estimate exceeding $0.02).
+    repo.record_budget_event(
+        BudgetEvent(
+            tenant_id=_TENANT,
+            client_slug=_CLIENT,
+            budget_owner=_TENANT,
+            task_id=None,
+            model="high-complexity",
+            prompt_tokens=1,
+            completion_tokens=1,
+            estimated_cost_usd=_CENTS_CAP + 0.01,  # just past the few-cents cap
+        )
+    )
+
+    # Force the real _delegate path. budget.check raises BEFORE get_chat_model — a leak
+    # guard proves no real provider call (and therefore no real spend) happens past the cap.
     monkeypatch.setattr(graph_module, "_model_credentials_present", lambda: True)
 
     leaked = {"called": False}
