@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "bitscale_get_workspace.output",
+  "description": "Output of the Bitscale get-workspace read tool: permissive workspace-details object (plan, credits, member counts). Permissive to tolerate provider field variation.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "plan": { "type": "string" },
+    "credits": { "type": ["number", "integer"] },
+    "member_count": { "type": "integer" }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "calcom_list_bookings.output",
+  "description": "Output of the Cal.com list-bookings read tool: the real v2 response { status, data:[{...}], pagination:{...} }.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["status", "data"],
+  "properties": {
+    "status": { "type": "string" },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["id"],
+        "properties": {
+          "id": { "type": ["string", "integer"] },
+          "uid": { "type": "string" },
+          "title": { "type": "string" },
+          "status": { "type": "string" },
+          "start": { "type": "string" },
+          "end": { "type": "string" },
+          "attendees": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+          "eventTypeId": { "type": ["string", "integer", "null"] }
+        }
+      }
+    },
+    "pagination": { "type": "object", "additionalProperties": true }
+  }
+}

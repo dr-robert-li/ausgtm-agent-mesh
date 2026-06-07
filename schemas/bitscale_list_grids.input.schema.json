@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "bitscale_list_grids.input",
+  "description": "Input for the Bitscale list-grids read tool. READ-category: no approval required, credit-free. Lists all grids; no required fields.",
+  "type": "object",
+  "x-tool-category": "read",
+  "x-approval-required": false,
+  "additionalProperties": true,
+  "properties": {}
+}

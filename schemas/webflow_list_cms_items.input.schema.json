@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "webflow_list_cms_items.input",
+  "description": "Input for the Webflow CMS list-items read tool. READ-category: no approval required. Permissive-by-design (D-05); collection_id is supplied via resource_bindings.",
+  "type": "object",
+  "x-tool-category": "read",
+  "x-approval-required": false,
+  "additionalProperties": true,
+  "properties": {
+    "offset": { "type": "integer", "minimum": 0, "description": "Pagination offset." },
+    "limit": { "type": "integer", "minimum": 1, "maximum": 100, "description": "Max items per page." }
+  }
+}

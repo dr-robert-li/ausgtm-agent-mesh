@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "calcom_create_booking.output",
+  "description": "Output of the Cal.com create-booking write tool: the real v2 response { status, data:{id,uid,...} }.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["status", "data"],
+  "properties": {
+    "status": { "type": "string" },
+    "data": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": ["string", "integer"] },
+        "uid": { "type": "string" }
+      }
+    }
+  }
+}

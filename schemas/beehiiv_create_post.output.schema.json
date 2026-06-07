@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "beehiiv_create_post.output",
+  "description": "Output of the Beehiiv create-post write tool: the real HTTP 201 body nests the id under data — { data:{ id } } — NOT a flat top-level id.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["data"],
+  "properties": {
+    "data": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "description": "Prefixed post id (e.g. post_...)." }
+      }
+    }
+  }
+}

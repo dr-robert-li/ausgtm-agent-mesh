@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "bitscale_list_grids.output",
+  "description": "Output of the Bitscale list-grids read tool: the live-curl-verified { grids:[{id,name,description,row_count,column_count,columns:[...]}] } shape.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["grids"],
+  "properties": {
+    "grids": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": ["string", "null"] },
+          "row_count": { "type": "integer" },
+          "column_count": { "type": "integer" },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "type": { "type": "string" },
+                "dependencies": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

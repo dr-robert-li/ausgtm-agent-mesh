@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "webflow_create_cms_item.output",
+  "description": "Output of the Webflow CMS create-item tool: the HTTP 202 staged-item body { id, fieldData, ... }.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["id"],
+  "properties": {
+    "id": { "type": "string" },
+    "fieldData": { "type": "object", "additionalProperties": true },
+    "isDraft": { "type": "boolean" },
+    "lastPublished": { "type": ["string", "null"] },
+    "lastUpdated": { "type": ["string", "null"] },
+    "createdOn": { "type": ["string", "null"] }
+  }
+}

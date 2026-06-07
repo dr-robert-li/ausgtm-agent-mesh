@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "bitscale_run_grid.output",
+  "description": "Output of the Bitscale run-grid write tool: minimal/permissive run acknowledgement (run id / status). Route inferred (never probed — credit-safe); kept permissive.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "id": { "type": "string" },
+    "status": { "type": "string" }
+  }
+}

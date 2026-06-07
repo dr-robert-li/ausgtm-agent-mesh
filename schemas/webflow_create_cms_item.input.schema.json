@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "webflow_create_cms_item.input",
+  "description": "Input for the Webflow CMS create-item publishing tool. WRITE/publishing-category: approval required. fieldData carries the item fields; isDraft defaults true (never auto-publish).",
+  "type": "object",
+  "x-tool-category": "publishing",
+  "x-approval-required": true,
+  "additionalProperties": true,
+  "required": ["fieldData"],
+  "properties": {
+    "fieldData": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "The CMS item field values (e.g. name, slug, ...)."
+    },
+    "isDraft": {
+      "type": "boolean",
+      "default": true,
+      "description": "Stage as draft; defaults true so writes never auto-publish."
+    }
+  }
+}

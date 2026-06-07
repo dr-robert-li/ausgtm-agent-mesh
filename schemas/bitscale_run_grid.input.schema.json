@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "bitscale_run_grid.input",
+  "description": "Input for the Bitscale run-grid write tool. WRITE-category: approval required; consumes paid credits. grid_id is the cost/security-critical target and is validated.",
+  "type": "object",
+  "x-tool-category": "write",
+  "x-approval-required": true,
+  "additionalProperties": true,
+  "required": ["grid_id"],
+  "properties": {
+    "grid_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Target grid id (cost/security-critical: validated)."
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Row inputs appended to the grid that trigger enrichment."
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "clockify_read_time_entries.input",
+  "description": "Input for the Clockify read-time-entries read tool. READ-category: no approval required. Permissive-by-design (D-05); workspace_id + user_id come from resource_bindings.",
+  "type": "object",
+  "x-tool-category": "read",
+  "x-approval-required": false,
+  "additionalProperties": true,
+  "properties": {
+    "start": { "type": "string", "format": "date-time", "description": "Filter: entries on/after this time." },
+    "end": { "type": "string", "format": "date-time", "description": "Filter: entries on/before this time." },
+    "page-size": { "type": "integer", "minimum": 1, "maximum": 200, "description": "Page size." }
+  }
+}

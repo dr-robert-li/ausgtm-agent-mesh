@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "calcom_create_booking.input",
+  "description": "Input for the Cal.com create-booking write tool. WRITE-category: approval required. start is the cost/security-critical scheduling field and is validated; eventTypeId comes from resource_bindings.",
+  "type": "object",
+  "x-tool-category": "write",
+  "x-approval-required": true,
+  "additionalProperties": true,
+  "required": ["start"],
+  "properties": {
+    "start": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Booking start time (RFC3339; security-critical: validated)."
+    },
+    "attendee": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "timeZone": { "type": "string" }
+      },
+      "description": "Attendee details (name/email/timeZone)."
+    }
+  }
+}

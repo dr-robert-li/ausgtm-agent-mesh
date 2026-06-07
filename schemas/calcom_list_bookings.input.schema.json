@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "calcom_list_bookings.input",
+  "description": "Input for the Cal.com list-bookings read tool. READ-category: no approval required. Permissive-by-design (D-05); all filters optional.",
+  "type": "object",
+  "x-tool-category": "read",
+  "x-approval-required": false,
+  "additionalProperties": true,
+  "properties": {
+    "status": { "type": "string", "description": "Optional booking-status filter." },
+    "afterStart": { "type": "string", "format": "date-time", "description": "Only bookings starting after this time." },
+    "take": { "type": "integer", "minimum": 1, "maximum": 100, "description": "Page size." }
+  }
+}

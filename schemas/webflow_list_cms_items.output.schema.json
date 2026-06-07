@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "webflow_list_cms_items.output",
+  "description": "Output of the Webflow CMS list-items read tool: the real Data-API-v2 response shape { items:[...], pagination:{...} }.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["items"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "string" },
+          "isDraft": { "type": "boolean" },
+          "fieldData": { "type": "object", "additionalProperties": true },
+          "lastPublished": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "pagination": { "type": "object", "additionalProperties": true }
+  }
+}

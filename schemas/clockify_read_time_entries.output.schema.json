@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "clockify_read_time_entries.output",
+  "description": "Output of the Clockify read-time-entries read tool. The raw Clockify response is a bare array; the 05-05 adapter maps it into { entries:[...] } so every lane (incl. the live-lane result.get('stub') assertion) stays safe — NOT a top-level type:array.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["entries"],
+  "properties": {
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "string" },
+          "description": { "type": "string" },
+          "timeInterval": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "start": { "type": "string" },
+              "end": { "type": ["string", "null"] },
+              "duration": { "type": ["string", "null"] }
+            }
+          },
+          "projectId": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}
