@@ -161,15 +161,15 @@ milestone via `/gsd:new-milestone` as a follow-up).
      `previous_version` (both proven by tests) (SI-02b)
   6. Default suite stays green and creds-free; any LLM-judge scoring + judge calibration
      (TPR/FPR, Type-I gate, order-swap) runs only in the `live` opt-in lane (SI-01d)
-**Plans**: set at planning (expanded scope — no longer 2)
+**Plans**: 6 plans
 
 Plans:
-- [ ] 06-01: Real held-out evaluation harness (Langfuse experiment runner, frozen-context
-  snapshots, item+run no-regression vs baseline; held-out distinct from optimization signal) (SI-01, SI-01a–c)
-- [ ] 06-02: GEPA-style offline inert reflective proposer + bounded re-validated loop (SI-03)
-- [ ] 06-03: Opt-in `live`-lane LLM-judge with position-bias control + calibration/Type-I gate (SI-01d)
-- [ ] 06-04: CycloneDX ML-BOM generator on promotion from manifests (SI-02, SI-02a)
-- [ ] 06-05: Versioned non-hot promotion wiring (boot-time version loader) + rollback re-point (SI-02b)
+- [ ] 06-01-PLAN.md — Foundation (all shared-file edits): migration 0004 active-version pointer + repository.py current_active_version read/write (3 layers) + conftest stub-reflector/frozen-item fixtures + [aibom] extra + blocking cyclonedx supply-chain checkpoint (SI-02b) [wave 1]
+- [ ] 06-02-PLAN.md — Real held-out evaluation harness: creds-free Langfuse run_experiment over versioned frozen items + pure-Python item+run no-regression gate + evaluate_proposal body swap (SI-01, SI-01a, SI-01b, SI-01c) [wave 2, depends 06-01]
+- [ ] 06-03-PLAN.md — GEPA-style offline inert reflective proposer + bounded re-validated loop; held-out zero-overlap test (SI-03, SI-01a) [wave 3, depends 06-01/06-02]
+- [ ] 06-04-PLAN.md — Opt-in `live`-lane LLM-judge: order-swap position-bias control + TPR/FPR calibration + finite-sample Type-I gate + close-margin non-sole-arbiter guard (SI-01d) [wave 2, depends 06-01/06-02]
+- [ ] 06-05-PLAN.md — CycloneDX ML-BOM (V1_7) generator on promotion from the deployment + tool-pack manifests → AIBOMSnapshot (SI-02, SI-02a) [wave 2, depends 06-01]
+- [ ] 06-06-PLAN.md — Versioned non-hot promotion wiring (boot-time set-once version loader) + ML-BOM fill + rollback re-point to previous_version (SI-02b) [wave 3, depends 06-01/06-02/06-05]
 
 ### Phase 7: E2E Validation & Deploy-Readiness
 **Goal**: Assemble all layers and prove the platform end-to-end — a write-gated Slack action from evidence, an MCP-triggered long checkpointed job returning an artifact, and the failure modes — then validate that the `gcloud` and `wrangler` deployment scripts are idempotent and GCP-ready without provisioning live resources.
@@ -197,6 +197,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 2. Real Orchestration Engine | 3/3 | Complete | 2026-06-06 |
 | 3. Model Gateway & Observability | 4/4 | Complete | 2026-06-06 |
 | 4. Tool Gateway Framework + First Adapters + Aggregators | 9/9 | Complete | 2026-06-06 |
-| 5. Reference Adapter Breadth | 0/7 | Planned | - |
-| 6. Self-Improvement (real loop) | 0/~5 | Not started | - |
+| 5. Reference Adapter Breadth | 7/7 | Complete | 2026-06-07 |
+| 6. Self-Improvement (real loop) | 0/6 | Planned | - |
 | 7. E2E Validation & Deploy-Readiness | 0/2 | Not started | - |
