@@ -167,7 +167,7 @@ Plans:
 - [ ] 06-01-PLAN.md — Foundation (all shared-file edits): migration 0004 active-version pointer + repository.py current_active_version read/write (3 layers) + conftest stub-reflector/frozen-item fixtures + [aibom] extra + blocking cyclonedx supply-chain checkpoint (SI-02b) [wave 1]
 - [ ] 06-02-PLAN.md — Real held-out evaluation harness: creds-free Langfuse run_experiment over versioned frozen items + pure-Python item+run no-regression gate + evaluate_proposal body swap (SI-01, SI-01a, SI-01b, SI-01c) [wave 2, depends 06-01]
 - [ ] 06-03-PLAN.md — GEPA-style offline inert reflective proposer + bounded re-validated loop; held-out zero-overlap test (SI-03, SI-01a) [wave 3, depends 06-01/06-02]
-- [ ] 06-04-PLAN.md — Opt-in `live`-lane LLM-judge: order-swap position-bias control + TPR/FPR calibration + finite-sample Type-I gate + close-margin non-sole-arbiter guard (SI-01d) [wave 2, depends 06-01/06-02]
+- [ ] 06-04-PLAN.md — Opt-in `live`-lane LLM-judge: order-swap position-bias control + TPR/FPR calibration + finite-sample Type-I gate + close-margin non-sole-arbiter guard (SI-01d) [wave 3, depends 06-01/06-02]
 - [ ] 06-05-PLAN.md — CycloneDX ML-BOM (V1_7) generator on promotion from the deployment + tool-pack manifests → AIBOMSnapshot (SI-02, SI-02a) [wave 2, depends 06-01]
 - [ ] 06-06-PLAN.md — Versioned non-hot promotion wiring (boot-time set-once version loader) + ML-BOM fill + rollback re-point to previous_version (SI-02b) [wave 3, depends 06-01/06-02/06-05]
 
