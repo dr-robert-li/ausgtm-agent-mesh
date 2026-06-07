@@ -125,6 +125,7 @@ None - no external service configuration required. The `[aibom]` install was com
 
 ## Next Phase Readiness
 - Shared-file foundations landed: 06-02..06-06 own zero overlapping files in `repository.py` / `conftest.py` / `migrations/` / `pyproject.toml` and can run parallel-safe per wave plan.
+- **`stub_reflector.reflect()` signature is PROVISIONAL.** The plan specified only the behavior (records the evidence passed, returns a canned non-empty diff) — not a method name. No reflect-style proposer exists in source yet: the only related code is `self_improvement.reflect_on_task(...)` (a free function taking explicit title/rationale/proposed_patch fields and returning a `SelfImprovementProposal` — NOT a model-calling reflector). The GEPA-style reflective proposer that mines traces and emits diffs is built in **06-03**. The fixture currently exposes `reflect(*, evidence=None, **kwargs) -> str` (records to `.calls`, returns `.diff`). 06-02/06-03 should align this fixture's method name/signature to the real proposer interface they introduce (a small conftest edit at that point is expected and acceptable).
 - SQL-layer methods + 0004 DDL are inspection-validated only in the default lane (the `pg_dsn`/`TEST_DATABASE_URL` SQL suite is opt-in and not run here); they mirror the proven promotion shapes exactly.
 - cyclonedx V1_7 output API confirmed and recorded for 06-05's ML-BOM generation.
 
