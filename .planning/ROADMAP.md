@@ -29,7 +29,7 @@ resources.
 - [x] **Phase 2: Real Orchestration Engine** - Real LangGraph supervisor + Deep Agents roster, durable checkpointer, interrupt-based HITL resume, hardened sandbox
 - [x] **Phase 3: Model Gateway & Observability** - Live LiteLLM gateway with budgets/cascades, Cloudflare AI Gateway upstream, Langfuse telemetry + prompt/eval management _(completed 2026-06-06; GW-01/02/03, OBS-01/02 — governed budget-halt closed via gap plan 03-04; OBS-01 tool-spans deferred to Phase 4)_
 - [x] **Phase 4: Tool Gateway Framework + First Adapters + Aggregators** - Reusable Tool Gateway execution engine (execution-time credential resolution, JSON-Schema in/out validation, tool-event OTel spans), HubSpot + Google Workspace direct adapters, Composio (primary) + Nango (fallback) aggregator styles _(completed 2026-06-06; TOOL-01, TOOL-02, TOOL-04 + OBS-01 tool-spans; framework verified against source 5/5 must-haves + 8 invariants, 215 tests green creds-free; live SC-1/SC-3 lanes opt-in and deferred to operator per milestone deploy-ready-only scope — run `make test-live` with creds)_
-- [ ] **Phase 5: Reference Adapter Breadth** - Remaining reference providers — Webflow, Bitscale, Cal.com, Clockify, Beehiiv direct adapters; Xero via aggregator _(TOOL-03)_
+- [x] **Phase 5: Reference Adapter Breadth** - Remaining reference providers — Webflow, Bitscale, Cal.com, Clockify, Beehiiv direct adapters; Xero via aggregator _(TOOL-03)_
 - [ ] **Phase 6: Self-Improvement** - Real evaluation harness replaces the stub; AI-BOM-on-promotion + controlled versioned (non-hot) promotion with rollback _(SI-01, SI-02)_
 - [ ] **Phase 7: E2E Validation & Deploy-Readiness** - Full end-to-end proofs + failure modes + idempotent deploy-script validation _(E2E-01/02/03, DEP-01/02)_
 
@@ -130,7 +130,7 @@ Plans:
 - [x] 05-04-PLAN.md — Cal.com direct adapter (list + create bookings, mandatory cal-api-version header) (wave 2) (TOOL-03)
 - [x] 05-05-PLAN.md — Clockify direct adapter (read time entries) (wave 2) (TOOL-03)
 - [x] 05-06-PLAN.md — Beehiiv direct adapter (draft create_post, nested {data:{id}} output) (wave 2) (TOOL-03)
-- [ ] 05-07-PLAN.md — Xero via Composio (existing adapter) + shared credential index + credential-docs guard extension (wave 3) (TOOL-03)
+- [x] 05-07-PLAN.md — Xero via Composio (existing adapter) + shared credential index + credential-docs guard extension (wave 3) (TOOL-03)
 
 ### Phase 6: Self-Improvement
 **Goal**: Replace the `evaluate_proposal` stub with a real evaluation harness, and wire AI-BOM-on-promotion with controlled, versioned (non-hot) promotion and retained rollback — with no runtime mutation of active instructions, permissions, or routing (Option C).
