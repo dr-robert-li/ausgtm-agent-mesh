@@ -372,11 +372,13 @@ def make_run_evaluator(
     config: JudgeConfig = DEFAULT_CONFIG,
     compare: Callable[[Any, Any], str] | None = None,
 ):
-    """Build a Langfuse run-level evaluator for the 06-02 harness ``run_evaluators``.
+    """Build a Langfuse item-level evaluator for the 06-02 harness ``evaluators``.
 
-    Plugged into ``eval_harness.run_candidate(..., run_evaluators=[...])`` ONLY when
-    creds exist. Returns a ``fn(*, input, output, expected_output, metadata, **_) ->
-    Evaluation`` (the run-level evaluator slot). The ``Evaluation`` type is imported
+    Plugged into ``eval_harness.run_candidate(..., evaluators=[...])`` ONLY when
+    creds exist (the same item-level slot ``eval_harness.exact_match`` uses; there is
+    no separate ``run_evaluators`` param on ``run_candidate``). Returns a
+    ``fn(*, input, output, expected_output, metadata, **_) -> Evaluation``. The
+    ``Evaluation`` type is imported
     lazily so this module stays importable without langfuse (mirrors
     ``eval_harness.exact_match``). ``compare`` defaults to the gateway-routed judge;
     tests inject a deterministic ``compare`` so the live tests do not need network.

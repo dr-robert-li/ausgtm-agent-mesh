@@ -7,12 +7,12 @@ tags: [llm-judge, position-bias, calibration, binomial, type-i, langfuse, live-l
 # Dependency graph
 requires:
   - phase: 06-02
-    provides: "eval_harness.run_candidate(..., run_evaluators=[...]) run-level evaluator slot + held-out scoring"
+    provides: "eval_harness.run_candidate(..., evaluators=[...]) item-level evaluator slot + held-out scoring"
   - phase: 03 (observability)
     provides: "observability.py lazy-optional-dep import-and-degrade pattern; conftest live_creds fixture + live marker"
 provides:
   - "Opt-in live-lane LLM-judge dimension (SI-01d): order-swap position-bias control, human-calibrated TPR/FPR, finite-sample Type-I gate, close-margin non-sole-arbiter guard"
-  - "Gateway-routed pairwise judge (GW-02 chokepoint) and a langfuse run-level evaluator plug-in for the 06-02 harness"
+  - "Gateway-routed pairwise judge (GW-02 chokepoint) and a langfuse item-level evaluator plug-in for the 06-02 harness evaluators= slot"
 affects: [self-improvement promotion gate, 06-verification]
 
 # Tech tracking
@@ -59,7 +59,7 @@ completed: 2026-06-07
 
 ## Accomplishments
 - `eval/judges.py` — the only Phase-6 surface that touches real models/creds: order-swap (win only when both orderings agree), `calibrate()` TPR/FPR against a human-labelled set with a trusted-judge gate, `passes_type_i()` exact one-sided binomial tail (config-driven `alpha`/null rate), and a close-margin guard so the judge defers to the deterministic gate where it is least reliable.
-- Gateway-routed pairwise judge (`gateway_pairwise_judge` -> `worker.model_gateway.get_chat_model`, GW-02 chokepoint; judge never calls a provider SDK directly — threat T-06-13) and a langfuse run-level evaluator (`make_run_evaluator`) that plugs into the 06-02 `run_candidate(..., run_evaluators=[...])` slot only when creds exist.
+- Gateway-routed pairwise judge (`gateway_pairwise_judge` -> `worker.model_gateway.get_chat_model`, GW-02 chokepoint; judge never calls a provider SDK directly — threat T-06-13) and a langfuse item-level evaluator (`make_run_evaluator`) that plugs into the 06-02 `run_candidate(..., evaluators=[...])` slot (the same slot `eval_harness.exact_match` uses; `run_candidate` has no `run_evaluators` param — the plan's `<interfaces>` block mis-stated the name) only when creds exist.
 - `tests/test_judges_live.py` — module-level `pytestmark = pytest.mark.live`, consuming `live_creds`; proves order-swap symmetry, TPR/FPR bounds, the alpha-driven Type-I rejection, and the close-margin defer. Collects ZERO running tests in the default lane; all 5 in the live lane.
 
 ## Task Commits
