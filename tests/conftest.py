@@ -41,22 +41,24 @@ def _apply_migrations(dsn: str) -> None:
     CREATE EXTENSION vector; IF NOT EXISTS does NOT install it) — e.g. the
     pgvector/pgvector:pg16 image, not a vanilla postgres image.
     """
+    import re
+
     import psycopg
 
     root = Path(__file__).resolve().parents[1] / "migrations"
     with psycopg.connect(dsn, autocommit=True) as conn:
         for name in _MIGRATIONS:
             raw = (root / name).read_text()
-            # Strip ``--`` comments (full-line and inline-trailing) to end of
-            # line first: their prose contains commas and semicolons that would
-            # otherwise corrupt the statement split. Neither migration contains
-            # ``--`` inside a string literal, so a plain cut at ``--`` is safe.
-            # Both files are plain DDL with no dollar-quoted bodies, so splitting
-            # the comment-free text on ';' is safe and sidesteps any
-            # multi-statement execute restriction.
-            no_comments = "\n".join(
-                line.split("--", 1)[0] for line in raw.splitlines()
-            )
+            # Strip ``--`` comments (full-line and inline-trailing) to end of line:
+            # their prose contains commas and semicolons that would otherwise corrupt
+            # the statement split. A single multiline regex replaces the prior
+            # per-line ``split('--')`` while preserving inline-trailing stripping
+            # (IN-03). NOTE (still a known limitation): the migrations are plain DDL
+            # with no dollar-quoted bodies and no ``--`` inside string literals, so
+            # splitting the comment-free text on ';' remains safe here; a migration
+            # with ``DO $$ ... $$`` or ``--`` inside a literal would need a real
+            # migration runner (alembic/sqitch) rather than this test-harness applier.
+            no_comments = re.sub(r"(?m)--.*$", "", raw)
             for stmt in (s.strip() for s in no_comments.split(";")):
                 if stmt:
                     conn.execute(stmt)
@@ -223,27 +225,14 @@ def stub_reflector() -> _RecordingReflector:
 
 @pytest.fixture
 def frozen_holdout_items() -> list[dict]:
-    """A small deterministic held-out experiment set (LocalExperimentItem-shaped).
+    """The deterministic held-out snapshot set, sourced from the module of record.
 
-    Each item is a ``{"input", "expected_output", "metadata": {"item_id"}}`` dict
-    keyed by a stable ``item_id`` so downstream 06-02/06-03 eval-baseline tests
-    are reproducible. Mirrors langfuse's ``LocalExperimentItem`` TypedDict shape
-    (``input`` / ``expected_output`` / ``metadata``).
+    Imports ``eval_harness._HELD_OUT_SNAPSHOTS`` directly (IN-01) rather than
+    duplicating the three holdout items, so adding/removing/changing a holdout item
+    only ever happens in one place. These are the FLAT snapshot dicts that the
+    consuming tests feed into ``eval_harness.build_frozen_items`` (which reads the
+    top-level ``item_id``).
     """
-    return [
-        {
-            "input": "Summarize the Q1 revenue report.",
-            "expected_output": "Q1 revenue grew 12% QoQ.",
-            "metadata": {"item_id": "holdout-001", "category": "summary"},
-        },
-        {
-            "input": "Classify sentiment: 'This release is fantastic.'",
-            "expected_output": "positive",
-            "metadata": {"item_id": "holdout-002", "category": "classification"},
-        },
-        {
-            "input": "Extract the due date from: 'Invoice due 2026-07-01.'",
-            "expected_output": "2026-07-01",
-            "metadata": {"item_id": "holdout-003", "category": "extraction"},
-        },
-    ]
+    from agent_mesh.services.eval_harness import _HELD_OUT_SNAPSHOTS
+
+    return [dict(snap) for snap in _HELD_OUT_SNAPSHOTS]
