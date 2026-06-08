@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: — Local / Offline Deployability
-status: milestone_complete
-stopped_at: Completed 08-02-PLAN.md
-last_updated: "2026-06-08T11:27:36.688Z"
-last_activity: 2026-06-08
+status: Phase 8 complete (verified + secured); Phase 9 next
+stopped_at: Completed + verified + secured Phase 8 (local-inference-lane)
+last_updated: "2026-06-09T00:00:00.000Z"
+last_activity: 2026-06-08 — Phase 8 complete (LOCAL-01/02/03/04); code review + verifier + secure-phase all green
 progress:
-  total_phases: 7
-  completed_phases: 8
-  total_plans: 37
-  completed_plans: 37
-  percent: 114
+  total_phases: 4
+  completed_phases: 1
+  total_plans: 2
+  completed_plans: 2
+  percent: 25
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-08)
 
 **Core value:** A long-running agent mesh takes a client request through ingress, durable orchestration, and a write-gated tool action — the write blocked until a human approves — and the whole run is observable and auditable.
-**Current focus:** Phase 08 — local-inference-lane
+**Current focus:** Phase 9 — Local Data & Telemetry Plane (next); Phase 8 complete
 
 ## Current Position
 
-Phase: 08
-Plan: Not started
-Status: Milestone complete
-Last activity: 2026-06-08
+Phase: 09 (next — needs planning); Phase 08 complete
+Plan: —
+Status: Phase 8 complete (verified + secured); milestone v1.1 in progress (1/4 phases)
+Last activity: 2026-06-08 — Phase 8 complete
 
-Progress: [██████████] 100%
+Progress: [██▒▒▒▒▒▒▒▒] 25% (1/4 phases)
 
 **Milestone v1.1 scope:** run the whole mesh fully local + offline — vLLM + Ollama behind LiteLLM (Phase 8), local Postgres(pgvector) + self-hosted Langfuse (Phase 9), full-stack docker-compose (Phase 10), offline no-egress posture (Phase 11). Config/compose/docs/tests ONLY — zero `src/` change; deployment names unchanged so agent + gateway code are untouched.
 
