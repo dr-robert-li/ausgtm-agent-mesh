@@ -1,4 +1,4 @@
-.PHONY: help install install-dev schemas test test-live test-pg lint fmt smoke run-api run-worker run-gui
+.PHONY: help install install-dev schemas test test-live test-pg lint fmt smoke run-api run-worker run-gui run-vllm run-ollama use-vllm use-ollama use-cloud
 
 PY ?= python
 PYTHONPATH := src
@@ -17,6 +17,11 @@ help:
 	@echo "  run-api      Run the FastAPI ingress locally"
 	@echo "  run-worker   Drain the in-process task queue once"
 	@echo "  run-gui      Run the Streamlit admin/operator console locally"
+	@echo "  run-vllm     Start a local vLLM OpenAI server (GPU; best-effort, never CI)"
+	@echo "  run-ollama   Pull + serve the local Ollama model (CPU/dev; best-effort, never CI)"
+	@echo "  use-vllm     Swap the local vLLM profile onto config/model_gateway.config.yaml"
+	@echo "  use-ollama   Swap the local Ollama profile onto config/model_gateway.config.yaml"
+	@echo "  use-cloud    Restore the pristine cloud profile onto config/model_gateway.config.yaml"
 
 install:
 	$(PY) -m pip install -r requirements/base.txt
@@ -61,3 +66,30 @@ run-worker:
 
 run-gui:
 	PYTHONPATH=$(PYTHONPATH) $(PY) -m streamlit run src/agent_mesh/gui/admin_app.py
+
+# --- Local inference lane (LOCAL-01/02/03) -----------------------------------
+# run-vllm / run-ollama actually start a local backend. They are best-effort,
+# operator-run, and DELIBERATELY never wired into `test` or any CI path (D-07):
+# they require a GPU (vLLM) / an installed Ollama and may fail on a box without
+# them, which is acceptable and documented in RUNBOOK.md.
+#
+# The hermes tool-call parser is baked in for the default Qwen2.5 model (D-08).
+# Do NOT carry hermes to a Llama-3.1 model — use llama3_json for that family.
+VLLM_MODEL ?= Qwen/Qwen2.5-7B-Instruct
+run-vllm:
+	vllm serve $(VLLM_MODEL) --port 8000 --enable-auto-tool-choice --tool-call-parser hermes
+
+OLLAMA_MODEL ?= qwen2.5:7b-instruct
+run-ollama:
+	ollama pull $(OLLAMA_MODEL) && ollama serve
+
+# Profile selection is a reversible file swap (D-01/D-02): copy the chosen
+# profile onto the active config/model_gateway.config.yaml. cp (not git checkout,
+# Pitfall 5) so it works on a dirty tree / non-git export. use-cloud restores the
+# pristine cloud anchor authored in Plan 01.
+use-vllm:
+	cp config/model_gateway.vllm.yaml config/model_gateway.config.yaml
+use-ollama:
+	cp config/model_gateway.ollama.yaml config/model_gateway.config.yaml
+use-cloud:
+	cp config/model_gateway.cloud.yaml config/model_gateway.config.yaml
