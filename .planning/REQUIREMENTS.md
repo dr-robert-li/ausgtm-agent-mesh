@@ -207,10 +207,10 @@ Explicitly excluded. Documented to prevent scope creep.
 | E2E-03 | Phase 7 | Complete |
 | DEP-01 | Phase 7 | Complete |
 | DEP-02 | Phase 7 | Complete |
-| LOCAL-01 | Phase 8 | Pending |
-| LOCAL-02 | Phase 8 | Pending |
-| LOCAL-03 | Phase 8 | Pending |
-| LOCAL-04 | Phase 8 | Pending |
+| LOCAL-01 | Phase 8 | Complete |
+| LOCAL-02 | Phase 8 | Complete |
+| LOCAL-03 | Phase 8 | Complete |
+| LOCAL-04 | Phase 8 | Complete |
 | LDATA-01 | Phase 9 | Pending |
 | LDATA-02 | Phase 9 | Pending |
 | LDATA-03 | Phase 9 | Pending |
