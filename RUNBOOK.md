@@ -93,6 +93,87 @@ make test-pg       # DSN-gated durable/Postgres checkpointer lane; loud-skips wh
 test loud-skipped (so the gap is never silent); with a DSN set it exercises the production
 PostgresSaver construction + cache + close lifecycle end to end.
 
+## Local inference lane
+
+The mesh can run inference fully on-box behind the **existing** LiteLLM Router — no
+agent or gateway code changes. Two backends are supported: **vLLM** (GPU) and **Ollama**
+(CPU/dev). Selecting a backend is a reversible config file-swap; running it is a
+best-effort operator step.
+
+### Running a backend
+
+```bash
+make run-vllm      # GPU lane: vllm serve Qwen/Qwen2.5-7B-Instruct --port 8000 \
+                   #   --enable-auto-tool-choice --tool-call-parser hermes
+make run-ollama    # CPU/dev lane: ollama pull qwen2.5:7b-instruct && ollama serve
+```
+
+Both targets are **best-effort and operator-only** — they are deliberately never wired
+into `make test` or any CI path. `make run-vllm` will fail on a box without a GPU (or
+without vLLM installed); `make run-ollama` will fail on a box without Ollama installed.
+That is acceptable: pick whichever backend your box supports. Override the served model
+with `make run-vllm VLLM_MODEL=…` / `make run-ollama OLLAMA_MODEL=…` (and adjust the tag
+to one `ollama list` knows — see the model-id note below). A recent vLLM (≥ 0.6 line) is
+needed for the tool-call parsers.
+
+### Selecting a profile (file-swap)
+
+`build_router` reads a hardcoded `DEFAULT_CONFIG_PATH = config/model_gateway.config.yaml`;
+there is **no env-driven config-path seam** (adding one would be a `src/` change, which
+this milestone forbids). So profile selection is a `cp`-based file-swap, managed by `make`
+and reversible:
+
+```bash
+make use-vllm      # cp config/model_gateway.vllm.yaml  -> config/model_gateway.config.yaml
+make use-ollama    # cp config/model_gateway.ollama.yaml -> config/model_gateway.config.yaml
+make use-cloud     # cp config/model_gateway.cloud.yaml  -> config/model_gateway.config.yaml (restore)
+```
+
+**Honest git-dirty disclosure:** activating a local profile overwrites the tracked
+`config/model_gateway.config.yaml`, so `git status` will show it as **modified** for as
+long as a local profile is active. This is inherent to the file-swap approach (not a bug),
+and is fully reversible: `make use-cloud` restores the pristine cloud profile and the file
+goes clean again. Run `make use-cloud` before committing unrelated work so you don't sweep
+a local profile into a commit.
+
+### Tool-calling model-capability caveat
+
+The mesh delegates work via **tool-calls**, so tool-calling quality — not transport — is
+the real local constraint. Local instruct models are weaker at tool-calling than frontier
+cloud models, and the served model must be a tool-call-capable instruct model.
+
+vLLM additionally **requires** the right parser flags or `tool_calls` come back empty:
+
+- `--enable-auto-tool-choice --tool-call-parser hermes` for **Qwen2.5** (the default).
+- `--enable-auto-tool-choice --tool-call-parser llama3_json` for **Llama-3.1**.
+
+The parser is model-family-specific — **do not cross them** (`hermes` on a Llama model, or
+vice versa, yields empty/garbled tool calls). `make run-vllm` bakes the `hermes` pair in
+for the default Qwen2.5 model; if you change `VLLM_MODEL` to a Llama-3.1 model, run vLLM by
+hand with `--tool-call-parser llama3_json` (and pass the matching
+`tool_chat_template_llama3.1_json.jinja` chat template if your vLLM build does not
+auto-select it). Ollama does its own native tool-calling per model capability and needs no
+parser flag.
+
+### api_base path gotcha
+
+The two backends differ in their api_base path, and getting this wrong is a runtime-only
+404 that the LOCAL-04 config test cannot catch (an offline `build_router` succeeds with any
+api_base string):
+
+- **vLLM** api_base **ends in `/v1`**: `http://localhost:8000/v1`. LiteLLM's `hosted_vllm`
+  transport appends only `chat/completions`, so without the `/v1` suffix the request lands
+  on `/chat/completions` and the vLLM server 404s.
+- **Ollama** api_base has **no `/v1`**: `http://localhost:11434`. The `ollama_chat/` prefix
+  targets the native `/api/chat` endpoint directly.
+
+These are baked into the shipped profiles; only re-derive them if you point at a
+non-default host/port.
+
+> Fully-offline cold box: if litellm tries to fetch its model-cost map at import (a cost
+> lookup, not routing), set `LITELLM_LOCAL_MODEL_COST_MAP=True` to force the bundled map.
+> Not needed for the config test or for routing.
+
 ## Credentials & live lane
 
 The default smoke/test lane above is **creds-free** — it never touches a real SaaS
