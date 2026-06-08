@@ -4,7 +4,7 @@ milestone: v1.1
 milestone_name: — Local / Offline Deployability
 status: Milestone v1.1 started; requirements + roadmap defined
 stopped_at: Phase 8 context gathered
-last_updated: "2026-06-08T09:48:23.291Z"
+last_updated: "2026-06-08T10:51:17.267Z"
 last_activity: 2026-06-08 — Milestone v1.1 (Local / Offline Deployability) started
 progress:
   total_phases: 7
@@ -109,3 +109,5 @@ Stopped at: Phase 8 context gathered
 **Next:** `/gsd:plan-phase 8` — Local Inference Lane (vLLM + Ollama profiles behind LiteLLM; make run-vllm/run-ollama; RUNBOOK + config-validation tests). LOCAL-01/02/03/04.
 
 **Note (carried):** GSD subagents not installed (`agents_installed: false`) — executor/verifier/roadmapper run inline. Install via `npx get-shit-done-cc@latest --global` to enable spawned agents.
+
+**Planned Phase:** 08 (local-inference-lane) — 2 plans — 2026-06-08T10:51:17.256Z
