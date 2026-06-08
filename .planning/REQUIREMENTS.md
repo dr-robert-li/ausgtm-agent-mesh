@@ -92,7 +92,8 @@ expanded from stub-replacement to the real, Option-C-safe self-improvement **loo
 ### Validation
 
 - [ ] **E2E-01**: A Slack request creates a write-gated SaaS action from evidence and completes only after approval
-- [ ] **E2E-02**: An MCP request triggers a long-running checkpointed mesh job and returns an artifact
+- [x] **E2E-02
+**: An MCP request triggers a long-running checkpointed mesh job and returns an artifact
 - [ ] **E2E-03**: A failure E2E exercises model fallback, job retry, and budget-limit halt together
 
 ### Deploy-Readiness
