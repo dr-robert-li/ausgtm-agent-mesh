@@ -1,0 +1,67 @@
+# Local vLLM inference lane (LOCAL-01) — model gateway profile.
+#
+# Routes all three deployment tiers to a single local vLLM OpenAI-compatible
+# server on loopback. This is an egress-free, on-box profile: it carries NO
+# cloud backend, NO cloud key references, and NO cloud-traffic governance
+# indirection — every route's api_base is loopback only.
+#
+# IMPORTANT (vLLM api_base): the api_base MUST end in /v1. LiteLLM's
+# hosted_vllm transport appends only `chat/completions`, so without the /v1
+# suffix the request lands on /chat/completions and the vLLM server 404s.
+#
+# Tiering is nominal locally (D-04): on one box all three deployment names
+# resolve to the SAME served model. The deployment names low-complexity /
+# medium-complexity / high-complexity are FROZEN — the LiteLLM Router resolves
+# routes by exact model_name, so they must match the gateway seam verbatim.
+#
+# Activate with `make use-vllm`; revert with `make use-cloud`. Start the
+# backend with `make run-vllm` (best-effort, operator-run, never CI).
+
+model_list:
+  # --- low-complexity tier (local vLLM) ---
+  - model_name: low-complexity
+    litellm_params:
+      model: hosted_vllm/Qwen/Qwen2.5-7B-Instruct
+      api_base: http://localhost:8000/v1
+
+  # --- medium-complexity tier (local vLLM) ---
+  - model_name: medium-complexity
+    litellm_params:
+      model: hosted_vllm/Qwen/Qwen2.5-7B-Instruct
+      api_base: http://localhost:8000/v1
+
+  # --- high-complexity tier (local vLLM) ---
+  - model_name: high-complexity
+    litellm_params:
+      model: hosted_vllm/Qwen/Qwen2.5-7B-Instruct
+      api_base: http://localhost:8000/v1
+
+# Cascades / fallbacks: self-contained within the three local deployment names
+# (D-06). No cloud-named route. Because all three names share one served model,
+# escalation is nominal locally — the point is leaving every referenced route
+# resolvable with no dangling cloud route for the Phase 11 no-egress assertion.
+router_settings:
+  fallbacks:
+    - low-complexity: ["medium-complexity"]
+    - medium-complexity: ["high-complexity"]
+    - high-complexity: ["medium-complexity"]
+  num_retries: 2
+  timeout: 120
+
+litellm_settings:
+  drop_params: true
+  # Token / output ceiling applied across requests.
+  max_tokens: 4096
+  # Telemetry callbacks kept for structural parity with the cloud profile.
+  # Inert locally (free local tokens; Langfuse may be absent) and not egress
+  # at build_router construction.
+  success_callback: ["langfuse", "otel"]
+  failure_callback: ["langfuse", "otel"]
+
+# Inert prod-proxy fields (D-09): build_router does NOT read general_settings.
+# master_key is a proxy-auth indirection, NOT a cloud provider credential, so
+# it stays for parity. Kept here so the profile mirrors the cloud structure.
+general_settings:
+  master_key: os.environ/MODEL_GATEWAY_MASTER_KEY
+  max_budget: 50
+  budget_duration: 30d
