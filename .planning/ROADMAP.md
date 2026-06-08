@@ -47,7 +47,7 @@ resources.
 > LiteLLM Router seam absorbs the local backends. Phases continue at **08**; v1.0 phase
 > history (01–07) is preserved (v1.0 not yet archived via `/gsd:complete-milestone`).
 
-- [ ] **Phase 8: Local Inference Lane** - vLLM + Ollama model-gateway profiles behind LiteLLM; `make run-vllm`/`run-ollama`; RUNBOOK local-inference section; config-validation tests _(LOCAL-01/02/03/04)_
+- [x] **Phase 8: Local Inference Lane** - vLLM + Ollama model-gateway profiles behind LiteLLM; `make run-vllm`/`run-ollama`; RUNBOOK local-inference section; config-validation tests _(completed 2026-06-08; LOCAL-01/02/03/04)_
 - [ ] **Phase 9: Local Data & Telemetry Plane** - documented local Postgres(pgvector) + self-hosted Langfuse run path wired to make/RUNBOOK/conftest; migration-on-local-DSN test _(LDATA-01/02/03)_
 - [ ] **Phase 10: Full-Stack Local Compose** - one-command docker-compose (api+worker+gui+Postgres(pgvector)+Langfuse+LiteLLM+local model backend); `make compose-up/down`; compose-config validation _(COMPOSE-01/02/03)_
 - [ ] **Phase 11: Offline / No-Egress Posture** - OFFLINE env posture over config; tests assert no cloud api_base / no Vertex/Anthropic/CF egress / local .env secrets across the assembled local stack _(OFFLINE-01/02/03)_
@@ -228,7 +228,7 @@ Plans:
   4. A config-validation test asserts each local profile defines all three deployment names with a local `api_base` and builds via `build_router` with no network
 **Plans**: 2 plans
 - [x] 08-01-PLAN.md — Local-backend config profiles: pristine cloud restore anchor + vLLM + Ollama (egress-free, 3 exact tiers) _(completed 2026-06-08; LOCAL-01/02)_
-- [ ] 08-02-PLAN.md — Consumers: Makefile run/swap targets, LOCAL-04 config-validation test, RUNBOOK local-inference section
+- [x] 08-02-PLAN.md — Consumers: Makefile run/swap targets, LOCAL-04 config-validation test, RUNBOOK local-inference section _(completed 2026-06-08; LOCAL-01/02/03/04)_
 
 ### Phase 9: Local Data & Telemetry Plane
 **Goal**: Document and wire a fully local persistence + observability plane — local Postgres(pgvector) + self-hosted Langfuse — replacing Cloud SQL / cloud Langfuse for local dev.

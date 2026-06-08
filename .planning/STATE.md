@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: — Local / Offline Deployability
-status: executing
-stopped_at: Phase 8 Plan 01 complete (local-backend config profiles)
-last_updated: "2026-06-08T11:14:21.763Z"
-last_activity: 2026-06-08 -- Phase 08 Plan 01 complete
+status: verifying
+stopped_at: Completed 08-02-PLAN.md
+last_updated: "2026-06-08T11:27:36.688Z"
+last_activity: 2026-06-08
 progress:
   total_phases: 7
   completed_phases: 7
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-06-08)
 
 ## Current Position
 
-Phase: 08 (local-inference-lane) — EXECUTING
-Plan: 2 of 2
-Status: Executing Phase 08 (Plan 01 complete)
-Last activity: 2026-06-08 -- Phase 08 Plan 01 complete
+Phase: 08 (local-inference-lane) — COMPLETE
+Plan: 2 of 2 (both complete)
+Status: Phase complete — ready for verification
+Last activity: 2026-06-08
 
-Progress: [▒▒▒▒▒▒▒▒▒▒] 0% (0/4 phases)
+Progress: [██████████] 100%
 
 **Milestone v1.1 scope:** run the whole mesh fully local + offline — vLLM + Ollama behind LiteLLM (Phase 8), local Postgres(pgvector) + self-hosted Langfuse (Phase 9), full-stack docker-compose (Phase 10), offline no-egress posture (Phase 11). Config/compose/docs/tests ONLY — zero `src/` change; deployment names unchanged so agent + gateway code are untouched.
 
@@ -61,6 +61,7 @@ Progress: [▒▒▒▒▒▒▒▒▒▒] 0% (0/4 phases)
 *Updated after each plan completion*
 | Phase 05 P07 | 15 | 2 tasks | 4 files |
 | Phase 06 P01 | 31min | 3 tasks | 6 files |
+| Phase 08 P02 | 12 | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -79,6 +80,7 @@ Recent decisions affecting current work:
 - v1.1 (2026-06-08): Local/Offline Deployability milestone — config/compose/docs/tests ONLY, zero src/ change. vLLM + Ollama slot behind the existing LiteLLM Router seam keyed on stable deployment names (low/medium/high-complexity), so agent + gateway code are untouched. Offline enforcement is test-asserted over config, not a runtime guard. vLLM was the originating slice (user request) folded into a 4-phase milestone (8–11).
 - 08-01 (2026-06-08): local profiles author egress-free headers self-authored (NOT copied from cloud file — case-sensitive negative greps would pass a copied header yet still leak cloud markers); value lines unquoted so literal-substring grep gates match; vLLM api_base ends /v1 (hosted_vllm appends only chat/completions, Pitfall 1), Ollama ollama_chat/ + :11434 no /v1
 - v1.1 (2026-06-08): skipped `phases.clear` during new-milestone (would have deleted unarchived v1.0 phase dirs 01–07); phases continue at 08 so no collision. Run `/gsd:complete-milestone` to archive v1.0 cleanly when ready.
+- 08-02 (2026-06-08): local lane tooling complete — five Makefile targets (cp-swap use-*, best-effort run-* kept out of CI per D-07), LOCAL-04 guard (loopback api_base + no cloud markers, offline build_router, inverted vs test_d06_chokepoint), RUNBOOK Local inference lane section; canonical test interpreter is .venv/bin/python (litellm 1.83.7), bare PATH python 3.14 lacks deps (pre-existing env note)
 
 ### Pending Todos
 
@@ -104,8 +106,8 @@ Items acknowledged and carried forward:
 
 ## Session Continuity
 
-Last session: --stopped-at
-Stopped at: Phase 8 Plan 01 complete (local-backend config profiles)
+Last session: 2026-06-08T11:27:24.561Z
+Stopped at: Completed 08-02-PLAN.md
 
 **Next:** Execute Plan 08-02 — consumers: Makefile run/swap targets (run-vllm/run-ollama, use-vllm/use-ollama/use-cloud), LOCAL-04 config-validation test (build_router over each local profile, no network), RUNBOOK local-inference section. LOCAL-03/04.
 

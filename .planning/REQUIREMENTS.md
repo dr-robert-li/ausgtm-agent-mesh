@@ -112,10 +112,14 @@ config, not a runtime `src/` guard. Phases continue at 08.
 
 ### Local Inference (Phase 8)
 
-- [ ] **LOCAL-01**: A `config/model_gateway.vllm.yaml` profile routes all three tiers to a local vLLM OpenAI-compatible endpoint behind LiteLLM (`hosted_vllm/*` + local `api_base`); a `make run-vllm` target starts the server
-- [ ] **LOCAL-02**: A `config/model_gateway.ollama.yaml` profile routes all three tiers to a local Ollama endpoint behind LiteLLM; a `make run-ollama` target starts/pulls it
-- [ ] **LOCAL-03**: RUNBOOK has a "Local inference lane" section: how to run each backend, how the Router selects a profile (config path / env), and the tool-calling model-capability caveat
-- [ ] **LOCAL-04**: A config-validation test asserts each local profile defines all three deployment names with a local `api_base` and builds via `build_router` with no network call
+- [x] **LOCAL-01
+**: A `config/model_gateway.vllm.yaml` profile routes all three tiers to a local vLLM OpenAI-compatible endpoint behind LiteLLM (`hosted_vllm/*` + local `api_base`); a `make run-vllm` target starts the server
+- [x] **LOCAL-02
+**: A `config/model_gateway.ollama.yaml` profile routes all three tiers to a local Ollama endpoint behind LiteLLM; a `make run-ollama` target starts/pulls it
+- [x] **LOCAL-03
+**: RUNBOOK has a "Local inference lane" section: how to run each backend, how the Router selects a profile (config path / env), and the tool-calling model-capability caveat
+- [x] **LOCAL-04
+**: A config-validation test asserts each local profile defines all three deployment names with a local `api_base` and builds via `build_router` with no network call
 
 ### Local Data & Telemetry (Phase 9)
 
