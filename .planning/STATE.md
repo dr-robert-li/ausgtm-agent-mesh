@@ -1,51 +1,40 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: milestone_complete
-stopped_at: Phase 7 planned (4 plans)
-last_updated: "2026-06-08T01:06:53.939Z"
+milestone: v1.1
+milestone_name: local-offline-deployability
+status: planning
+stopped_at: Milestone v1.1 started — awaiting /gsd:plan-phase 8
+last_updated: "2026-06-08T02:45:00.000Z"
 last_activity: 2026-06-08
 progress:
-  total_phases: 7
-  completed_phases: 8
-  total_plans: 37
-  completed_plans: 37
-  percent: 114
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-05)
+See: .planning/PROJECT.md (updated 2026-06-08)
 
 **Core value:** A long-running agent mesh takes a client request through ingress, durable orchestration, and a write-gated tool action — the write blocked until a human approves — and the whole run is observable and auditable.
-**Current focus:** Phase 07 — e2e-validation-deploy-readiness
+**Current focus:** Milestone v1.1 — Local / Offline Deployability (Phase 8 next)
 
 ## Current Position
 
-Phase: 07
-Plan: Not started
-Plans: 07-01 E2E-01 + 07-04 deploy (wave 1) → 07-02 E2E-02 + 07-03 E2E-03 (wave 2, depend 07-01)
-Status: Milestone complete
-Last activity: 2026-06-08
+Phase: Not started (Phase 8 next — defining/planning)
+Plan: —
+Status: Milestone v1.1 started; requirements + roadmap defined
+Last activity: 2026-06-08 — Milestone v1.1 (Local / Offline Deployability) started
 
-Progress: [██████████] 100%
+Progress: [▒▒▒▒▒▒▒▒▒▒] 0% (0/4 phases)
 
-**Phase 4 result:** Tool Gateway execution engine (call-time credential resolution never leaked, Draft-2020-12 in/out validation with fail-closed-direct/permissive-aggregate, one tool-event OTel span per call). Adapters: HubSpot (single dispatcher), Google Workspace (9 ops / 6 products, one dispatcher + shared refresh-token scaffold), Composio (key `composio`) + Nango (key `nango`, httpx REST proxy, NO pip dep — PyPI `nango` confirmed unrelated/squatted). Read path executes ungated; writes stay payload-hash-ledger gated (SEC-01/02 intact). Supply-chain package-legitimacy gates T-04-05/06/08-SC recorded with operator sign-off (12-mo audit). **Deferred (operator, live creds):** SC-1 real HubSpot CRM call + SC-3 real Composio/Nango calls — `make test-live` per docs/credentials/README.md.
+**Milestone v1.1 scope:** run the whole mesh fully local + offline — vLLM + Ollama behind LiteLLM (Phase 8), local Postgres(pgvector) + self-hosted Langfuse (Phase 9), full-stack docker-compose (Phase 10), offline no-egress posture (Phase 11). Config/compose/docs/tests ONLY — zero `src/` change; deployment names unchanged so agent + gateway code are untouched.
 
-**Re-scope (2026-06-06):** POC reframed as MVP requiring viable general tool coverage.
-TOOL-03/04 promoted v2→v1. Old "Phase 4: Tools & Self-Improvement" split into Phase 4
-(tool framework + HubSpot + full Google Workspace + Composio/Nango aggregators), Phase 5
-(reference-adapter breadth, TOOL-03), Phase 6 (self-improvement, SI-01/02); E2E/deploy → Phase 7.
-**Current focus: Phase 04** — context gathered, ready to plan.
-
-Phase 03 result: GW-01 (in-process litellm.Router + durable budget ledger), GW-02
-(structural CF chokepoint, agents never call providers directly), GW-03 (fallback
-cascade + governed/observable budget-halt), OBS-01 (OTel spans, trace_id on all
-paths, ingress→worker traceparent join), OBS-02 (Langfuse v4 prompt mgmt + seed).
-Suite on main: 135 passed, 10 skipped (live opt-in), ruff clean, smoke OK.
+**v1.0 complete (2026-06-08):** Phases 1–7 done — durable Postgres core + authenticated/replay-proof approval gate; real LangGraph supervisor + Deep Agents roster + durable checkpointer + interrupt HITL; live LiteLLM gateway (budgets/cascades) + CF AI Gateway upstream + Langfuse; Tool Gateway framework + HubSpot/Google Workspace/Composio/Nango + 5 reference adapters + Xero; real held-out self-improvement loop + CycloneDX ML-BOM + non-hot promotion/rollback; full E2E proofs + idempotent deploy-script validation (SC-2/CR-01 gap closed via 07-05, 4/4 verified). Deploy-ready, not production-ready. v1.0 not yet archived via `/gsd:complete-milestone` (phase history 01–07 preserved in place).
 
 ## Performance Metrics
 
@@ -87,6 +76,8 @@ Recent decisions affecting current work:
 - 05-07: Xero rides existing composio adapter (no new module); BEEHIIV_LIVE_PUBLICATION_ID excluded via _NON_ENV (non-credential toggle) to keep credential-docs floor at 12
 - 06-01: active-version pointer is a dedicated 0004 row (self_improvement_active_version), not derived from PromotionRecord — read+write both in repository.py
 - 06-01: cyclonedx-python-lib 11.8.0 confirmed; V1_7 output API via cyclonedx.output.make_outputter + cyclonedx.schema SchemaVersion.V1_7/OutputFormat.JSON (resolves RESEARCH A2 for 06-05)
+- v1.1 (2026-06-08): Local/Offline Deployability milestone — config/compose/docs/tests ONLY, zero src/ change. vLLM + Ollama slot behind the existing LiteLLM Router seam keyed on stable deployment names (low/medium/high-complexity), so agent + gateway code are untouched. Offline enforcement is test-asserted over config, not a runtime guard. vLLM was the originating slice (user request) folded into a 4-phase milestone (8–11).
+- v1.1 (2026-06-08): skipped `phases.clear` during new-milestone (would have deleted unarchived v1.0 phase dirs 01–07); phases continue at 08 so no collision. Run `/gsd:complete-milestone` to archive v1.0 cleanly when ready.
 
 ### Pending Todos
 
@@ -112,8 +103,9 @@ Items acknowledged and carried forward:
 
 ## Session Continuity
 
-Last session: --stopped-at
-Stopped at: Phase 7 planned (4 plans)
+Last session: 2026-06-08 — Phase 07 completed (gap-closure 07-05, SC-2/CR-01 closed, 4/4 verified); milestone v1.1 started.
+Stopped at: Milestone v1.1 (Local / Offline Deployability) requirements + roadmap defined.
 
-**Planned Phase:** 07 (e2e-validation-deploy-readiness) — 5 plans — 2026-06-08T00:49:03.524Z
-Decisions (live-evidenced): Xero via Composio (key provisioned, proxy-execute off); Bitscale = real direct httpx adapter (api.bitscale.ai/api/v1, X-API-Key), reads-only live lane, run_grid credit-safe-stubbed. COMPOSIO_API_KEY + BITSCALE_API_KEY in .env (gitignored).
+**Next:** `/gsd:plan-phase 8` — Local Inference Lane (vLLM + Ollama profiles behind LiteLLM; make run-vllm/run-ollama; RUNBOOK + config-validation tests). LOCAL-01/02/03/04.
+
+**Note (carried):** GSD subagents not installed (`agents_installed: false`) — executor/verifier/roadmapper run inline. Install via `npx get-shit-done-cc@latest --global` to enable spawned agents.

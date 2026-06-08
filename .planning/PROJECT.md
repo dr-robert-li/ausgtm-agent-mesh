@@ -29,6 +29,28 @@ orchestration, and a write-gated tool action — with that write blocked until a
 approves it — and the entire run is observable and auditable. If everything else fails,
 **the human-in-the-loop write-approval gate must hold and the run must be durable.**
 
+## Current Milestone: v1.1 Local / Offline Deployability
+
+**Goal:** Run the entire agent mesh fully local and offline — local model inference (vLLM +
+Ollama behind LiteLLM), a full-stack docker-compose, local Postgres(pgvector) + self-hosted
+Langfuse, and an offline no-egress posture — **without changing production code**.
+
+**Target features:**
+- Local model lane — `config/model_gateway.vllm.yaml` + `.ollama.yaml` profiles behind LiteLLM; `make run-vllm`/`run-ollama`; RUNBOOK local-inference section (Phase 8)
+- Local data & telemetry plane — documented local Postgres(pgvector) + self-hosted Langfuse run path, make/RUNBOOK/conftest wired (Phase 9)
+- Full-stack docker-compose — one-command local bring-up of the whole mesh (Phase 10)
+- Offline / no-egress posture — OFFLINE config/.env + tests asserting no cloud api_base / no Vertex/Anthropic/CF egress / local secrets (Phase 11)
+
+**Guardrails:** config / docker-compose / docs / tests ONLY — zero `src/` change. Deployment
+names (`low/medium/high-complexity`) unchanged so agent + gateway code are untouched. Offline
+enforcement is test-asserted over config, not a runtime guard. Durable stores stay
+`australia-southeast1` for cloud deploys; the local lane keeps everything on-box (residency
+improves). Phases continue at 08; v1.0 (Phases 1–7) is complete but not yet archived via
+`/gsd:complete-milestone`.
+
+**Status:** v1.0 complete (Phases 1–7, 2026-06-08). v1.1 requirements + roadmap defined;
+awaiting `/gsd:plan-phase 8`.
+
 ## Requirements
 
 ### Validated
@@ -113,6 +135,7 @@ approves it — and the entire run is observable and auditable. If everything el
 | Coarse granularity, standard (horizontal-layer) phasing | Work replaces real technical layers (durability → orchestration → model/observability → tools/SI) over a working E2E scaffold; a final phase assembles + validates | — Pending |
 | Quality model profile (Opus for planning agents) | Real framework-integration wiring (LangGraph checkpointer, Deep Agents, Cloudflare) rewards deeper planning | — Pending |
 | Governed self-evolving build; Phase 6 = real SI loop (2026-06-07) | Deep-research review of 2025–2026 SOTA: log-driven reflective proposal (GEPA) is production-viable, reward hacking is pervasive (→ score on held-out, never the optimization signal), DGM-style autonomous self-mod stays out (Option C). Pulled the full loop into Phase 6 (SI-01 +a–d, SI-02 +a–b, SI-03), split memory/topology (SI-04/05) to a new milestone for verifiable boundaries | — Pending |
+| Milestone v1.1 = Local/Offline Deployability, config-only (2026-06-08) | The mesh is GCP/Vertex/Anthropic/Cloudflare-targeted; a fully-local/offline lane (vLLM+Ollama behind the existing LiteLLM Router seam, docker-compose, local PG+Langfuse, no-egress posture) is achievable WITHOUT production code change because model access already flows through a config-driven Router keyed on stable deployment names. Scoped config/compose/docs/tests-only to carry the Phase-07 guardrail forward; vLLM was the originating slice (folded into a 4-phase milestone) | — Pending |
 
 ## Evolution
 
@@ -132,4 +155,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-05 after initialization*
+*Last updated: 2026-06-08 — milestone v1.1 (Local / Offline Deployability) started; v1.0 Phases 1–7 complete*

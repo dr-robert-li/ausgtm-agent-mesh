@@ -101,6 +101,40 @@ expanded from stub-replacement to the real, Option-C-safe self-improvement **loo
 - [ ] **DEP-01**: `gcloud` bootstrap + deploy scripts pass shellcheck/lint, `--dry-run`/`--help` syntax checks, and unit tests of their resource-detection branches with a mocked `gcloud` — proving the idempotency *logic* locally. (True end-to-end idempotency against a real project is deferred to DEP-03; this is the local-validation ceiling.)
 - [ ] **DEP-02**: The Cloudflare `wrangler` deploy script passes lint + `wrangler --dry-run`, and the deployment + tool-pack manifests are schema-consistent — local-validation ceiling, no live publish
 
+## v1.1 Requirements — Milestone v1.1: Local / Offline Deployability
+
+New milestone (2026-06-08). Run the whole mesh **fully local and offline**: local inference
+(vLLM + Ollama behind LiteLLM), a full-stack docker-compose, local Postgres(pgvector) +
+self-hosted Langfuse, and an offline no-egress posture. **Guardrail: config / docker-compose /
+docs / tests ONLY — zero production code change.** Deployment names (`low/medium/high-complexity`)
+stay constant so agent/gateway code is untouched. Offline enforcement is test-asserted over
+config, not a runtime `src/` guard. Phases continue at 08.
+
+### Local Inference (Phase 8)
+
+- [ ] **LOCAL-01**: A `config/model_gateway.vllm.yaml` profile routes all three tiers to a local vLLM OpenAI-compatible endpoint behind LiteLLM (`hosted_vllm/*` + local `api_base`); a `make run-vllm` target starts the server
+- [ ] **LOCAL-02**: A `config/model_gateway.ollama.yaml` profile routes all three tiers to a local Ollama endpoint behind LiteLLM; a `make run-ollama` target starts/pulls it
+- [ ] **LOCAL-03**: RUNBOOK has a "Local inference lane" section: how to run each backend, how the Router selects a profile (config path / env), and the tool-calling model-capability caveat
+- [ ] **LOCAL-04**: A config-validation test asserts each local profile defines all three deployment names with a local `api_base` and builds via `build_router` with no network call
+
+### Local Data & Telemetry (Phase 9)
+
+- [ ] **LDATA-01**: A local Postgres(pgvector) run path is documented + make-wired to `DATABASE_URL`/`TEST_DATABASE_URL` and applies the existing migrations
+- [ ] **LDATA-02**: A self-hosted Langfuse local run path is documented with its env wiring (`LANGFUSE_HOST`, keys) for local trace ingestion
+- [ ] **LDATA-03**: The durable lane runs locally end to end (`make test-pg` against the local DSN); a test asserts the local-DSN path applies migrations and is reachable, loud-skip when unset
+
+### Full-Stack Compose (Phase 10)
+
+- [ ] **COMPOSE-01**: A `docker-compose.yml` brings up api + worker + gui + Postgres(pgvector) + Langfuse + LiteLLM + a local model backend (vLLM or Ollama) with one command
+- [ ] **COMPOSE-02**: `make compose-up` / `make compose-down` wrap the stack; RUNBOOK documents the one-command local bring-up
+- [ ] **COMPOSE-03**: A test/lint validates the compose file (`docker compose config` parses; required services + healthchecks + the pgvector image present), loud-skip when docker is absent
+
+### Offline / No-Egress (Phase 11)
+
+- [ ] **OFFLINE-01**: An OFFLINE posture is expressible via config/.env (CF off, no Vertex/Anthropic keys, local-only `api_base`, `.env`-sourced secrets) and documented in RUNBOOK
+- [ ] **OFFLINE-02**: A test asserts the local/offline model profiles contain NO cloud `api_base` (no Vertex/Anthropic/CF wrapper URL) and no cloud-key env references — egress-free by construction
+- [ ] **OFFLINE-03**: A test asserts the default creds-free lane performs no outbound network to a real provider/gateway (the existing stub posture, made explicit and enforced)
+
 ## v2 Requirements
 
 Deferred to future milestones. Tracked, not in current roadmap.
@@ -164,16 +198,28 @@ Explicitly excluded. Documented to prevent scope creep.
 | SI-03 | Phase 6 | Pending |
 | SI-04 | Milestone "Self-Evolving Surfaces" | Deferred (v2) |
 | SI-05 | Milestone "Self-Evolving Surfaces" | Deferred (v2) |
-| E2E-01 | Phase 7 | Pending |
-| E2E-02 | Phase 7 | Pending |
-| E2E-03 | Phase 7 | Pending |
-| DEP-01 | Phase 7 | Pending |
-| DEP-02 | Phase 7 | Pending |
+| E2E-01 | Phase 7 | Complete |
+| E2E-02 | Phase 7 | Complete |
+| E2E-03 | Phase 7 | Complete |
+| DEP-01 | Phase 7 | Complete |
+| DEP-02 | Phase 7 | Complete |
+| LOCAL-01 | Phase 8 | Pending |
+| LOCAL-02 | Phase 8 | Pending |
+| LOCAL-03 | Phase 8 | Pending |
+| LOCAL-04 | Phase 8 | Pending |
+| LDATA-01 | Phase 9 | Pending |
+| LDATA-02 | Phase 9 | Pending |
+| LDATA-03 | Phase 9 | Pending |
+| COMPOSE-01 | Phase 10 | Pending |
+| COMPOSE-02 | Phase 10 | Pending |
+| COMPOSE-03 | Phase 10 | Pending |
+| OFFLINE-01 | Phase 11 | Pending |
+| OFFLINE-02 | Phase 11 | Pending |
+| OFFLINE-03 | Phase 11 | Pending |
 
 **Coverage:**
-- v1 requirements: 26 top-level (SI-03 added; SI-01/SI-02 sub-IDs SI-01a–d, SI-02a–b are
-  acceptance facets of their parents, not separately counted)
-- Mapped to phases: 26
+- v1.0 requirements: 26 top-level — all mapped to Phases 1–7; Phases 1–7 complete (2026-06-08)
+- v1.1 requirements: 13 (LOCAL ×4, LDATA ×3, COMPOSE ×3, OFFLINE ×3) — all mapped to Phases 8–11
 - Unmapped: 0 ✓
 - Deferred to "Self-Evolving Surfaces" milestone (v2): SI-04, SI-05
 
@@ -189,6 +235,12 @@ topology evolution deferred to a new "Self-Evolving Surfaces" milestone (SI-04, 
 milestone is re-scoped to a governed self-evolving-agent build (PROJECT.md update + new-milestone
 creation are follow-up steps via `/gsd:new-milestone`).
 
+**Milestone v1.1 note (2026-06-08):** v1.0 (Phases 1–7) complete — full local-validated
+scaffold, deploy-ready. New milestone v1.1 "Local / Offline Deployability" adds 13 requirements
+(LOCAL/LDATA/COMPOSE/OFFLINE) across Phases 8–11, config/compose/docs/tests-only, zero
+production code change. v1.0 not yet archived via `/gsd:complete-milestone` — phase history 01–07
+preserved in place.
+
 ---
 *Requirements defined: 2026-06-05*
-*Last updated: 2026-06-07 — Phase 6 expanded to the real self-improvement loop (SI-01 +a–d, SI-02 +a–b, SI-03); SI-04/SI-05 deferred to new milestone (deep-research-driven)*
+*Last updated: 2026-06-08 — milestone v1.1 (Local/Offline Deployability) requirements added (LOCAL/LDATA/COMPOSE/OFFLINE, Phases 8–11); v1.0 Phases 1–7 marked complete*
