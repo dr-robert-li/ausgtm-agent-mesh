@@ -180,7 +180,7 @@ Plans:
   2. An MCP request runs a long checkpointed mesh job and returns an artifact
   3. A failure E2E demonstrates model fallback, job retry, and budget-limit halt together
   4. The `gcloud` bootstrap/deploy and Cloudflare `wrangler` scripts pass lint + dry-run/syntax checks, and their resource-detection branches are unit-tested with a mocked `gcloud` (idempotency *logic* proven locally — true end-to-end idempotency against a live project is deferred to DEP-03); the deployment + tool-pack manifests are schema-consistent
-**Plans**: 4 plans
+**Plans**: 5 plans (4 + 1 gap-closure)
 
 > **Plan-count note (2026-06-08):** the ROADMAP stub proposed 2 plans (one E2E suite, one deploy). Planning split the E2E suite into three per-proof plans (each E2E criterion is a distinct subsystem with its own ~50% context budget). 07-01 owns the `tests/e2e/__init__.py` package marker (tests/ is a real package, pytest prepend import mode), so 07-02/07-03 depend on it (wave 2); 07-04 owns `tests/deploy/__init__.py` and is independent (wave 1) and kept deploy-readiness standalone. The three open design decisions surfaced by the pattern-mapper are resolved in-plan: (1) E2E-03's "job retry" leg = litellm in-cascade recovery (07-03) PLUS Pub/Sub `--max-delivery-attempts=5` deploy-config consistency (07-04), no new fault harness (honors D-05); (2) E2E-02 MCP entry = in-process `request_from_mcp` (no `/mcp` HTTP route exists); (3) D-11 manifest-consistency = a NEW dedicated validator (export_schemas only does Pydantic→JSON-Schema, never reads YAML manifests).
 
@@ -189,6 +189,7 @@ Plans:
 - [ ] 07-02-PLAN.md — E2E-02: MCP in-process request → durable checkpointed job (sqlite drop/reopen restart-resume; Postgres opt-in lane) returning a surviving artifact (E2E-02) [wave 2, depends 07-01, D-01/02/03/04]
 - [ ] 07-03-PLAN.md — E2E-03: single combined failure run — fallback + in-cascade retry-recovery → governed budget_halt → FAILED; cents-cap live variant (E2E-03) [wave 2, depends 07-01, D-05/06/08]
 - [ ] 07-04-PLAN.md — Deploy-readiness: PATH-shim gcloud/wrangler idempotency-logic harness + bash -n floor + loud-skip lint + NEW manifest-consistency validator + Pub/Sub redelivery-config assertion (DEP-01, DEP-02) [wave 1, D-09/10/11]
+- [ ] 07-05-PLAN.md — Gap-closure (SC-2/CR-01): rewrite E2E-02 default lane to drive the production Worker/orchestrator restart-resume wiring via set_checkpointer_override + file-backed sqlite (bare production thread_id; discriminating checkpoint-survival read); fold in WR-01 (registered FastMCP tool) + WR-02 (Postgres-lane negative assertion + make test-pg / RUNBOOK hook) (E2E-02) [wave 1, gap_closure]
 
 ## Progress
 
