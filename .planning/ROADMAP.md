@@ -31,9 +31,26 @@ resources.
 - [x] **Phase 4: Tool Gateway Framework + First Adapters + Aggregators** - Reusable Tool Gateway execution engine (execution-time credential resolution, JSON-Schema in/out validation, tool-event OTel spans), HubSpot + Google Workspace direct adapters, Composio (primary) + Nango (fallback) aggregator styles _(completed 2026-06-06; TOOL-01, TOOL-02, TOOL-04 + OBS-01 tool-spans; framework verified against source 5/5 must-haves + 8 invariants, 215 tests green creds-free; live SC-1/SC-3 lanes opt-in and deferred to operator per milestone deploy-ready-only scope — run `make test-live` with creds)_
 - [x] **Phase 5: Reference Adapter Breadth** - Remaining reference providers — Webflow, Bitscale, Cal.com, Clockify, Beehiiv direct adapters; Xero via aggregator _(completed 2026-06-07; TOOL-03; 5 direct adapters + Xero-via-Composio (no new module) verified against source 4/4 success criteria, 242 tests green creds-free; live lanes opt-in/deferred to operator — `make test-live` with creds; code review 4 findings fixed in 80e6d4e, 1 by-design)_
 - [x] **Phase 6: Self-Improvement (real loop)** _(completed 2026-06-08)_ - Real held-out evaluation harness + GEPA-style offline inert proposer & bounded loop; CycloneDX ML-BOM-on-promotion + controlled versioned (non-hot) promotion with rollback. Option-C-safe (inert, human-gated, no runtime mutation) _(SI-01 +a–d, SI-02 +a–b, SI-03; expanded 2026-06-07 by deep-research; memory/skill/topology → new "Self-Evolving Surfaces" milestone as SI-04/SI-05)_
-- [ ] **Phase 7: E2E Validation & Deploy-Readiness** - Full end-to-end proofs + failure modes + idempotent deploy-script validation _(E2E-01/02/03, DEP-01/02)_
+- [x] **Phase 7: E2E Validation & Deploy-Readiness** - Full end-to-end proofs + failure modes + idempotent deploy-script validation _(completed 2026-06-08; E2E-01/02/03, DEP-01/02; SC-2/CR-01 gap closed via 07-05, 4/4 verified)_
 
 > **Re-scope (2026-06-06):** POC reframed as MVP requiring viable general tool coverage. TOOL-03/04 promoted v2→v1; the old "Phase 4: Tools & Self-Improvement" split into a tool-framework phase (4), an adapter-breadth phase (5), and a self-improvement phase (6); E2E/deploy-readiness moved to Phase 7. Milestone grew 5→7 phases.
+
+---
+
+## Milestone v1.1 — Local / Offline Deployability
+
+> **New milestone (2026-06-08).** Run the whole mesh fully **local and offline** — local
+> inference (vLLM + Ollama behind LiteLLM), a full-stack docker-compose, local
+> Postgres(pgvector) + self-hosted Langfuse, and an offline no-egress posture — with
+> **zero production code change** (config / compose / docs / tests only). Deployment names
+> (`low/medium/high-complexity`) stay constant so agent code is untouched; the existing
+> LiteLLM Router seam absorbs the local backends. Phases continue at **08**; v1.0 phase
+> history (01–07) is preserved (v1.0 not yet archived via `/gsd:complete-milestone`).
+
+- [ ] **Phase 8: Local Inference Lane** - vLLM + Ollama model-gateway profiles behind LiteLLM; `make run-vllm`/`run-ollama`; RUNBOOK local-inference section; config-validation tests _(LOCAL-01/02/03/04)_
+- [ ] **Phase 9: Local Data & Telemetry Plane** - documented local Postgres(pgvector) + self-hosted Langfuse run path wired to make/RUNBOOK/conftest; migration-on-local-DSN test _(LDATA-01/02/03)_
+- [ ] **Phase 10: Full-Stack Local Compose** - one-command docker-compose (api+worker+gui+Postgres(pgvector)+Langfuse+LiteLLM+local model backend); `make compose-up/down`; compose-config validation _(COMPOSE-01/02/03)_
+- [ ] **Phase 11: Offline / No-Egress Posture** - OFFLINE env posture over config; tests assert no cloud api_base / no Vertex/Anthropic/CF egress / local .env secrets across the assembled local stack _(OFFLINE-01/02/03)_
 
 ## Phase Details
 
@@ -191,10 +208,60 @@ Plans:
 - [x] 07-04-PLAN.md — Deploy-readiness: PATH-shim gcloud/wrangler idempotency-logic harness + bash -n floor + loud-skip lint + NEW manifest-consistency validator + Pub/Sub redelivery-config assertion (DEP-01, DEP-02) [wave 1, D-09/10/11]
 - [x] 07-05-PLAN.md — Gap-closure (SC-2/CR-01): rewrite E2E-02 default lane to drive the production Worker/orchestrator restart-resume wiring via set_checkpointer_override + file-backed sqlite (bare production thread_id; discriminating checkpoint-survival read); fold in WR-01 (registered FastMCP tool) + WR-02 (Postgres-lane negative assertion + make test-pg / RUNBOOK hook) (E2E-02) [wave 1, gap_closure]
 
+---
+
+## Phase Details — Milestone v1.1 (Local / Offline Deployability)
+
+> **Guardrail (all phases):** config / docker-compose / docs / tests ONLY. No `src/`
+> production code change. Deployment names (`low/medium/high-complexity`) unchanged so the
+> LiteLLM Router seam + agent code are untouched. Offline enforcement is **test-asserted
+> over config**, not a runtime guard in `src/`.
+
+### Phase 8: Local Inference Lane
+**Goal**: Add local-model profiles so the mesh runs inference fully on-box behind the existing LiteLLM Router — vLLM (GPU) and Ollama (CPU/dev) — without touching agent or gateway code.
+**Depends on**: Nothing in v1.1 (builds on the v1.0 model-gateway seam)
+**Requirements**: LOCAL-01, LOCAL-02, LOCAL-03, LOCAL-04
+**Success Criteria** (what must be TRUE):
+  1. A `config/model_gateway.vllm.yaml` profile routes all three tiers to a local vLLM OpenAI-compatible endpoint via LiteLLM `hosted_vllm/*`; `make run-vllm` starts the server
+  2. A `config/model_gateway.ollama.yaml` profile routes all three tiers to a local Ollama endpoint via LiteLLM; `make run-ollama` starts/pulls it
+  3. RUNBOOK documents the local-inference lane: how to run each backend, how the Router selects a profile (config path/env), and the tool-calling model-capability caveat
+  4. A config-validation test asserts each local profile defines all three deployment names with a local `api_base` and builds via `build_router` with no network
+**Plans**: TBD (run `/gsd:plan-phase 8`)
+
+### Phase 9: Local Data & Telemetry Plane
+**Goal**: Document and wire a fully local persistence + observability plane — local Postgres(pgvector) + self-hosted Langfuse — replacing Cloud SQL / cloud Langfuse for local dev.
+**Depends on**: Nothing hard (pairs with Phase 8; consumed by Phase 10)
+**Requirements**: LDATA-01, LDATA-02, LDATA-03
+**Success Criteria** (what must be TRUE):
+  1. A local Postgres(pgvector) run path is documented + make-wired to `DATABASE_URL`/`TEST_DATABASE_URL` and applies the existing migrations
+  2. A self-hosted Langfuse local run path is documented with its env wiring (`LANGFUSE_HOST` etc.) for local trace ingestion
+  3. The durable lane runs locally end to end (`make test-pg` against the local DSN); a test asserts the local-DSN path applies migrations and is reachable, loud-skip when unset
+**Plans**: TBD (run `/gsd:plan-phase 9`)
+
+### Phase 10: Full-Stack Local Compose
+**Goal**: Assemble the entire mesh as a one-command local stack via docker-compose — api + worker + gui + Postgres(pgvector) + Langfuse + LiteLLM + a local model backend — composing the Phase 8/9 pieces.
+**Depends on**: Phase 8, Phase 9
+**Requirements**: COMPOSE-01, COMPOSE-02, COMPOSE-03
+**Success Criteria** (what must be TRUE):
+  1. A `docker-compose.yml` brings up api + worker + gui + Postgres(pgvector) + Langfuse + LiteLLM + a local model backend (vLLM or Ollama) with one command
+  2. `make compose-up` / `make compose-down` wrap it; RUNBOOK documents the one-command local stack
+  3. A test/lint validates the compose file (`docker compose config` parses; required services + healthchecks + the pgvector image present), loud-skip when docker is absent
+**Plans**: TBD (run `/gsd:plan-phase 10`)
+
+### Phase 11: Offline / No-Egress Posture
+**Goal**: Make "runs offline with no cloud egress" an asserted property, not a hope — an OFFLINE config/.env posture plus tests that fail if any local profile or the default lane can reach a cloud provider/gateway.
+**Depends on**: Phase 8, Phase 9, Phase 10
+**Requirements**: OFFLINE-01, OFFLINE-02, OFFLINE-03
+**Success Criteria** (what must be TRUE):
+  1. An OFFLINE posture is expressible via config/.env (CF off, no Vertex/Anthropic keys, local-only `api_base`, `.env`-sourced secrets) and documented in RUNBOOK
+  2. A test asserts the local/offline model profiles contain NO cloud `api_base` (no Vertex/Anthropic/CF wrapper URL) and no cloud-key env references — egress-free by construction
+  3. A test asserts the default creds-free lane performs no outbound network to a real provider/gateway (the existing stub posture, made explicit and enforced)
+**Plans**: TBD (run `/gsd:plan-phase 11`)
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 (v1.0) → 8 → 9 → 10 → 11 (v1.1)
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -204,4 +271,9 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 4. Tool Gateway Framework + First Adapters + Aggregators | 9/9 | Complete | 2026-06-06 |
 | 5. Reference Adapter Breadth | 7/7 | Complete | 2026-06-07 |
 | 6. Self-Improvement (real loop) | 6/6 | Complete | 2026-06-08 |
-| 7. E2E Validation & Deploy-Readiness | 0/4 | Planned | - |
+| 7. E2E Validation & Deploy-Readiness | 5/5 | Complete | 2026-06-08 |
+| — v1.1 Local / Offline Deployability — | | | |
+| 8. Local Inference Lane | 0/0 | Planned | - |
+| 9. Local Data & Telemetry Plane | 0/0 | Planned | - |
+| 10. Full-Stack Local Compose | 0/0 | Planned | - |
+| 11. Offline / No-Egress Posture | 0/0 | Planned | - |
