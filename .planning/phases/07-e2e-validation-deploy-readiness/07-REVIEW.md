@@ -18,14 +18,43 @@ files_reviewed_list:
   - scripts/gcp_deploy_core.sh
   - scripts/cf_deploy_ai_gateway_worker.sh
 findings:
+  critical: 0
+  warning: 2
+  info: 2
+  total: 4
+findings_original:
   critical: 1
   warning: 4
   info: 2
   total: 7
+resolved_by_07_05: [CR-01, WR-01, WR-02]
 status: issues_found
+status_note: >
+  CR-01 (critical), WR-01, WR-02 closed by gap-closure plan 07-05 (verified test-side,
+  production unchanged). Remaining advisory findings WR-03/WR-04 (07-04/07-01 files) and
+  IN-01/IN-02 (07-03 files) are OUT OF 07-05 SCOPE and non-blocking.
 ---
 
 # Phase 07: Code Review Report
+
+## Gap-closure 07-05 resolutions (2026-06-08T11:08:00Z)
+
+Plan 07-05 closed the three findings against the E2E-02 modules. All test-side; `git diff
+--stat src/` is empty (production `_graph_config` unchanged).
+
+| Finding | Resolution | Evidence |
+|---------|-----------|----------|
+| **CR-01** (critical) | Default-lane test now drives the production `Worker.process -> run_mesh -> _run_langgraph -> _select_checkpointer -> _graph_config` path via the `set_checkpointer_override` seam, on the BARE production key; `tenant-t::` invention and false DUR-02 docstring removed; discriminating reopened-checkpoint reads (survival + consumption) go red on checkpoint loss. | `grep tenant-t:: == 0`; `get_tuple(cfg) >= 2`; `build_graph().compile == 0`; test PASSES (not skips). |
+| **WR-01** (warning) | `test_e2e_mcp_transport_create_task` now invokes the registered FastMCP tool via `await server.call_tool("create_task", ...)` and reads the task back through the shared `TaskService`; construction-only assertion removed. | `grep call_tool >= 1`; `grep "server is not None" == 0`; test passes. |
+| **WR-02** (warning) | Postgres lane gains the `saver2 is not saver` post-close negative assertion + bare-key `_graph_config`; `make test-pg` + RUNBOOK note make the DSN-gated lane runnable on deploy-readiness (loud-skip when unset). | `grep "saver2 is not saver" == 1`; `test-pg` in Makefile; `TEST_DATABASE_URL` in RUNBOOK. |
+
+**Remaining (out of 07-05 scope, advisory):** WR-03 (deploy idempotency direction coverage,
+`07-04`), WR-04 (`_tasks` private access in `07-01` slack test), IN-01/IN-02 (`07-03`
+failure-modes assertions). Non-blocking; tracked for a future polish pass.
+
+---
+
+# Phase 07: Code Review Report (original)
 
 **Reviewed:** 2026-06-08T09:15:00+10:00
 **Depth:** standard
