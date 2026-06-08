@@ -136,6 +136,13 @@ and is fully reversible: `make use-cloud` restores the pristine cloud profile an
 goes clean again. Run `make use-cloud` before committing unrelated work so you don't sweep
 a local profile into a commit.
 
+While a local profile is active, `make test` will also fail `tests/test_d06_chokepoint.py`:
+that guard asserts the **active** config egresses through the Cloudflare wrapper, which the
+loopback local profiles deliberately do not. This is expected, not a regression — run
+`make use-cloud` to restore the cloud profile before running the full suite. (The
+`tests/test_local_profiles.py` guard, by contrast, reads the local profiles by path and
+passes in either state.)
+
 ### Tool-calling model-capability caveat
 
 The mesh delegates work via **tool-calls**, so tool-calling quality — not transport — is
