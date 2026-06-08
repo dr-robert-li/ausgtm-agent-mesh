@@ -1,4 +1,4 @@
-.PHONY: help install install-dev schemas test test-live lint fmt smoke run-api run-worker run-gui
+.PHONY: help install install-dev schemas test test-live test-pg lint fmt smoke run-api run-worker run-gui
 
 PY ?= python
 PYTHONPATH := src
@@ -10,6 +10,7 @@ help:
 	@echo "  schemas      Export JSON Schema for all contract models"
 	@echo "  test         Run the deterministic test suite (no cloud deps; excludes 'live')"
 	@echo "  test-live    Run the opt-in live suite (pytest -m live; needs real creds)"
+	@echo "  test-pg      Run the DSN-gated Postgres durable lane (export TEST_DATABASE_URL; loud-skips when unset)"
 	@echo "  lint         Run ruff lint checks"
 	@echo "  fmt          Auto-fix lint + format with ruff"
 	@echo "  smoke        Run the local end-to-end smoke check (no DB, no network)"
@@ -33,6 +34,14 @@ test:
 
 test-live:
 	PYTHONPATH=$(PYTHONPATH) $(PY) -m pytest -q -m live
+
+# Deploy-readiness: run the DSN-gated durable/Postgres checkpointer lane against a real
+# pgvector Postgres. Export TEST_DATABASE_URL first (see RUNBOOK.md); the pg_dsn fixture
+# loud-skips every Postgres test when it is unset, so this never hard-fails on a machine
+# with no Postgres. Not creds-gated -> excludes 'live'.
+test-pg:
+	PYTHONPATH=$(PYTHONPATH) $(PY) -m pytest -q -m "not live" \
+		tests/e2e/test_e2e_mcp_durable_job_live.py tests/test_checkpointer_resume.py
 
 lint:
 	$(PY) -m ruff check src tests

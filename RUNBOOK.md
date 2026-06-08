@@ -69,6 +69,30 @@ Heavy deps (`langchain`, `langgraph`, `deepagents`, `langfuse`, `streamlit`,
 and the in-process dispatcher/worker run. Install the `runtime`, `agents`, and
 `gui` extras for the full stack before building images.
 
+### Postgres durable checkpointer lane (deploy-readiness)
+
+The default lane proves the durable restart-resume (E2E-02 / SC-2) against a file-backed
+SQLite checkpointer, so `make test` stays creds- and DB-free. The REAL `PostgresSaver`
+restart-resume — routed through the production `orchestrator._select_checkpointer()` /
+`close_checkpointer()` lifecycle — is **DSN-gated** and **skipped by default**: the `pg_dsn`
+fixture loud-skips every Postgres test when `TEST_DATABASE_URL` is unset, so it never
+silently passes and never hard-fails on a machine with no Postgres.
+
+Deploy-readiness validation **MUST** run this lane against a real Postgres. Point
+`TEST_DATABASE_URL` at a **pgvector-enabled** Postgres (e.g. a `pgvector/pgvector:pg16`
+container via testcontainers or Docker-Compose — a vanilla `postgres` image will fail the
+`CREATE EXTENSION vector` migration), then:
+
+```bash
+export TEST_DATABASE_URL=postgresql://user:pass@localhost:5432/agent_mesh_test
+make test-pg       # DSN-gated durable/Postgres checkpointer lane; loud-skips when unset
+```
+
+`make test-pg` covers `tests/e2e/test_e2e_mcp_durable_job_live.py` and
+`tests/test_checkpointer_resume.py`. With no DSN exported it exits 0 with every Postgres
+test loud-skipped (so the gap is never silent); with a DSN set it exercises the production
+PostgresSaver construction + cache + close lifecycle end to end.
+
 ## Credentials & live lane
 
 The default smoke/test lane above is **creds-free** — it never touches a real SaaS

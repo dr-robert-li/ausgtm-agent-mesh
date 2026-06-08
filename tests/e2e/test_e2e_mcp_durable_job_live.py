@@ -22,8 +22,11 @@ the Postgres lane from ``make test -m "not live"`` so it could never run even wi
 Gating is therefore per-function via the ``pg_dsn`` / ``_backend_available`` skip guards
 below, not a module ``pytestmark``.
 
-DUR-02: the Postgres resume keys on ``thread_id == the tenant-scoped task_id`` (``tenant-t::``
-form), the same cross-task-resume guard the default lane asserts.
+DUR-02 (scope, stated honestly): the Postgres resume keys on the BARE production thread_id
+sourced from ``orchestrator._graph_config(task)`` — which is ``task.task_id`` verbatim. Bare
+is safe because the checkpointer keys purely on the thread_id string and ``task_id`` is a
+globally-unique uuid4 hex, so no two tasks (in any tenant) collide on the key. This is the
+same production-key contract the default lane asserts.
 
 T-07-06: the DSN is sourced from the env (``TEST_DATABASE_URL``) only in this opt-in lane and
 is never logged; the default lane has no DB at all.
@@ -88,9 +91,9 @@ def test_e2e_postgres_durable_restart(agents_stack, pg_dsn, monkeypatch):
             )
         )
 
-        # --- (2) tenant-scoped thread_id == the task id (DUR-02) ---
-        thread_id = f"tenant-t::{task.task_id}"
-        config = {"configurable": {"thread_id": thread_id}}
+        # --- (2) BARE production thread_id, sourced from production _graph_config (DUR-02) ---
+        config = orchestrator._graph_config(task)
+        assert config["configurable"]["thread_id"] == task.task_id  # bare uuid4 key, no prefix
 
         try:
             # --- (3) run to the interrupt via the PROD checkpointer path ---
@@ -107,6 +110,7 @@ def test_e2e_postgres_durable_restart(agents_stack, pg_dsn, monkeypatch):
             orchestrator.close_checkpointer()
             saver2 = orchestrator._select_checkpointer()
             assert saver2 is not None
+            assert saver2 is not saver, "close_checkpointer must drop cache; new saver expected"
             graph2 = build_graph().compile(checkpointer=saver2)
             resumed = graph2.invoke(Command(resume=True), config)
             assert "__interrupt__" not in resumed
