@@ -226,7 +226,9 @@ Plans:
   2. A `config/model_gateway.ollama.yaml` profile routes all three tiers to a local Ollama endpoint via LiteLLM; `make run-ollama` starts/pulls it
   3. RUNBOOK documents the local-inference lane: how to run each backend, how the Router selects a profile (config path/env), and the tool-calling model-capability caveat
   4. A config-validation test asserts each local profile defines all three deployment names with a local `api_base` and builds via `build_router` with no network
-**Plans**: TBD (run `/gsd:plan-phase 8`)
+**Plans**: 2 plans
+- [ ] 08-01-PLAN.md — Local-backend config profiles: pristine cloud restore anchor + vLLM + Ollama (egress-free, 3 exact tiers)
+- [ ] 08-02-PLAN.md — Consumers: Makefile run/swap targets, LOCAL-04 config-validation test, RUNBOOK local-inference section
 
 ### Phase 9: Local Data & Telemetry Plane
 **Goal**: Document and wire a fully local persistence + observability plane — local Postgres(pgvector) + self-hosted Langfuse — replacing Cloud SQL / cloud Langfuse for local dev.
