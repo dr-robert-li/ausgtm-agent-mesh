@@ -119,35 +119,37 @@ def test_e2e_postgres_durable_restart(agents_stack, pg_dsn, monkeypatch):
 
 
 def test_e2e_mcp_transport_create_task(repo):
-    """E2E-02 MCP-transport axis: drive the optional FastMCP surface (``build_mcp_server``)
-    rather than the in-process ``request_from_mcp`` entry the default lane uses.
+    """E2E-02 MCP-transport axis (WR-01): drive the REGISTERED FastMCP ``create_task`` tool
+    via the in-process ``call_tool`` harness, rather than re-deriving the in-process
+    ``request_from_mcp`` entry the default lane uses.
 
-    Gated on the ``mcp`` runtime extra being importable; skips loudly when absent. Proves the
-    MCP-transport ``create_task`` tool funnels into the SAME shared ``TaskService`` (mirrored
-    capability) by reading the task back through the service.
+    Gated on the ``mcp`` runtime extra being importable; skips loudly when absent. Builds the
+    server over a shared ``TaskService``, invokes the registered transport tool, and reads the
+    created task back THROUGH THE SAME SERVICE — so a broken/misrouted tool registration now
+    fails this test (the prior construction-only assertion could not).
     """
     if not _backend_available("mcp"):
         pytest.skip("mcp extra not installed; E2E-02 MCP-transport lane needs it")
 
     # Deferred imports: build_mcp_server lives behind the optional ``mcp`` extra.
+    import asyncio
+
     from agent_mesh.api.mcp_server import build_mcp_server
     from agent_mesh.services.dispatch import InProcessDispatcher
     from agent_mesh.services.task_service import TaskService
 
     svc = TaskService(repo=repo, dispatcher=InProcessDispatcher())
     server = build_mcp_server(svc)
-    assert server is not None  # FastMCP("agent-mesh") constructed under the mcp extra
 
-    # The transport ``create_task`` tool funnels into the shared TaskService. We exercise the
-    # same shared entry the tool wraps (request_from_mcp -> svc.create_task) and confirm the
-    # task is readable back through the service — the mirrored-capability invariant.
-    from agent_mesh.services.task_service import request_from_mcp
+    # Invoke the REGISTERED transport tool in-process. ``FastMCP.call_tool`` is an async
+    # coroutine returning a ``(content_blocks, structured_dict)`` tuple; the structured dict
+    # carries ``{"task_id", "state"}`` from the registered ``create_task`` tool body.
+    result = asyncio.run(server.call_tool("create_task", {"prompt": "summarize notes"}))
+    structured = result[1]
+    task_id = structured["task_id"]
 
-    task = svc.create_task(
-        request_from_mcp(
-            tenant_id="t", client_slug="c", mcp_subject="mcp-user", text="summarize notes"
-        )
-    )
-    fetched = svc.get_task(task.task_id)
+    # The transport tool funnels into the SHARED TaskService: read the task back through the
+    # service to prove the mirrored-capability invariant end to end across the tool boundary.
+    fetched = svc.get_task(task_id)
     assert fetched is not None
-    assert fetched.task_id == task.task_id
+    assert fetched.task_id == task_id
