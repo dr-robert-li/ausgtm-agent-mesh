@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: — Local / Offline Deployability
-status: Milestone v1.1 started; requirements + roadmap defined
-stopped_at: Phase 8 context gathered
-last_updated: "2026-06-08T10:51:17.267Z"
-last_activity: 2026-06-08 — Milestone v1.1 (Local / Offline Deployability) started
+status: executing
+stopped_at: Phase 8 Plan 01 complete (local-backend config profiles)
+last_updated: "2026-06-08T11:14:21.763Z"
+last_activity: 2026-06-08 -- Phase 08 Plan 01 complete
 progress:
   total_phases: 7
   completed_phases: 7
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-08)
 
 **Core value:** A long-running agent mesh takes a client request through ingress, durable orchestration, and a write-gated tool action — the write blocked until a human approves — and the whole run is observable and auditable.
-**Current focus:** Milestone v1.1 — Local / Offline Deployability (Phase 8 next)
+**Current focus:** Phase 08 — local-inference-lane
 
 ## Current Position
 
-Phase: Not started (Phase 8 next — defining/planning)
-Plan: —
-Status: Milestone v1.1 started; requirements + roadmap defined
-Last activity: 2026-06-08 — Milestone v1.1 (Local / Offline Deployability) started
+Phase: 08 (local-inference-lane) — EXECUTING
+Plan: 2 of 2
+Status: Executing Phase 08 (Plan 01 complete)
+Last activity: 2026-06-08 -- Phase 08 Plan 01 complete
 
 Progress: [▒▒▒▒▒▒▒▒▒▒] 0% (0/4 phases)
 
@@ -77,6 +77,7 @@ Recent decisions affecting current work:
 - 06-01: active-version pointer is a dedicated 0004 row (self_improvement_active_version), not derived from PromotionRecord — read+write both in repository.py
 - 06-01: cyclonedx-python-lib 11.8.0 confirmed; V1_7 output API via cyclonedx.output.make_outputter + cyclonedx.schema SchemaVersion.V1_7/OutputFormat.JSON (resolves RESEARCH A2 for 06-05)
 - v1.1 (2026-06-08): Local/Offline Deployability milestone — config/compose/docs/tests ONLY, zero src/ change. vLLM + Ollama slot behind the existing LiteLLM Router seam keyed on stable deployment names (low/medium/high-complexity), so agent + gateway code are untouched. Offline enforcement is test-asserted over config, not a runtime guard. vLLM was the originating slice (user request) folded into a 4-phase milestone (8–11).
+- 08-01 (2026-06-08): local profiles author egress-free headers self-authored (NOT copied from cloud file — case-sensitive negative greps would pass a copied header yet still leak cloud markers); value lines unquoted so literal-substring grep gates match; vLLM api_base ends /v1 (hosted_vllm appends only chat/completions, Pitfall 1), Ollama ollama_chat/ + :11434 no /v1
 - v1.1 (2026-06-08): skipped `phases.clear` during new-milestone (would have deleted unarchived v1.0 phase dirs 01–07); phases continue at 08 so no collision. Run `/gsd:complete-milestone` to archive v1.0 cleanly when ready.
 
 ### Pending Todos
@@ -104,9 +105,9 @@ Items acknowledged and carried forward:
 ## Session Continuity
 
 Last session: --stopped-at
-Stopped at: Phase 8 context gathered
+Stopped at: Phase 8 Plan 01 complete (local-backend config profiles)
 
-**Next:** `/gsd:plan-phase 8` — Local Inference Lane (vLLM + Ollama profiles behind LiteLLM; make run-vllm/run-ollama; RUNBOOK + config-validation tests). LOCAL-01/02/03/04.
+**Next:** Execute Plan 08-02 — consumers: Makefile run/swap targets (run-vllm/run-ollama, use-vllm/use-ollama/use-cloud), LOCAL-04 config-validation test (build_router over each local profile, no network), RUNBOOK local-inference section. LOCAL-03/04.
 
 **Note (carried):** GSD subagents not installed (`agents_installed: false`) — executor/verifier/roadmapper run inline. Install via `npx get-shit-done-cc@latest --global` to enable spawned agents.
 

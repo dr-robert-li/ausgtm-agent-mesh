@@ -227,7 +227,7 @@ Plans:
   3. RUNBOOK documents the local-inference lane: how to run each backend, how the Router selects a profile (config path/env), and the tool-calling model-capability caveat
   4. A config-validation test asserts each local profile defines all three deployment names with a local `api_base` and builds via `build_router` with no network
 **Plans**: 2 plans
-- [ ] 08-01-PLAN.md — Local-backend config profiles: pristine cloud restore anchor + vLLM + Ollama (egress-free, 3 exact tiers)
+- [x] 08-01-PLAN.md — Local-backend config profiles: pristine cloud restore anchor + vLLM + Ollama (egress-free, 3 exact tiers) _(completed 2026-06-08; LOCAL-01/02)_
 - [ ] 08-02-PLAN.md — Consumers: Makefile run/swap targets, LOCAL-04 config-validation test, RUNBOOK local-inference section
 
 ### Phase 9: Local Data & Telemetry Plane
@@ -275,7 +275,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 (v1.0) �
 | 6. Self-Improvement (real loop) | 6/6 | Complete | 2026-06-08 |
 | 7. E2E Validation & Deploy-Readiness | 5/5 | Complete | 2026-06-08 |
 | — v1.1 Local / Offline Deployability — | | | |
-| 8. Local Inference Lane | 0/0 | Planned | - |
+| 8. Local Inference Lane | 1/2 | In Progress | - |
 | 9. Local Data & Telemetry Plane | 0/0 | Planned | - |
 | 10. Full-Stack Local Compose | 0/0 | Planned | - |
 | 11. Offline / No-Egress Posture | 0/0 | Planned | - |
