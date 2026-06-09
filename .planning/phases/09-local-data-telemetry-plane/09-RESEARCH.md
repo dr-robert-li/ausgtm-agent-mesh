@@ -301,18 +301,18 @@ LANGFUSE_SECRET_KEY=                            # L45 — leave blank (UI-genera
 | A3 | Langfuse PUBLIC/SECRET keys are UI-generated (not server env) | Pitfall 4 / Pattern 2 | Low-Medium — confirmed by configuration docs not listing them as server env vars; if upstream adds env-seeded keys, the RUNBOOK note would be incomplete but not wrong. |
 | A4 | A future `0005` migration is not in scope (so tuple-vs-glob is a latent, not active, concern) | Open Questions Q1 | Low — no 0005 exists today; flagged for planner intent only. |
 
-## Open Questions
+## Open Questions (RESOLVED — carried into 09-01-PLAN.md)
 
-1. **D-03 premise is stale — what does "apply all migrations in lexical order" actually require now?** (HIGHEST PRIORITY for the planner.)
+1. **[RESOLVED — 09-01 objective + Task 2] D-03 premise is stale — what does "apply all migrations in lexical order" actually require now?** (HIGHEST PRIORITY for the planner.) → Plan keeps applier behavior untouched (explicit tuple, no glob); the only conftest change is the stale L37 docstring; the new schema-assertion test is the LDATA-03 deliverable.
    - **What we know:** `_apply_migrations` already iterates a hardcoded 4-tuple `0001`→`0004` in order; `_truncate` already lists the 0003/0004 tables; committed `9011377` (2026-06-07), before CONTEXT was gathered (2026-06-10). The contract/repository layers already assert the 0003/0004 objects (`tests/test_tool_call_contract.py`, `tests/test_read_path.py`), but **no test asserts they exist in the migrated DB schema (DDL layer).**
    - **What's unclear:** Does D-03 intend (a) merely "0003/0004 must be applied + schema-asserted" — **already applied; only the schema-assertion test is new**, OR (b) future-proof the applier to a **directory glob** so a future `0005` auto-applies (a behavior change the tuple does not currently have)?
    - **Recommendation:** Treat applier-completeness as DONE for 0003/0004; ship the NEW schema-assertion test as the LDATA-03 deliverable. Flag the glob-vs-tuple intent to the planner/discuss-phase — do NOT silently swap the tuple for a glob (it changes the documented invariant and could pick up non-migration `.sql` files). If glob is desired, the conftest comment-strip/`;`-split invariant must be re-verified against any future file, but that is forward-looking.
 
-2. **Where exactly does the new test wire into `test-pg`?**
+2. **[RESOLVED — 09-01 Task 1 Edit 3 + key_link] Where exactly does the new test wire into `test-pg`?**
    - **What we know:** `test-pg` names two explicit files; the new test must run under the named durable lane to satisfy LDATA-03's "`make test-pg` against the local DSN."
    - **Recommendation:** Add the new test file to the `test-pg` file list (keeps the lane explicit; preserves the existing contract). Confirm it loud-skips cleanly under plain `make test` too (it will, via `pg_dsn`).
 
-3. **`run-pg` lifecycle flags (discretion):** persistent `-d` + named volume (recommended, so `test-pg` can re-run and data survives) vs `--rm` ephemeral. Document teardown either way.
+3. **[RESOLVED — 09-01 Task 1 action] `run-pg` lifecycle flags (discretion):** persistent `-d` + named volume (recommended, so `test-pg` can re-run and data survives) vs `--rm` ephemeral. Document teardown either way.
 
 ## Environment Availability
 

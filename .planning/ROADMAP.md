@@ -238,7 +238,10 @@ Plans:
   1. A local Postgres(pgvector) run path is documented + make-wired to `DATABASE_URL`/`TEST_DATABASE_URL` and applies the existing migrations
   2. A self-hosted Langfuse local run path is documented with its env wiring (`LANGFUSE_HOST` etc.) for local trace ingestion
   3. The durable lane runs locally end to end (`make test-pg` against the local DSN); a test asserts the local-DSN path applies migrations and is reachable, loud-skip when unset
-**Plans**: TBD (run `/gsd:plan-phase 9`)
+**Plans**: 1 plan
+
+Plans:
+- [ ] 09-01-PLAN.md — Local data & telemetry plane: best-effort `make run-pg` (single pgvector/pgvector:pg16) + extended `test-pg` lane; new DSN-gated DDL schema-assertion test (0003 cols + 0004 tables, loud-skip) + conftest docstring fix; `.env.example` pinned local DSN/LANGFUSE_HOST defaults + RUNBOOK Postgres run path & doc-only Langfuse self-host section (LDATA-01/02/03) [wave 1]
 
 ### Phase 10: Full-Stack Local Compose
 **Goal**: Assemble the entire mesh as a one-command local stack via docker-compose — api + worker + gui + Postgres(pgvector) + Langfuse + LiteLLM + a local model backend — composing the Phase 8/9 pieces.
@@ -276,6 +279,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 (v1.0) �
 | 7. E2E Validation & Deploy-Readiness | 5/5 | Complete | 2026-06-08 |
 | — v1.1 Local / Offline Deployability — | | | |
 | 8. Local Inference Lane | 1/2 | In Progress | - |
-| 9. Local Data & Telemetry Plane | 0/0 | Planned | - |
+| 9. Local Data & Telemetry Plane | 0/1 | Planned | - |
 | 10. Full-Stack Local Compose | 0/0 | Planned | - |
 | 11. Offline / No-Egress Posture | 0/0 | Planned | - |
