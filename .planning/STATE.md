@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: — Local / Offline Deployability
 status: executing
-stopped_at: Phase 9 context gathered
-last_updated: "2026-06-09T23:47:26.704Z"
-last_activity: 2026-06-08 — Phase 8 complete
+stopped_at: Phase 9 complete (09-01 executed)
+last_updated: "2026-06-10T00:00:00.000Z"
+last_activity: 2026-06-10 — Phase 9 complete (09-01)
 progress:
   total_phases: 7
   completed_phases: 7
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-06-08)
 
 ## Current Position
 
-Phase: 09 (next — needs planning); Phase 08 complete
+Phase: 10 (next — needs planning); Phase 09 complete
 Plan: —
-Status: Phase 8 complete (verified + secured); milestone v1.1 in progress (1/4 phases)
-Last activity: 2026-06-08 — Phase 8 complete
+Status: Phase 9 complete (09-01 executed); milestone v1.1 in progress (2/4 phases)
+Last activity: 2026-06-10 — Phase 9 complete (09-01)
 
-Progress: [██▒▒▒▒▒▒▒▒] 25% (1/4 phases)
+Progress: [█████▒▒▒▒▒] 50% (2/4 phases)
 
 **Milestone v1.1 scope:** run the whole mesh fully local + offline — vLLM + Ollama behind LiteLLM (Phase 8), local Postgres(pgvector) + self-hosted Langfuse (Phase 9), full-stack docker-compose (Phase 10), offline no-egress posture (Phase 11). Config/compose/docs/tests ONLY — zero `src/` change; deployment names unchanged so agent + gateway code are untouched.
 
@@ -82,6 +82,7 @@ Recent decisions affecting current work:
 - 08-01 (2026-06-08): local profiles author egress-free headers self-authored (NOT copied from cloud file — case-sensitive negative greps would pass a copied header yet still leak cloud markers); value lines unquoted so literal-substring grep gates match; vLLM api_base ends /v1 (hosted_vllm appends only chat/completions, Pitfall 1), Ollama ollama_chat/ + :11434 no /v1
 - v1.1 (2026-06-08): skipped `phases.clear` during new-milestone (would have deleted unarchived v1.0 phase dirs 01–07); phases continue at 08 so no collision. Run `/gsd:complete-milestone` to archive v1.0 cleanly when ready.
 - 08-02 (2026-06-08): local lane tooling complete — five Makefile targets (cp-swap use-*, best-effort run-* kept out of CI per D-07), LOCAL-04 guard (loopback api_base + no cloud markers, offline build_router, inverted vs test_d06_chokepoint), RUNBOOK Local inference lane section; canonical test interpreter is .venv/bin/python (litellm 1.83.7), bare PATH python 3.14 lacks deps (pre-existing env note)
+- 09-01 (2026-06-10): local data+telemetry plane wired — best-effort `make run-pg` (single pgvector/pgvector:pg16, persistent -d + named volume, never CI), test-pg lane extended with the new test, `.env.example` pinned dev-only DATABASE_URL/TEST_DATABASE_URL (postgres:postgres@localhost:5432/agent_mesh) + LANGFUSE_HOST=http://localhost:3000 (keys blank), RUNBOOK "Local data & telemetry plane" section (Postgres run path + doc-only Langfuse self-host). D-03 reconciliation honored: conftest `_apply_migrations` already applied 0001->0004; only the stale docstring was fixed (tuple kept, no glob). New `tests/test_local_data_plane.py` asserts 0003 cols + 0004 tables + reachability via information_schema, loud-skips on unset TEST_DATABASE_URL. Zero src/ change; default lane 312 passed/10 skipped
 
 ### Pending Todos
 
@@ -107,10 +108,10 @@ Items acknowledged and carried forward:
 
 ## Session Continuity
 
-Last session: --stopped-at
-Stopped at: Phase 9 context gathered
+Last session: 2026-06-10
+Stopped at: Phase 9 complete (09-01 executed)
 
-**Next:** `/gsd:plan-phase 9` — Local Data & Telemetry Plane. Context locked in 09-CONTEXT.md: D-01 `make run-pg` single pgvector:pg16 container; D-02 wire Langfuse env + document upstream self-host, loud-skip (no P9 standup); D-03 fix conftest `_apply_migrations` to all four (0001-0004) + assert schema in LDATA-03 test; D-04 pin concrete local DSN/env defaults in .env.example + RUNBOOK. Zero src/ change. LDATA-01/02/03.
+**Next:** `/gsd:plan-phase 10` — Full-Stack Local Compose (depends on Phase 8 + Phase 9, both complete). Assemble api + worker + gui + Postgres(pgvector) + Langfuse + LiteLLM + a local model backend as a one-command docker-compose stack; the Phase 9 local data/telemetry run path (run-pg DSN, LANGFUSE_HOST=localhost:3000, doc-only Langfuse self-host) is the input. Phase 10 owns the Langfuse multi-container standup deferred from Phase 9. Zero src/ change milestone guardrail still holds.
 
 **Note (carried):** GSD subagents ARE installed at `~/.claude/agents/` (init's `agents_installed:false` is a path-mismatch false negative — gsd-executor/verifier/code-reviewer spawn fine; used live in Phase 8).
 

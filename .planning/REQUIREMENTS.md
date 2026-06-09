@@ -123,9 +123,12 @@ config, not a runtime `src/` guard. Phases continue at 08.
 
 ### Local Data & Telemetry (Phase 9)
 
-- [ ] **LDATA-01**: A local Postgres(pgvector) run path is documented + make-wired to `DATABASE_URL`/`TEST_DATABASE_URL` and applies the existing migrations
-- [ ] **LDATA-02**: A self-hosted Langfuse local run path is documented with its env wiring (`LANGFUSE_HOST`, keys) for local trace ingestion
-- [ ] **LDATA-03**: The durable lane runs locally end to end (`make test-pg` against the local DSN); a test asserts the local-DSN path applies migrations and is reachable, loud-skip when unset
+- [x] **LDATA-01
+**: A local Postgres(pgvector) run path is documented + make-wired to `DATABASE_URL`/`TEST_DATABASE_URL` and applies the existing migrations
+- [x] **LDATA-02
+**: A self-hosted Langfuse local run path is documented with its env wiring (`LANGFUSE_HOST`, keys) for local trace ingestion
+- [x] **LDATA-03
+**: The durable lane runs locally end to end (`make test-pg` against the local DSN); a test asserts the local-DSN path applies migrations and is reachable, loud-skip when unset
 
 ### Full-Stack Compose (Phase 10)
 

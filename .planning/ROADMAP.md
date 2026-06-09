@@ -48,7 +48,7 @@ resources.
 > history (01–07) is preserved (v1.0 not yet archived via `/gsd:complete-milestone`).
 
 - [x] **Phase 8: Local Inference Lane** - vLLM + Ollama model-gateway profiles behind LiteLLM; `make run-vllm`/`run-ollama`; RUNBOOK local-inference section; config-validation tests _(completed 2026-06-08; LOCAL-01/02/03/04)_
-- [ ] **Phase 9: Local Data & Telemetry Plane** - documented local Postgres(pgvector) + self-hosted Langfuse run path wired to make/RUNBOOK/conftest; migration-on-local-DSN test _(LDATA-01/02/03)_
+- [x] **Phase 9: Local Data & Telemetry Plane** - documented local Postgres(pgvector) + self-hosted Langfuse run path wired to make/RUNBOOK/conftest; migration-on-local-DSN test _(LDATA-01/02/03)_
 - [ ] **Phase 10: Full-Stack Local Compose** - one-command docker-compose (api+worker+gui+Postgres(pgvector)+Langfuse+LiteLLM+local model backend); `make compose-up/down`; compose-config validation _(COMPOSE-01/02/03)_
 - [ ] **Phase 11: Offline / No-Egress Posture** - OFFLINE env posture over config; tests assert no cloud api_base / no Vertex/Anthropic/CF egress / local .env secrets across the assembled local stack _(OFFLINE-01/02/03)_
 
@@ -241,7 +241,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 09-01-PLAN.md — Local data & telemetry plane: best-effort `make run-pg` (single pgvector/pgvector:pg16) + extended `test-pg` lane; new DSN-gated DDL schema-assertion test (0003 cols + 0004 tables, loud-skip) + conftest docstring fix; `.env.example` pinned local DSN/LANGFUSE_HOST defaults + RUNBOOK Postgres run path & doc-only Langfuse self-host section (LDATA-01/02/03) [wave 1]
+- [x] 09-01-PLAN.md — Local data & telemetry plane: best-effort `make run-pg` (single pgvector/pgvector:pg16) + extended `test-pg` lane; new DSN-gated DDL schema-assertion test (0003 cols + 0004 tables, loud-skip) + conftest docstring fix; `.env.example` pinned local DSN/LANGFUSE_HOST defaults + RUNBOOK Postgres run path & doc-only Langfuse self-host section (LDATA-01/02/03) [wave 1] — complete (2026-06-10)
 
 ### Phase 10: Full-Stack Local Compose
 **Goal**: Assemble the entire mesh as a one-command local stack via docker-compose — api + worker + gui + Postgres(pgvector) + Langfuse + LiteLLM + a local model backend — composing the Phase 8/9 pieces.
@@ -279,6 +279,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 (v1.0) �
 | 7. E2E Validation & Deploy-Readiness | 5/5 | Complete | 2026-06-08 |
 | — v1.1 Local / Offline Deployability — | | | |
 | 8. Local Inference Lane | 1/2 | In Progress | - |
-| 9. Local Data & Telemetry Plane | 0/1 | Planned | - |
+| 9. Local Data & Telemetry Plane | 1/1 | Complete | 2026-06-10 |
 | 10. Full-Stack Local Compose | 0/0 | Planned | - |
 | 11. Offline / No-Egress Posture | 0/0 | Planned | - |
