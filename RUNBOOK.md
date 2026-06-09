@@ -181,6 +181,69 @@ non-default host/port.
 > lookup, not routing), set `LITELLM_LOCAL_MODEL_COST_MAP=True` to force the bundled map.
 > Not needed for the config test or for routing.
 
+## Local data & telemetry plane
+
+Run the durable persistence + observability plane fully on-box for local dev:
+local Postgres(pgvector) in place of Cloud SQL, and self-hosted Langfuse in place
+of cloud Langfuse. As with the inference lane, the run-targets are best-effort
+operator steps and the pinned `.env.example` DSNs are **dev-only** local creds —
+copy `.env.example` to an untracked `.env` and replace them for any real
+deployment (prod secrets come from Secret Manager).
+
+### Local Postgres run path
+
+`make run-pg` starts a single local **pgvector** Postgres. It is **best-effort and
+operator-only** — deliberately never wired into `make test` or any CI path. It
+requires Docker and will fail on a box without it; that is acceptable, exactly like
+`make run-vllm` without a GPU.
+
+The image is pinned to `pgvector/pgvector:pg16`: a vanilla `postgres` image fails
+the `CREATE EXTENSION vector` migration (0001) — `IF NOT EXISTS` does not install
+the extension. The container uses a persistent `-d` + named volume so data
+survives restarts and `make test-pg` can re-run against it.
+
+Copy-paste operator block (creds/port/db match the pinned `.env.example` DSN):
+
+```bash
+make run-pg                                   # single local pgvector Postgres (best-effort, operator-only)
+export TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/agent_mesh
+make test-pg                                  # DSN-gated durable lane; loud-skips when unset
+# teardown: docker rm -f agent_mesh_pg   (optional: docker volume rm agent_mesh_pgdata)
+```
+
+`make test-pg` applies migrations 0001->0004 via the `pg_dsn` fixture and runs the
+durable/Postgres lane, including `tests/test_local_data_plane.py` which asserts the
+0003 `tool_calls` columns and the 0004 tables exist in the live migrated schema.
+With no DSN exported it exits 0 with every Postgres test loud-skipped.
+
+### Self-hosted Langfuse (documentation-only)
+
+This phase ships **no** Langfuse standup target — the full multi-container standup
+is **deferred to Phase 10's compose**. Documented here so the path is ready.
+
+Upstream self-host path *(datable — re-verify against upstream before Phase 10)*:
+
+```bash
+git clone https://github.com/langfuse/langfuse.git
+cd langfuse && docker compose up        # UI at http://localhost:3000
+```
+
+The Langfuse **v3** stack is multi-container (web + worker + postgres + clickhouse +
+redis/valkey + minio) — this is why standup is Phase 10 territory, not a single
+`make` target.
+
+**Client-vs-server key boundary (do not conflate):** the mesh's
+`LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` are **UI-generated per-project** keys
+the operator creates *after first boot* and exports into their untracked `.env` —
+they are **NOT** Langfuse server env vars, which is why they are left blank in
+`.env.example`. The Langfuse **server**-side secrets (`NEXTAUTH_SECRET`, `SALT`,
+`ENCRYPTION_KEY`, the server's own `DATABASE_URL`, and the ClickHouse/Redis/S3
+creds) live in the upstream compose `# CHANGEME` lines and are **Phase 10
+territory**. `LANGFUSE_HOST` is pinned to `http://localhost:3000` in `.env.example`
+for this self-host path. Mesh telemetry **loud-skips** when the keys are unset
+(existing behavior — no `src/` change), so the default lane stays green without a
+running Langfuse.
+
 ## Credentials & live lane
 
 The default smoke/test lane above is **creds-free** — it never touches a real SaaS
