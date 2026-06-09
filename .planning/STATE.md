@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: — Local / Offline Deployability
-status: executing
+status: Phase 9 context gathered; ready to plan
 stopped_at: Phase 9 context gathered
-last_updated: "2026-06-09T22:52:33.774Z"
-last_activity: 2026-06-08 — Phase 8 complete
+last_updated: "2026-06-10T00:00:00.000Z"
+last_activity: 2026-06-10 — Phase 9 context gathered (LDATA-01/02/03)
 progress:
-  total_phases: 7
-  completed_phases: 7
-  total_plans: 37
-  completed_plans: 37
-  percent: 100
+  total_phases: 4
+  completed_phases: 1
+  total_plans: 2
+  completed_plans: 2
+  percent: 25
 ---
 
 # Project State
@@ -110,8 +110,10 @@ Items acknowledged and carried forward:
 Last session: --stopped-at
 Stopped at: Phase 9 context gathered
 
-**Next:** Execute Plan 08-02 — consumers: Makefile run/swap targets (run-vllm/run-ollama, use-vllm/use-ollama/use-cloud), LOCAL-04 config-validation test (build_router over each local profile, no network), RUNBOOK local-inference section. LOCAL-03/04.
+**Next:** `/gsd:plan-phase 9` — Local Data & Telemetry Plane. Context locked in 09-CONTEXT.md: D-01 `make run-pg` single pgvector:pg16 container; D-02 wire Langfuse env + document upstream self-host, loud-skip (no P9 standup); D-03 fix conftest `_apply_migrations` to all four (0001-0004) + assert schema in LDATA-03 test; D-04 pin concrete local DSN/env defaults in .env.example + RUNBOOK. Zero src/ change. LDATA-01/02/03.
 
-**Note (carried):** GSD subagents not installed (`agents_installed: false`) — executor/verifier/roadmapper run inline. Install via `npx get-shit-done-cc@latest --global` to enable spawned agents.
+**Note (carried):** GSD subagents ARE installed at `~/.claude/agents/` (init's `agents_installed:false` is a path-mismatch false negative — gsd-executor/verifier/code-reviewer spawn fine; used live in Phase 8).
 
-**Planned Phase:** 08 (local-inference-lane) — 2 plans — 2026-06-08T10:51:17.256Z
+**Note (recurring SDK gotcha):** SDK state-writes (`phase.complete`, `state.record-session`) re-derive milestone progress from the ROADMAP v1.0 section (phases 1–7, never archived) and clobber frontmatter back to 7/7/100%. Body text is the source of truth (v1.1 = 1/4, 25%). Durable fix: run `/gsd:complete-milestone` to archive v1.0 so the analyzer sees v1.1's 4 phases (8–11).
+
+**Planned Phase:** 09 (local-data-telemetry-plane) — context gathered 2026-06-10; not yet planned
