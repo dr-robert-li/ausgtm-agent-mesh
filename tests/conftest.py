@@ -34,8 +34,9 @@ def repo() -> InMemoryRepository:
 
 
 def _apply_migrations(dsn: str) -> None:
-    """Apply 0001/0002 to the test DB. The repo never self-applies migrations;
-    the test fixture is the external applier here (psycopg, mirroring psql -f).
+    """Apply every migration in ``_MIGRATIONS`` (0001->0004) in lexical order to
+    the test DB. The repo never self-applies migrations; the test fixture is the
+    external applier here (psycopg, mirroring psql -f).
 
     NOTE: TEST_DATABASE_URL MUST point at a pgvector-enabled Postgres (0001 runs
     CREATE EXTENSION vector; IF NOT EXISTS does NOT install it) — e.g. the
