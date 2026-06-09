@@ -1,4 +1,4 @@
-.PHONY: help install install-dev schemas test test-live test-pg lint fmt smoke run-api run-worker run-gui run-vllm run-ollama use-vllm use-ollama use-cloud
+.PHONY: help install install-dev schemas test test-live test-pg lint fmt smoke run-api run-worker run-gui run-vllm run-ollama use-vllm use-ollama use-cloud run-pg
 
 PY ?= python
 PYTHONPATH := src
@@ -22,6 +22,7 @@ help:
 	@echo "  use-vllm     Swap the local vLLM profile onto config/model_gateway.config.yaml"
 	@echo "  use-ollama   Swap the local Ollama profile onto config/model_gateway.config.yaml"
 	@echo "  use-cloud    Restore the pristine cloud profile onto config/model_gateway.config.yaml"
+	@echo "  run-pg       Start a local pgvector Postgres (best-effort, operator-only, never CI)"
 
 install:
 	$(PY) -m pip install -r requirements/base.txt
@@ -46,7 +47,8 @@ test-live:
 # with no Postgres. Not creds-gated -> excludes 'live'.
 test-pg:
 	PYTHONPATH=$(PYTHONPATH) $(PY) -m pytest -q -m "not live" \
-		tests/e2e/test_e2e_mcp_durable_job_live.py tests/test_checkpointer_resume.py
+		tests/e2e/test_e2e_mcp_durable_job_live.py tests/test_checkpointer_resume.py \
+		tests/test_local_data_plane.py
 
 lint:
 	$(PY) -m ruff check src tests
@@ -93,3 +95,22 @@ use-ollama:
 	cp config/model_gateway.ollama.yaml config/model_gateway.config.yaml
 use-cloud:
 	cp config/model_gateway.cloud.yaml config/model_gateway.config.yaml
+
+# --- Local data plane (LDATA-01) ---------------------------------------------
+# run-pg starts a single local pgvector Postgres. Best-effort, operator-run, and
+# DELIBERATELY never wired into `test` or any CI path: it requires Docker and may
+# fail on a box without it, which is acceptable and documented in RUNBOOK.md.
+# Creds/port/db MUST match the pinned DATABASE_URL default in .env.example
+# (D-01 <-> D-04). Persistent -d + named volume so data survives restarts and
+# `make test-pg` can re-run against the same container.
+#
+# Image is pinned to pgvector/pgvector:pg16: a vanilla postgres image fails the
+# CREATE EXTENSION vector migration (0001) — IF NOT EXISTS does not install it.
+PG_IMAGE     ?= pgvector/pgvector:pg16
+PG_CONTAINER ?= agent_mesh_pg
+PG_VOLUME    ?= agent_mesh_pgdata
+run-pg:
+	docker run -d --name $(PG_CONTAINER) \
+	  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=agent_mesh \
+	  -p 5432:5432 -v $(PG_VOLUME):/var/lib/postgresql/data \
+	  $(PG_IMAGE)
