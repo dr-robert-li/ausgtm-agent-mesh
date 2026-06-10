@@ -1,0 +1,49 @@
+# Build-context exclusions for the shared D-01 image (Dockerfile uses `COPY . /app`).
+# Keep the build context (and image layers) lean and free of local/secret/swap state.
+# Starting list mirrors .gitignore; the build-context-only entries below (.git,
+# .sbxwork/, active config swap state, planning/worktree noise) are added on top
+# because .dockerignore governs what crosses into the image, not what git tracks.
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Local env / secrets
+.env
+.venv-e2e/
+
+# Version control — never ship the git history into the image layer.
+.git
+.gitignore
+
+# Sandbox DooD work dir (host bind target wired in 10-02; never part of the image).
+.sbxwork/
+
+# Active model-gateway config swap state: the file-swap selection writes the
+# live profile here on the host. In compose the active profile is MOUNTED
+# (Finding #1 compose-variant), so the baked-in swap state must NOT enter the image.
+config/model_gateway.config.yaml
+
+# Per-service build Dockerfiles (docker/api.Dockerfile etc.) — build-time only,
+# superseded by this shared root Dockerfile (D-01). Excluding them keeps the
+# context lean AND prevents the repo's `docker/` dir from landing at /app/docker
+# where it would shadow `import docker` as a phantom namespace package (the real
+# python docker SDK is genuinely absent — Finding #2 is subprocess/CLI-only).
+docker/
+
+# Build artifacts / planning / editor noise that need not enter the image.
+.planning/
+.claude/
+graphify-out/
+.DS_Store
