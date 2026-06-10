@@ -25,11 +25,16 @@ resolution_commit: cd5de7a
 
 > **Resolution (2026-06-10, commit `cd5de7a`):** Both Criticals fixed in `docker-compose.yml`
 > (CR-01 api healthcheck `/health`→`/healthz` to match `GET /healthz` in app.py; CR-02 redis
-> healthcheck given `-a myredissecret` to clear NOAUTH). WR-01 pinned `clickhouse-server:24.3`;
-> WR-03 Dockerfile comment corrected to `docker-cli`. WR-02 (chainguard minio `:latest`) retained
-> as accepted dev-only risk — chainguard publishes no free semver tag and the plan mandates the
-> registry verbatim. Info items left as-is (dev-POC tradeoffs). Zero `src/` change; compose parses
-> (bare + all-profile); `test_compose_config` 6/6.
+> healthcheck given `-a myredissecret` to clear NOAUTH). WR-03 Dockerfile comment corrected to
+> `docker-cli`. **WR-01 + WR-02 (clickhouse + chainguard-minio untagged) BOTH retained as accepted
+> dev-only risk, matching langfuse upstream `main` verbatim** — langfuse itself floats both images
+> (`clickhouse/clickhouse-server` and `cgr.dev/chainguard/minio`, no tags), and chainguard publishes
+> no free semver tag; pinning to a number langfuse does not test against would *diverge* from
+> upstream and risk a wrong-tag bring-up failure (operator-verify, out of static-config scope).
+> A first commit (`cd5de7a`) pinned `clickhouse:24.3`, then `<follow-up>` reverted it to upstream-
+> floating after confirming via WebFetch that langfuse `main` does not pin clickhouse. Info items
+> left as-is (dev-POC tradeoffs). Zero `src/` change; compose parses (bare + all-profile);
+> `test_compose_config` 6/6.
 
 # Phase 10: Code Review Report
 

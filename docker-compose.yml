@@ -335,7 +335,7 @@ services:
       retries: 5
 
   clickhouse:
-    image: docker.io/clickhouse/clickhouse-server:24.3
+    image: docker.io/clickhouse/clickhouse-server   # untagged, matches langfuse upstream main verbatim (operator-verify, dev-only)
     profiles: [langfuse]
     environment:
       CLICKHOUSE_USER: clickhouse               # CHANGEME
