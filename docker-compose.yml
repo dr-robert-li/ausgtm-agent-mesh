@@ -60,7 +60,7 @@ services:
       migrate:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/health').status==200 else 1)\""]
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/healthz').status==200 else 1)\""]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -335,7 +335,7 @@ services:
       retries: 5
 
   clickhouse:
-    image: docker.io/clickhouse/clickhouse-server
+    image: docker.io/clickhouse/clickhouse-server:24.3
     profiles: [langfuse]
     environment:
       CLICKHOUSE_USER: clickhouse               # CHANGEME
@@ -354,7 +354,9 @@ services:
     profiles: [langfuse]
     command: ["--requirepass", "myredissecret"]   # CHANGEME
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      # redis runs with --requirepass, so the probe MUST authenticate or it gets
+      # NOAUTH and never goes healthy (blocking langfuse-web/worker). -a keeps exit 0.
+      test: ["CMD", "redis-cli", "-a", "myredissecret", "ping"]
       interval: 10s
       timeout: 3s
       retries: 10

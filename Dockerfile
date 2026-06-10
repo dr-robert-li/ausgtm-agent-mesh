@@ -17,7 +17,8 @@
 # Finding #2 (worker DooD): the worker shells out to the docker CLI
 # (src/agent_mesh/sandbox/executor.py -> subprocess.run(["docker", ...]) gated by
 # shutil.which("docker")). This image therefore carries the docker CLI *client*
-# binary (the `docker.io` OS package). The python `docker` SDK is NOT used and is
+# binary (the `docker-cli` OS package — `docker.io` on this trixie-slim base ships
+# only the daemon, not the client). The python `docker` SDK is NOT used and is
 # intentionally NOT installed. The privileged docker-socket mount + socket-gid
 # handling that makes the CLI usable is wired in compose (10-02), NOT baked here.
 
