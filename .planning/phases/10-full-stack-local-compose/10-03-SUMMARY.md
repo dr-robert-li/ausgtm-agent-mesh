@@ -203,5 +203,7 @@ mitigation); `.env.example` carries no valued cloud key; the zero-src invariant 
 - FOUND commit: c98ceea (Task 1 — Makefile targets)
 - FOUND commit: 4a34f4f (Task 2 — RUNBOOK + .env.example)
 - FOUND commit: 6f40ce0 (Task 3 — compose config test)
+- FOUND commit: 729a25f (Task 2 follow-up — drop misleading RUNBOOK ARGS= line)
 - Task 4 is a verification gate (no commit by design)
+- `make test PY=<repo-venv>` ran the FULL suite green: 318 passed, 10 skipped, 23 deselected (compose config test auto-collected)
 - `git diff 5b787196..HEAD -- src/` EMPTY (zero src/ change across all of Phase 10)
