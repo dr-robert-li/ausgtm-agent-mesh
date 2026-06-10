@@ -264,8 +264,7 @@ test`, loud-skips when the `docker` binary is absent).
 ```bash
 make compose-up                          # default: vLLM model backend (needs a GPU) + Langfuse
 MODEL_PROFILE=cpu make compose-up        # non-GPU boxes: Ollama (CPU) instead of vLLM
-make compose-down                        # tear down all profiles (vllm cpu langfuse); data survives
-make compose-down ARGS=                  # (no -v by default; see volume-wipe note below)
+make compose-down                        # tear down all profiles (vllm cpu langfuse); data survives (no -v)
 ```
 
 `compose-up` runs `docker compose --profile $(MODEL_PROFILE) --profile langfuse up -d
