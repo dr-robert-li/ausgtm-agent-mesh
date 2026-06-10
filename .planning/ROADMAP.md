@@ -251,7 +251,12 @@ Plans:
   1. A `docker-compose.yml` brings up api + worker + gui + Postgres(pgvector) + Langfuse + LiteLLM + a local model backend (vLLM or Ollama) with one command
   2. `make compose-up` / `make compose-down` wrap it; RUNBOOK documents the one-command local stack
   3. A test/lint validates the compose file (`docker compose config` parses; required services + healthchecks + the pgvector image present), loud-skip when docker is absent
-**Plans**: TBD (run `/gsd:plan-phase 10`)
+**Plans**: 3 plans
+
+Plans:
+- [ ] 10-01-PLAN.md — Shared Dockerfile (D-01, docker-CLI for worker DooD) + .dockerignore + compose-variant model profiles (Finding #1 api_base) (COMPOSE-01) [wave 1]
+- [ ] 10-02-PLAN.md — Single-file docker-compose.yml: core api/worker/gui/postgres + migrate (Pitfall 5) + Finding #1/#2 wiring + Langfuse v3 profile + vLLM/Ollama backends; no litellm container (COMPOSE-01) [wave 2, depends 10-01]
+- [ ] 10-03-PLAN.md — make compose-up/down + RUNBOOK full-stack section + COMPOSE-03 static-validation test + [BLOCKING] zero-src invariant (COMPOSE-02, COMPOSE-03) [wave 3, depends 10-02]
 
 ### Phase 11: Offline / No-Egress Posture
 **Goal**: Make "runs offline with no cloud egress" an asserted property, not a hope — an OFFLINE config/.env posture plus tests that fail if any local profile or the default lane can reach a cloud provider/gateway.
@@ -280,5 +285,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 (v1.0) �
 | — v1.1 Local / Offline Deployability — | | | |
 | 8. Local Inference Lane | 1/2 | In Progress | - |
 | 9. Local Data & Telemetry Plane | 1/1 | Complete | 2026-06-10 |
-| 10. Full-Stack Local Compose | 0/0 | Planned | - |
+| 10. Full-Stack Local Compose | 0/3 | Planned | - |
 | 11. Offline / No-Egress Posture | 0/0 | Planned | - |
