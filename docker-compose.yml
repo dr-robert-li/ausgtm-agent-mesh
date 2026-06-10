@@ -221,6 +221,163 @@ services:
       retries: 3
       start_period: 60s
 
+  # ===========================================================================
+  # Langfuse v3 self-host (D-03) — 6 containers, ALL profiles: [langfuse].
+  # Raw `docker compose up` stays lean; only `make compose-up`'s --profile
+  # langfuse activates these. Verbatim upstream lift (github.com/langfuse/langfuse
+  # main docker-compose.yml). Pitfall 1: Langfuse's OWN postgres is RENAMED
+  # `langfuse-postgres` with its OWN volume — the mesh DSN points ONLY at the
+  # pgvector `postgres`, never here.
+  #
+  # SECURITY (RUNBOOK 10-03 discloses): NEXTAUTH_SECRET / SALT / ENCRYPTION_KEY
+  # and the clickhouse/redis/minio creds below are inline DEV-ONLY defaults each
+  # marked `# CHANGEME`; they must be replaced for any non-local use.
+  # ===========================================================================
+  langfuse-web:
+    image: docker.io/langfuse/langfuse:3
+    profiles: [langfuse]
+    depends_on:
+      langfuse-postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@langfuse-postgres:5432/postgres   # CHANGEME (Langfuse's OWN pg — Pitfall 1)
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: mysecret                 # CHANGEME (openssl rand -hex 32)
+      SALT: mysalt                              # CHANGEME (openssl rand -hex 32)
+      ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"  # CHANGEME (64 hex chars; openssl rand -hex 32)
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: clickhouse               # CHANGEME
+      CLICKHOUSE_PASSWORD: clickhouse           # CHANGEME
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_AUTH: myredissecret                 # CHANGEME
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio                 # CHANGEME
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: miniosecret       # CHANGEME
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio                 # CHANGEME
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: miniosecret       # CHANGEME
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/public/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  langfuse-worker:
+    image: docker.io/langfuse/langfuse-worker:3
+    profiles: [langfuse]
+    depends_on:
+      langfuse-postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      # Same backing-store env as langfuse-web (expanded, not a comment — so a
+      # bring-up actually works). Server secrets are DEV-ONLY # CHANGEME.
+      DATABASE_URL: postgresql://postgres:postgres@langfuse-postgres:5432/postgres   # CHANGEME
+      SALT: mysalt                              # CHANGEME
+      ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"  # CHANGEME
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: clickhouse               # CHANGEME
+      CLICKHOUSE_PASSWORD: clickhouse           # CHANGEME
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_AUTH: myredissecret                 # CHANGEME
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio                 # CHANGEME
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: miniosecret       # CHANGEME
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio                 # CHANGEME
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: miniosecret       # CHANGEME
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+
+  langfuse-postgres:                            # RENAMED from upstream `postgres` (Pitfall 1)
+    image: docker.io/postgres:17
+    profiles: [langfuse]
+    environment:
+      POSTGRES_USER: postgres                   # CHANGEME
+      POSTGRES_PASSWORD: postgres               # CHANGEME
+      POSTGRES_DB: postgres
+    volumes:
+      - langfuse_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  clickhouse:
+    image: docker.io/clickhouse/clickhouse-server
+    profiles: [langfuse]
+    environment:
+      CLICKHOUSE_USER: clickhouse               # CHANGEME
+      CLICKHOUSE_PASSWORD: clickhouse           # CHANGEME
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8123/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: docker.io/redis:7
+    profiles: [langfuse]
+    command: ["--requirepass", "myredissecret"]   # CHANGEME
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: cgr.dev/chainguard/minio          # keep Chainguard registry verbatim (do NOT substitute minio/minio)
+    profiles: [langfuse]
+    entrypoint: ["sh", "-c", "minio server /data --console-address ':9001'"]
+    environment:
+      MINIO_ROOT_USER: minio                  # CHANGEME
+      MINIO_ROOT_PASSWORD: miniosecret        # CHANGEME
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "mc ready local || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
 volumes:
   mesh_pgdata: {}
   ollama_data: {}
+  langfuse_pgdata: {}
+  clickhouse_data: {}
+  minio_data: {}
