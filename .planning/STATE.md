@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: — Local / Offline Deployability
 status: executing
-stopped_at: Phase 10 complete (10-01/02/03) — milestone v1.1 at 3/4 phases
-last_updated: "2026-06-10T08:54:00.000Z"
+stopped_at: Phase 11 context gathered
+last_updated: "2026-06-10T13:04:26.930Z"
 last_activity: 2026-06-10 — Phase 10 complete (full-stack local compose)
 progress:
   total_phases: 7
@@ -12,11 +12,6 @@ progress:
   total_plans: 37
   completed_plans: 37
   percent: 100
-# NOTE: frontmatter progress tracks the stale v1.0 (7 phases, unarchived) — the SDK
-# analyzer re-derives it from the v1.0 ROADMAP section and cannot see v1.1 (phases 8–11),
-# so phase.complete clobbered this to milestone_complete/8/114. Reverted. BODY TEXT BELOW
-# IS TRUTH: milestone v1.1 = 3/4 phases (8,9,10 done; 11 remains). Durable fix =
-# /gsd:complete-milestone to archive v1.0. See [[sdk-state-clobber-unarchived-v1]].
 ---
 
 # Project State
@@ -114,8 +109,8 @@ Items acknowledged and carried forward:
 
 ## Session Continuity
 
-Last session: 2026-06-10 — executed Phase 10 (full-stack local compose), 3 plans, 3 waves
-Stopped at: Phase 10 complete + verified (17/17 must-haves); milestone v1.1 at 3/4
+Last session: --stopped-at
+Stopped at: Phase 11 context gathered
 
 **Next:** `/gsd:plan-phase 11` — Offline / No-Egress Posture (depends on Phases 8+9+10, all complete). Assert over config/.env that the assembled local stack is egress-free: no cloud `api_base` (no Vertex/Anthropic/CF wrapper URL), no cloud-key env refs, `.env`-sourced secrets, CF off; tests over the compose + model profiles; the default creds-free lane performs no outbound to a real provider/gateway (OFFLINE-01/02/03). Zero `src/` change milestone guardrail still holds. **Before planning 11, consider `/gsd:complete-milestone` to archive v1.0** so the SDK analyzer stops clobbering STATE frontmatter (see note below).
 
