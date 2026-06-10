@@ -49,7 +49,7 @@ resources.
 
 - [x] **Phase 8: Local Inference Lane** - vLLM + Ollama model-gateway profiles behind LiteLLM; `make run-vllm`/`run-ollama`; RUNBOOK local-inference section; config-validation tests _(completed 2026-06-08; LOCAL-01/02/03/04)_
 - [x] **Phase 9: Local Data & Telemetry Plane** - documented local Postgres(pgvector) + self-hosted Langfuse run path wired to make/RUNBOOK/conftest; migration-on-local-DSN test _(LDATA-01/02/03)_
-- [ ] **Phase 10: Full-Stack Local Compose** - one-command docker-compose (api+worker+gui+Postgres(pgvector)+Langfuse+LiteLLM+local model backend); `make compose-up/down`; compose-config validation _(COMPOSE-01/02/03)_
+- [x] **Phase 10: Full-Stack Local Compose** - one-command docker-compose (api+worker+gui+Postgres(pgvector)+Langfuse+LiteLLM+local model backend); `make compose-up/down`; compose-config validation _(COMPOSE-01/02/03)_ (completed 2026-06-10)
 - [ ] **Phase 11: Offline / No-Egress Posture** - OFFLINE env posture over config; tests assert no cloud api_base / no Vertex/Anthropic/CF egress / local .env secrets across the assembled local stack _(OFFLINE-01/02/03)_
 
 ## Phase Details
@@ -285,5 +285,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 (v1.0) �
 | — v1.1 Local / Offline Deployability — | | | |
 | 8. Local Inference Lane | 1/2 | In Progress | - |
 | 9. Local Data & Telemetry Plane | 1/1 | Complete | 2026-06-10 |
-| 10. Full-Stack Local Compose | 0/3 | Planned | - |
+| 10. Full-Stack Local Compose | 3/3 | Complete    | 2026-06-10 |
 | 11. Offline / No-Egress Posture | 0/0 | Planned | - |
