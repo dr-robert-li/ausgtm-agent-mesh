@@ -255,7 +255,7 @@ Plans:
 
 Plans:
 - [x] 10-01-PLAN.md — Shared Dockerfile (D-01, docker-CLI for worker DooD) + .dockerignore + compose-variant model profiles (Finding #1 api_base) (COMPOSE-01) [wave 1] — complete (2026-06-10)
-- [ ] 10-02-PLAN.md — Single-file docker-compose.yml: core api/worker/gui/postgres + migrate (Pitfall 5) + Finding #1/#2 wiring + Langfuse v3 profile + vLLM/Ollama backends; no litellm container (COMPOSE-01) [wave 2, depends 10-01]
+- [x] 10-02-PLAN.md — Single-file docker-compose.yml: core api/worker/gui/postgres + migrate (Pitfall 5) + Finding #1/#2 wiring + Langfuse v3 profile + vLLM/Ollama backends; no litellm container (COMPOSE-01) [wave 2, depends 10-01] — complete (2026-06-10)
 - [ ] 10-03-PLAN.md — make compose-up/down + RUNBOOK full-stack section + COMPOSE-03 static-validation test + [BLOCKING] zero-src invariant (COMPOSE-02, COMPOSE-03) [wave 3, depends 10-02]
 
 ### Phase 11: Offline / No-Egress Posture
