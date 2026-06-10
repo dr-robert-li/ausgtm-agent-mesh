@@ -435,7 +435,7 @@ def test_required_healthchecks_present():
 | A4 | Exact Langfuse env-key spellings (e.g. `LANGFUSE_S3_*`) match the current upstream compose | Langfuse block | Langfuse boots misconfigured; mitigated by the "re-verify at plan time" note — service SET + secret list are stable |
 | A5 | The CPU compose-variant file is named `model_gateway.cpu.compose.yaml` (follows `MODEL_PROFILE` value `cpu`, not `ollama`) | Pattern 1 | If named `.ollama.compose.yaml`, the `${MODEL_PROFILE}` interpolation resolves to a non-existent file → mount fails; **planner MUST pick one convention** |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Exact set of services carrying healthchecks (discretion item).**
    - What we know: COMPOSE-03 asserts healthchecks are *present*; pragmatic probes exist for postgres (`pg_isready`), api (`/health` — FastAPI app exposes it per E2E tests), langfuse-web (`/api/public/health`), model backend (vLLM `/health`, Ollama `ollama list`).
