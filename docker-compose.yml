@@ -1,0 +1,386 @@
+# Full-stack local compose (COMPOSE-01) — single file, profile-gated.
+#
+# Assembles the whole mesh as ONE local stack (Phase 10):
+#   CORE (always-on, no `profiles:` key):  api, worker, gui, postgres, migrate
+#   profiles: [vllm]   GPU model backend (the composed default — D-04)
+#   profiles: [cpu]    Ollama CPU fallback model backend (D-04/D-05)
+#   profiles: [langfuse]  full Langfuse v3 self-host (6 containers — D-03)
+#
+# Bring-up: `make compose-up` (10-03) runs
+#   docker compose --profile $(MODEL_PROFILE) --profile langfuse up -d --build
+# with MODEL_PROFILE ?= vllm. Raw `docker compose up` stays LEAN (core only) — L2.
+#
+# D-01: ONE shared image (the root Dockerfile); api/worker/gui differ ONLY by
+#       `command:` (the Makefile run-* strings, no --reload; api on container 8080).
+# D-06: NO standalone litellm container — the in-process litellm.Router inside
+#       api/worker IS the model control plane. COMPOSE-03 asserts litellm absent.
+#
+# Three load-bearing functional gaps a static `docker compose config` cannot catch
+# are wired below (no `src/` change):
+#   Finding #1 (api + worker): mount the compose-variant model profile onto the
+#     container's active config/model_gateway.config.yaml so api_base is the model
+#     service DNS (http://vllm:8000/v1), not the in-container loopback.
+#   Finding #2 (worker): docker.sock mount + identical-path host bind + TMPDIR so
+#     the real P2 DooD sandbox runs in-stack (dev-only — disclosed in RUNBOOK).
+#   Pitfall 5 (migrate service): a one-shot applier brings the schema up before
+#     api/worker/gui start, so a fresh `make compose-up` is functional.
+#
+# compose v2: no obsolete top-level `version:` key.
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # CORE: api (FastAPI / uvicorn). Always-on (no `profiles:` key).
+  # ---------------------------------------------------------------------------
+  api:
+    build: .
+    command: ["uvicorn", "agent_mesh.api.app:app", "--host", "0.0.0.0", "--port", "8080"]
+    ports:
+      - "8080:8080"
+    environment:
+      # Mesh DSN: creds/port/db IDENTICAL to the Phase-9 pinned default; only the
+      # host changes localhost -> the `postgres` compose service (in-stack DNS).
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/agent_mesh
+      # In-stack Langfuse host (port identical; host -> service name).
+      LANGFUSE_HOST: http://langfuse-web:3000
+      # UI-minted keys (D-03a): blank until a human mints them in the Langfuse UI.
+      # Tracing loud-skips until set. Left blank intentionally.
+      LANGFUSE_PUBLIC_KEY: ""
+      LANGFUSE_SECRET_KEY: ""
+    volumes:
+      # Finding #1: supply the active model profile with service-DNS api_base.
+      # The volume SOURCE interpolates ${MODEL_PROFILE} (vllm|cpu); the image has
+      # NO config.yaml at this target (.dockerignore excludes it) — this bind is
+      # its sole supplier. Target is the absolute WORKDIR path the Dockerfile set.
+      - ./config/model_gateway.${MODEL_PROFILE:-vllm}.compose.yaml:/app/config/model_gateway.config.yaml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # Pitfall 5: never boot against a schema-less DB.
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/health').status==200 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # CORE: worker (LangGraph + Deep Agents mesh + P2 DooD sandbox). Always-on.
+  # ---------------------------------------------------------------------------
+  worker:
+    build: .
+    command: ["python", "-m", "agent_mesh.worker.main"]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/agent_mesh
+      LANGFUSE_HOST: http://langfuse-web:3000
+      LANGFUSE_PUBLIC_KEY: ""
+      LANGFUSE_SECRET_KEY: ""
+      # Finding #2: redirect the executor's tempfile.TemporaryDirectory (it passes
+      # no dir=, so it honors TMPDIR) onto the identical-path host bind below, so
+      # the host daemon (reached over the mounted socket) resolves the same path.
+      TMPDIR: ${MESH_SBX_DIR:-/tmp/agent-mesh-sbx}
+    volumes:
+      # Finding #1 (api + worker both mount the variant — count must be 2).
+      - ./config/model_gateway.${MODEL_PROFILE:-vllm}.compose.yaml:/app/config/model_gateway.config.yaml:ro
+      # Finding #2: docker socket (DooD) — DEV-ONLY, grants the worker effective
+      # host-root; production uses Cloud Run Jobs (RUNBOOK discloses, 10-03).
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Finding #2: identical-path host bind (source == target, IDENTICAL absolute
+      # string). The executor's `-v {snippet_dir}:/snippet:ro` is resolved by the
+      # HOST daemon; a mismatched bind fails loudly ("Mounts denied"). /tmp is a
+      # Docker-Desktop-shared path on macOS.
+      - ${MESH_SBX_DIR:-/tmp/agent-mesh-sbx}:${MESH_SBX_DIR:-/tmp/agent-mesh-sbx}
+    group_add:
+      # Non-root worker needs the host socket gid to reach the daemon. Host-
+      # dependent (Docker Desktop Mac vs Linux); dev-only override (A1).
+      - "${DOCKER_GID:-999}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # Pitfall 5: never boot against a schema-less DB.
+      migrate:
+        condition: service_completed_successfully
+
+  # ---------------------------------------------------------------------------
+  # CORE: gui (Streamlit admin/operator console — L3 entry admin_app.py). Always-on.
+  # ---------------------------------------------------------------------------
+  gui:
+    build: .
+    command: ["streamlit", "run", "src/agent_mesh/gui/admin_app.py", "--server.address", "0.0.0.0", "--server.port", "8501"]
+    ports:
+      - "8501:8501"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/agent_mesh
+      LANGFUSE_HOST: http://langfuse-web:3000
+      LANGFUSE_PUBLIC_KEY: ""
+      LANGFUSE_SECRET_KEY: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # Pitfall 5: never boot against a schema-less DB.
+      migrate:
+        condition: service_completed_successfully
+
+  # ---------------------------------------------------------------------------
+  # CORE: postgres — the mesh durable store (pgvector). Always-on.
+  # Creds/port/db match the Phase-9 pinned DATABASE_URL (DSN parity). Pinned
+  # pgvector image: a vanilla postgres fails the CREATE EXTENSION vector in 0001.
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: agent_mesh
+    ports:
+      - "5432:5432"
+    volumes:
+      - mesh_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d agent_mesh"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # CORE: migrate — one-shot schema applier (Pitfall 5). Always-on (no profile).
+  # The repo NEVER self-applies migrations (Phase-9: _apply_migrations is a
+  # test-only conftest fixture). Without this a fresh `make compose-up` brings
+  # api/worker/gui up against a schema-less DB and the first durable call fails
+  # ("relation does not exist") — a "parses != works" gap COMPOSE-03 cannot catch.
+  #
+  # Uses the same pgvector image (it ships psql) and bind-mounts the repo
+  # migrations read-only (the image has psql but NOT the project's .sql files).
+  # The four migrations are dollar-quote-free (verified) so straight `psql -f`
+  # is safe — do NOT reimplement the conftest comment-strip/split applier.
+  # Applies 0001..0004 in lexical order with ON_ERROR_STOP=1, then exits 0.
+  migrate:
+    image: pgvector/pgvector:pg16
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./migrations:/migrations:ro
+    environment:
+      PGPASSWORD: postgres
+    entrypoint:
+      - bash
+      - -c
+      - |
+        set -e
+        psql -v ON_ERROR_STOP=1 -h postgres -U postgres -d agent_mesh -f /migrations/0001_init.sql
+        psql -v ON_ERROR_STOP=1 -h postgres -U postgres -d agent_mesh -f /migrations/0002_self_improvement.sql
+        psql -v ON_ERROR_STOP=1 -h postgres -U postgres -d agent_mesh -f /migrations/0003_tool_call_fields.sql
+        psql -v ON_ERROR_STOP=1 -h postgres -U postgres -d agent_mesh -f /migrations/0004_active_version.sql
+
+  # ---------------------------------------------------------------------------
+  # MODEL BACKEND: vLLM (GPU, composed default — D-04). profiles: [vllm].
+  # api_base reaches it at http://vllm:8000/v1 via the mounted vllm.compose.yaml.
+  # ---------------------------------------------------------------------------
+  vllm:
+    image: vllm/vllm-openai:v0.6.6
+    profiles: [vllm]
+    command: ["--model", "Qwen/Qwen2.5-7B-Instruct", "--enable-auto-tool-choice", "--tool-call-parser", "hermes"]
+    ports:
+      - "8000:8000"
+    # PyTorch shared-memory (docs.vllm.ai) — without this vLLM can OOM on /dev/shm.
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      # vLLM image has python but no curl (Pitfall 2) — probe /health via urllib.
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+  # ---------------------------------------------------------------------------
+  # MODEL BACKEND: Ollama (CPU fallback — D-04/D-05). profiles: [cpu].
+  # api_base reaches it at http://ollama:11434 via the mounted cpu.compose.yaml.
+  # ---------------------------------------------------------------------------
+  ollama:
+    image: ollama/ollama:0.5.4
+    profiles: [cpu]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      # Ollama image ships no curl (Pitfall 2) — `ollama list` is in-image.
+      test: ["CMD-SHELL", "ollama list || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ===========================================================================
+  # Langfuse v3 self-host (D-03) — 6 containers, ALL profiles: [langfuse].
+  # Raw `docker compose up` stays lean; only `make compose-up`'s --profile
+  # langfuse activates these. Verbatim upstream lift (github.com/langfuse/langfuse
+  # main docker-compose.yml). Pitfall 1: Langfuse's OWN postgres is RENAMED
+  # `langfuse-postgres` with its OWN volume — the mesh DSN points ONLY at the
+  # pgvector `postgres`, never here.
+  #
+  # SECURITY (RUNBOOK 10-03 discloses): NEXTAUTH_SECRET / SALT / ENCRYPTION_KEY
+  # and the clickhouse/redis/minio creds below are inline DEV-ONLY defaults each
+  # marked `# CHANGEME`; they must be replaced for any non-local use.
+  # ===========================================================================
+  langfuse-web:
+    image: docker.io/langfuse/langfuse:3
+    profiles: [langfuse]
+    depends_on:
+      langfuse-postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@langfuse-postgres:5432/postgres   # CHANGEME (Langfuse's OWN pg — Pitfall 1)
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: mysecret                 # CHANGEME (openssl rand -hex 32)
+      SALT: mysalt                              # CHANGEME (openssl rand -hex 32)
+      ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"  # CHANGEME (64 hex chars; openssl rand -hex 32)
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: clickhouse               # CHANGEME
+      CLICKHOUSE_PASSWORD: clickhouse           # CHANGEME
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_AUTH: myredissecret                 # CHANGEME
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio                 # CHANGEME
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: miniosecret       # CHANGEME
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio                 # CHANGEME
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: miniosecret       # CHANGEME
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/public/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  langfuse-worker:
+    image: docker.io/langfuse/langfuse-worker:3
+    profiles: [langfuse]
+    depends_on:
+      langfuse-postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      # Same backing-store env as langfuse-web (expanded, not a comment — so a
+      # bring-up actually works). Server secrets are DEV-ONLY # CHANGEME.
+      DATABASE_URL: postgresql://postgres:postgres@langfuse-postgres:5432/postgres   # CHANGEME
+      SALT: mysalt                              # CHANGEME
+      ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"  # CHANGEME
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: clickhouse               # CHANGEME
+      CLICKHOUSE_PASSWORD: clickhouse           # CHANGEME
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_AUTH: myredissecret                 # CHANGEME
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio                 # CHANGEME
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: miniosecret       # CHANGEME
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio                 # CHANGEME
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: miniosecret       # CHANGEME
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+
+  langfuse-postgres:                            # RENAMED from upstream `postgres` (Pitfall 1)
+    image: docker.io/postgres:17
+    profiles: [langfuse]
+    environment:
+      POSTGRES_USER: postgres                   # CHANGEME
+      POSTGRES_PASSWORD: postgres               # CHANGEME
+      POSTGRES_DB: postgres
+    volumes:
+      - langfuse_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  clickhouse:
+    image: docker.io/clickhouse/clickhouse-server
+    profiles: [langfuse]
+    environment:
+      CLICKHOUSE_USER: clickhouse               # CHANGEME
+      CLICKHOUSE_PASSWORD: clickhouse           # CHANGEME
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8123/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: docker.io/redis:7
+    profiles: [langfuse]
+    command: ["--requirepass", "myredissecret"]   # CHANGEME
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: cgr.dev/chainguard/minio          # keep Chainguard registry verbatim (do NOT substitute minio/minio)
+    profiles: [langfuse]
+    # Upstream form (langfuse main): pre-create the `langfuse` bucket before the
+    # server starts, else event/media ingestion 404s on a missing bucket.
+    entrypoint: sh
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ROOT_USER: minio                  # CHANGEME
+      MINIO_ROOT_PASSWORD: miniosecret        # CHANGEME
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  mesh_pgdata: {}
+  ollama_data: {}
+  langfuse_pgdata: {}
+  clickhouse_data: {}
+  minio_data: {}
