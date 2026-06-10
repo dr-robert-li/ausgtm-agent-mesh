@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: — Local / Offline Deployability
 status: executing
-stopped_at: Phase 11 context gathered
-last_updated: "2026-06-10T13:04:26.930Z"
+stopped_at: Phase 11 planned (3 plans, 2 waves)
+last_updated: "2026-06-10T19:35:16.704Z"
 last_activity: 2026-06-10 — Phase 10 complete (full-stack local compose)
 progress:
   total_phases: 7
@@ -21,7 +21,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-08)
 
 **Core value:** A long-running agent mesh takes a client request through ingress, durable orchestration, and a write-gated tool action — the write blocked until a human approves — and the whole run is observable and auditable.
-**Current focus:** Phase 11 — Offline / No-Egress Posture (next; needs planning)
+**Current focus:** Phase 11 — Offline / No-Egress Posture (PLANNED — 3 plans, 2 waves; ready to execute)
 
 ## Current Position
 
@@ -110,9 +110,9 @@ Items acknowledged and carried forward:
 ## Session Continuity
 
 Last session: --stopped-at
-Stopped at: Phase 11 context gathered
+Stopped at: Phase 11 planned (3 plans, 2 waves; research + pattern-map + plan-check all passed)
 
-**Next:** `/gsd:plan-phase 11` — Offline / No-Egress Posture (depends on Phases 8+9+10, all complete). Assert over config/.env that the assembled local stack is egress-free: no cloud `api_base` (no Vertex/Anthropic/CF wrapper URL), no cloud-key env refs, `.env`-sourced secrets, CF off; tests over the compose + model profiles; the default creds-free lane performs no outbound to a real provider/gateway (OFFLINE-01/02/03). Zero `src/` change milestone guardrail still holds. **Before planning 11, consider `/gsd:complete-milestone` to archive v1.0** so the SDK analyzer stops clobbering STATE frontmatter (see note below).
+**Next:** `/gsd:execute-phase 11` — Offline / No-Egress Posture. 3 plans in 2 waves: **11-01** (D-01+D-04 whole-file cloud-LLM marker sweep across 4 local profiles + docker-compose api/worker env; `cloud.yaml` negative control) ∥ **11-02** (D-02 `socket.getaddrinfo` autouse deny-guard; sync+async `anthropic/` positive controls; creds-gated, not pytest-socket) in Wave 1; **11-03** (D-03 `.env.offline.example` + RUNBOOK offline section + valued-key sweep + durable env-gated zero-`src/` invariant with [BLOCKING] enforcing run) in Wave 2. Executor must export `ZERO_SRC_BASE=5092323` for the [BLOCKING] zero-src enforcing run. All CI-wired tests slot into `make test -m "not live"`; `.venv/bin/python` interpreter. Plan-checker: VERIFICATION PASSED (0 blockers; 1 warning fixed in-plan — deny-guard fixture clarified function-scoped). **Before executing, consider `/gsd:complete-milestone` to archive v1.0** so the SDK analyzer stops clobbering STATE frontmatter (progress block still reads 7/7/100 = v1.0 carryover; body is truth).
 
 **Phase 10 result (2026-06-10):** one-command full-stack `docker-compose.yml` (api+worker+gui+pgvector postgres+migrate+Langfuse-v3-profile+vLLM/Ollama backends; no litellm container per D-06); shared command-parameterized `Dockerfile` (carries docker-cli for worker DooD) + `.dockerignore`; compose-variant model profiles with service-DNS api_base (Finding #1); `make compose-up/down` (best-effort, not in `make test`); RUNBOOK full-stack section with dev-only disclosures; `tests/test_compose_config.py` (the only CI-wired P10 artifact — static `docker compose config` validation, docker loud-skip). Code review found + fixed 2 real bring-up Criticals (api `/health`→`/healthz`, redis healthcheck NOAUTH) in `cd5de7a`. 318 tests green; zero `src/` change confirmed.
 
@@ -120,4 +120,4 @@ Stopped at: Phase 11 context gathered
 
 **Note (recurring SDK gotcha):** SDK state-writes (`phase.complete`, `state.record-session`) re-derive milestone progress from the ROADMAP v1.0 section (phases 1–7, never archived) and clobber frontmatter back to 7/7/100%. Body text is the source of truth (v1.1 = 3/4, 75% after Phase 10). Durable fix: run `/gsd:complete-milestone` to archive v1.0 so the analyzer sees v1.1's 4 phases (8–11). (Phase 10's `phase.complete` clobbered to status:milestone_complete/8/114% — manually reverted to executing/7/100 + body 3/4.)
 
-**Planned Phase:** 09 (local-data-telemetry-plane) — 1 plans — 2026-06-09T23:47:26.694Z
+**Planned Phase:** 11 (offline-no-egress-posture) — 3 plans — 2026-06-10T19:35:16.698Z
