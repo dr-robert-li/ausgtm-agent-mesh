@@ -1,0 +1,186 @@
+# Full-stack local compose (COMPOSE-01) — single file, profile-gated.
+#
+# Assembles the whole mesh as ONE local stack (Phase 10):
+#   CORE (always-on, no `profiles:` key):  api, worker, gui, postgres, migrate
+#   profiles: [vllm]   GPU model backend (the composed default — D-04)
+#   profiles: [cpu]    Ollama CPU fallback model backend (D-04/D-05)
+#   profiles: [langfuse]  full Langfuse v3 self-host (6 containers — D-03)
+#
+# Bring-up: `make compose-up` (10-03) runs
+#   docker compose --profile $(MODEL_PROFILE) --profile langfuse up -d --build
+# with MODEL_PROFILE ?= vllm. Raw `docker compose up` stays LEAN (core only) — L2.
+#
+# D-01: ONE shared image (the root Dockerfile); api/worker/gui differ ONLY by
+#       `command:` (the Makefile run-* strings, no --reload; api on container 8080).
+# D-06: NO standalone litellm container — the in-process litellm.Router inside
+#       api/worker IS the model control plane. COMPOSE-03 asserts litellm absent.
+#
+# Three load-bearing functional gaps a static `docker compose config` cannot catch
+# are wired below (no `src/` change):
+#   Finding #1 (api + worker): mount the compose-variant model profile onto the
+#     container's active config/model_gateway.config.yaml so api_base is the model
+#     service DNS (http://vllm:8000/v1), not the in-container loopback.
+#   Finding #2 (worker): docker.sock mount + identical-path host bind + TMPDIR so
+#     the real P2 DooD sandbox runs in-stack (dev-only — disclosed in RUNBOOK).
+#   Pitfall 5 (migrate service): a one-shot applier brings the schema up before
+#     api/worker/gui start, so a fresh `make compose-up` is functional.
+#
+# compose v2: no obsolete top-level `version:` key.
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # CORE: api (FastAPI / uvicorn). Always-on (no `profiles:` key).
+  # ---------------------------------------------------------------------------
+  api:
+    build: .
+    command: ["uvicorn", "agent_mesh.api.app:app", "--host", "0.0.0.0", "--port", "8080"]
+    ports:
+      - "8080:8080"
+    environment:
+      # Mesh DSN: creds/port/db IDENTICAL to the Phase-9 pinned default; only the
+      # host changes localhost -> the `postgres` compose service (in-stack DNS).
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/agent_mesh
+      # In-stack Langfuse host (port identical; host -> service name).
+      LANGFUSE_HOST: http://langfuse-web:3000
+      # UI-minted keys (D-03a): blank until a human mints them in the Langfuse UI.
+      # Tracing loud-skips until set. Left blank intentionally.
+      LANGFUSE_PUBLIC_KEY: ""
+      LANGFUSE_SECRET_KEY: ""
+    volumes:
+      # Finding #1: supply the active model profile with service-DNS api_base.
+      # The volume SOURCE interpolates ${MODEL_PROFILE} (vllm|cpu); the image has
+      # NO config.yaml at this target (.dockerignore excludes it) — this bind is
+      # its sole supplier. Target is the absolute WORKDIR path the Dockerfile set.
+      - ./config/model_gateway.${MODEL_PROFILE:-vllm}.compose.yaml:/app/config/model_gateway.config.yaml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/health').status==200 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # CORE: worker (LangGraph + Deep Agents mesh + P2 DooD sandbox). Always-on.
+  # ---------------------------------------------------------------------------
+  worker:
+    build: .
+    command: ["python", "-m", "agent_mesh.worker.main"]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/agent_mesh
+      LANGFUSE_HOST: http://langfuse-web:3000
+      LANGFUSE_PUBLIC_KEY: ""
+      LANGFUSE_SECRET_KEY: ""
+      # Finding #2: redirect the executor's tempfile.TemporaryDirectory (it passes
+      # no dir=, so it honors TMPDIR) onto the identical-path host bind below, so
+      # the host daemon (reached over the mounted socket) resolves the same path.
+      TMPDIR: ${MESH_SBX_DIR:-/tmp/agent-mesh-sbx}
+    volumes:
+      # Finding #1 (api + worker both mount the variant — count must be 2).
+      - ./config/model_gateway.${MODEL_PROFILE:-vllm}.compose.yaml:/app/config/model_gateway.config.yaml:ro
+      # Finding #2: docker socket (DooD) — DEV-ONLY, grants the worker effective
+      # host-root; production uses Cloud Run Jobs (RUNBOOK discloses, 10-03).
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Finding #2: identical-path host bind (source == target, IDENTICAL absolute
+      # string). The executor's `-v {snippet_dir}:/snippet:ro` is resolved by the
+      # HOST daemon; a mismatched bind fails loudly ("Mounts denied"). /tmp is a
+      # Docker-Desktop-shared path on macOS.
+      - ${MESH_SBX_DIR:-/tmp/agent-mesh-sbx}:${MESH_SBX_DIR:-/tmp/agent-mesh-sbx}
+    group_add:
+      # Non-root worker needs the host socket gid to reach the daemon. Host-
+      # dependent (Docker Desktop Mac vs Linux); dev-only override (A1).
+      - "${DOCKER_GID:-999}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # CORE: gui (Streamlit admin/operator console — L3 entry admin_app.py). Always-on.
+  # ---------------------------------------------------------------------------
+  gui:
+    build: .
+    command: ["streamlit", "run", "src/agent_mesh/gui/admin_app.py", "--server.address", "0.0.0.0", "--server.port", "8501"]
+    ports:
+      - "8501:8501"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/agent_mesh
+      LANGFUSE_HOST: http://langfuse-web:3000
+      LANGFUSE_PUBLIC_KEY: ""
+      LANGFUSE_SECRET_KEY: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # CORE: postgres — the mesh durable store (pgvector). Always-on.
+  # Creds/port/db match the Phase-9 pinned DATABASE_URL (DSN parity). Pinned
+  # pgvector image: a vanilla postgres fails the CREATE EXTENSION vector in 0001.
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: agent_mesh
+    ports:
+      - "5432:5432"
+    volumes:
+      - mesh_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d agent_mesh"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # MODEL BACKEND: vLLM (GPU, composed default — D-04). profiles: [vllm].
+  # api_base reaches it at http://vllm:8000/v1 via the mounted vllm.compose.yaml.
+  # ---------------------------------------------------------------------------
+  vllm:
+    image: vllm/vllm-openai:v0.6.6
+    profiles: [vllm]
+    command: ["--model", "Qwen/Qwen2.5-7B-Instruct", "--enable-auto-tool-choice", "--tool-call-parser", "hermes"]
+    ports:
+      - "8000:8000"
+    # PyTorch shared-memory (docs.vllm.ai) — without this vLLM can OOM on /dev/shm.
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      # vLLM image has python but no curl (Pitfall 2) — probe /health via urllib.
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+  # ---------------------------------------------------------------------------
+  # MODEL BACKEND: Ollama (CPU fallback — D-04/D-05). profiles: [cpu].
+  # api_base reaches it at http://ollama:11434 via the mounted cpu.compose.yaml.
+  # ---------------------------------------------------------------------------
+  ollama:
+    image: ollama/ollama:0.5.4
+    profiles: [cpu]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      # Ollama image ships no curl (Pitfall 2) — `ollama list` is in-image.
+      test: ["CMD-SHELL", "ollama list || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  mesh_pgdata: {}
+  ollama_data: {}
