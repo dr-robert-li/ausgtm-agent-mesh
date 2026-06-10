@@ -266,7 +266,12 @@ Plans:
   1. An OFFLINE posture is expressible via config/.env (CF off, no Vertex/Anthropic keys, local-only `api_base`, `.env`-sourced secrets) and documented in RUNBOOK
   2. A test asserts the local/offline model profiles contain NO cloud `api_base` (no Vertex/Anthropic/CF wrapper URL) and no cloud-key env references — egress-free by construction
   3. A test asserts the default creds-free lane performs no outbound network to a real provider/gateway (the existing stub posture, made explicit and enforced)
-**Plans**: TBD (run `/gsd:plan-phase 11`)
+**Plans**: 3 plans
+
+Plans:
+- [ ] 11-01-PLAN.md — D-01+D-04 cloud-LLM marker sweep: extend test_local_profiles.py to all 4 local profiles (whole-file + service-DNS allowlist + cloud.yaml negative control) + new docker-compose api/worker env-block sweep (OFFLINE-02) [wave 1]
+- [ ] 11-02-PLAN.md — D-02 socket.getaddrinfo autouse deny-guard: raises only on cloud-LLM hosts; anthropic/ sync+async positive controls + representative local-profile path (OFFLINE-03) [wave 1]
+- [ ] 11-03-PLAN.md — D-03 .env.offline.example + RUNBOOK offline section + valued-key sweep, plus durable env-gated zero-src invariant test + [BLOCKING] enforcing run (OFFLINE-01) [wave 1]
 
 ## Progress
 
