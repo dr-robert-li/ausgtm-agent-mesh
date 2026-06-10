@@ -1,4 +1,4 @@
-.PHONY: help install install-dev schemas test test-live test-pg lint fmt smoke run-api run-worker run-gui run-vllm run-ollama use-vllm use-ollama use-cloud run-pg
+.PHONY: help install install-dev schemas test test-live test-pg lint fmt smoke run-api run-worker run-gui run-vllm run-ollama use-vllm use-ollama use-cloud run-pg compose-up compose-down
 
 PY ?= python
 PYTHONPATH := src
@@ -23,6 +23,8 @@ help:
 	@echo "  use-ollama   Swap the local Ollama profile onto config/model_gateway.config.yaml"
 	@echo "  use-cloud    Restore the pristine cloud profile onto config/model_gateway.config.yaml"
 	@echo "  run-pg       Start a local pgvector Postgres (best-effort, operator-only, never CI)"
+	@echo "  compose-up   Bring up the full local stack (one command; MODEL_PROFILE=vllm|cpu; best-effort, never CI)"
+	@echo "  compose-down Tear down the full local stack across all profiles (no volume wipe; best-effort, never CI)"
 
 install:
 	$(PY) -m pip install -r requirements/base.txt
@@ -114,3 +116,24 @@ run-pg:
 	  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=agent_mesh \
 	  -p 5432:5432 -v $(PG_VOLUME):/var/lib/postgresql/data \
 	  $(PG_IMAGE)
+
+# --- Full-stack local compose (COMPOSE-02) -----------------------------------
+# compose-up / compose-down wrap the single profile-gated docker-compose.yml into
+# a one-command bring-up / teardown. Like run-pg / run-vllm they are best-effort,
+# operator-run, and DELIBERATELY never wired into `make test` or any CI path: they
+# require Docker and may fail on a bare box (no Docker / no GPU for the vLLM
+# profile), which is acceptable and documented in RUNBOOK.md. The ONLY CI-wired
+# Phase-10 piece is tests/test_compose_config.py (static `docker compose config`).
+#
+# MODEL_PROFILE selects the model backend: vllm (GPU, the composed default) or cpu
+# (Ollama, for non-GPU boxes — D-05). compose-up always also activates the langfuse
+# profile so the full observability plane comes up. compose-down ENUMERATES every
+# profile (vllm cpu langfuse) so teardown is deterministic across compose versions
+# regardless of which profile brought the stack up (Pitfall 4). No `-v` by default
+# so named-volume data survives a teardown; pass `-v` explicitly for a clean wipe
+# (data loss — see RUNBOOK).
+MODEL_PROFILE ?= vllm
+compose-up:
+	docker compose --profile $(MODEL_PROFILE) --profile langfuse up -d --build
+compose-down:
+	docker compose --profile vllm --profile cpu --profile langfuse down
