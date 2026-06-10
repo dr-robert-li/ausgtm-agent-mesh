@@ -86,7 +86,15 @@ migrations), with zero `src/` change and no standalone litellm container (D-06).
   (`docker.io/langfuse/langfuse-worker:3`, env expanded to real keys — not a comment), `langfuse-postgres`
   (`docker.io/postgres:17` — RENAMED per Pitfall 1, own volume `langfuse_pgdata`, `pg_isready`), `clickhouse`
   (`clickhouse/clickhouse-server`, `clickhouse_data`, `/ping`), `redis` (`redis:7`, `--requirepass`, `redis-cli ping`),
-  `minio` (`cgr.dev/chainguard/minio` verbatim, `minio_data`, `mc ready local`).
+  `minio` (`cgr.dev/chainguard/minio` verbatim, `minio_data`, `mc ready local`, upstream `sh -c 'mkdir -p
+  /data/langfuse && minio server ...'` bucket pre-creation).
+- **A4 re-verify done (execution-time):** the `langfuse-web`/`langfuse-worker` env keys and the minio
+  service were diffed against the live upstream `langfuse/langfuse` `main` docker-compose.yml (fetched
+  2026-06-10). Every env key used (`DATABASE_URL`, `NEXTAUTH_SECRET`, `SALT`, `ENCRYPTION_KEY`,
+  `CLICKHOUSE_MIGRATION_URL`/`URL`/`USER`/`PASSWORD`/`CLUSTER_ENABLED`, `REDIS_HOST`/`PORT`/`AUTH`,
+  the full `LANGFUSE_S3_EVENT_UPLOAD_*` + `LANGFUSE_S3_MEDIA_UPLOAD_*` set) is a verified subset of
+  upstream — no typos. The minio entrypoint/command and `mc ready local` healthcheck were corrected to
+  match upstream (pre-creates the `langfuse` bucket; missing it 404s ingestion).
 - Pitfall 1: Langfuse `DATABASE_URL` points at `langfuse-postgres:5432` (NOT the mesh `postgres`);
   mesh `postgres` stays pgvector/pg16, langfuse pg is postgres:17 — distinct names AND volumes.
 - Dev-default server secrets (NEXTAUTH_SECRET/SALT/ENCRYPTION_KEY + clickhouse/redis/minio creds)
@@ -155,6 +163,32 @@ Docker present (27.x / compose v2.32.4), so `docker compose config` ran for real
 - **Commit:** fa04bba
 
 Both are additive correctness improvements within the config-only / zero-`src/` boundary.
+
+**3. [A4 re-verify] Corrected minio entrypoint to match upstream (bucket pre-creation)**
+- **Found during:** Task 3 post-commit A4 re-verify (the task instruction to re-verify env-key
+  spellings against upstream `main` at execution time).
+- **Issue:** The initial minio entrypoint (`sh -c "minio server /data --console-address ':9001'"`)
+  was reconstructed from memory and did not pre-create the `langfuse` S3 bucket; upstream's form
+  does (`mkdir -p /data/langfuse && minio server ...`). Without the bucket, Langfuse event/media
+  ingestion 404s on first use.
+- **Fix:** Aligned the minio `entrypoint: sh` + `command: -c 'mkdir -p /data/langfuse && minio server
+  --address ":9000" --console-address ":9001" /data'` and the `["CMD","mc","ready","local"]` healthcheck
+  to the upstream `main` compose. Env keys were confirmed correct (no change needed).
+- **Files modified:** docker-compose.yml
+- **Commit:** (folded into the Langfuse commit chain — see below)
+
+## Bring-up-unverified (out-of-scope this phase; 10-03 / operator must confirm)
+
+COMPOSE-01 is satisfied by static `docker compose config` (this phase's scope); a real
+`make compose-up` is operator-only (10-03). The following were NOT bring-up-tested here and
+must be confirmed before first real bring-up:
+- **Model image tags** `vllm/vllm-openai:v0.6.6` and `ollama/ollama:0.5.4` are pinned concrete
+  tags (replacing the research `:latest`) reconstructed from known-good releases; confirm they
+  exist/pull on the target box (GPU for vLLM). A wrong tag fails at pull time, not at `config`.
+- **Langfuse env semantics:** the env *keys* are upstream-verified (A4 above), but a full
+  ingestion bring-up (clickhouse migrations, minio bucket, redis queue) is unexercised this phase.
+- **Chainguard minio shell:** the upstream `entrypoint: sh` assumes `sh`/`mc` are present in the
+  Chainguard image (upstream relies on it); confirm on first bring-up.
 
 ## Authentication Gates
 
