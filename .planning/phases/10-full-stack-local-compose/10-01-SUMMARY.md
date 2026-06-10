@@ -81,6 +81,12 @@ that fix Finding #1's loopback-in-compose break without editing the frozen Phase
   config` (Pitfall 3) will NOT catch it — a green COMPOSE-03 over a hollow SC-1.
 - **Volume source to interpolate:** `config/model_gateway.${MODEL_PROFILE}.compose.yaml`
   (`MODEL_PROFILE=vllm` → `…vllm.compose.yaml`; `MODEL_PROFILE=cpu` → `…cpu.compose.yaml`).
+- **Mount target does NOT pre-exist in the image:** `.dockerignore` excludes
+  `config/model_gateway.config.yaml`, so the built image has **no** `config.yaml` at
+  `/app/config/` — the active profile is supplied **entirely** by 10-02's bind. The parent
+  dir `/app/config/` DOES exist (other profiles are copied), so a file-bind onto
+  `/app/config/model_gateway.config.yaml` works. Do not be misled by grepping the image and
+  finding no `config.yaml` — that absence is intentional; the bind is the only supplier.
 
 ## Verification
 
@@ -147,6 +153,16 @@ None.
 ## Known Stubs
 
 None — both artifacts are real, build-validated, and consumed as-is by 10-02.
+
+## Deferred Note (downstream awareness, not in this plan's scope)
+
+The repo already carried an older per-service build path: `docker/api.Dockerfile`,
+`docker/worker.Dockerfile`, `docker/gui.Dockerfile`, `docker/code-executor.Dockerfile`
+and `requirements/{base,api,worker,gui,dev}.txt`. With D-01 (this shared root Dockerfile)
+and 10-02's `build: .` for api/worker/gui, those per-service Dockerfiles become redundant
+for the compose path (nothing references them — verified via `git grep`). They are NOT
+touched here (out of scope) and are excluded from the image build context via
+`.dockerignore`. A future cleanup plan may reconcile/remove them.
 
 ## Self-Check: PASSED
 - FOUND: Dockerfile
