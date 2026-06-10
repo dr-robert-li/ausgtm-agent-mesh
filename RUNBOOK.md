@@ -216,12 +216,15 @@ durable/Postgres lane, including `tests/test_local_data_plane.py` which asserts 
 0003 `tool_calls` columns and the 0004 tables exist in the live migrated schema.
 With no DSN exported it exits 0 with every Postgres test loud-skipped.
 
-### Self-hosted Langfuse (documentation-only)
+### Self-hosted Langfuse (now standable via the full-stack compose)
 
-This phase ships **no** Langfuse standup target — the full multi-container standup
-is **deferred to Phase 10's compose**. Documented here so the path is ready.
+The full multi-container Langfuse standup is **now part of Phase 10's single
+`docker-compose.yml`** — see [Full-stack local compose](#full-stack-local-compose)
+below, which brings up the Langfuse v3 set under the `langfuse` profile alongside
+the mesh. The upstream-clone path below remains documented as a standalone
+reference (Langfuse-only, no mesh).
 
-Upstream self-host path *(datable — re-verify against upstream before Phase 10)*:
+Upstream standalone self-host path *(datable — re-verify against upstream)*:
 
 ```bash
 git clone https://github.com/langfuse/langfuse.git
@@ -229,8 +232,8 @@ cd langfuse && docker compose up        # UI at http://localhost:3000
 ```
 
 The Langfuse **v3** stack is multi-container (web + worker + postgres + clickhouse +
-redis/valkey + minio) — this is why standup is Phase 10 territory, not a single
-`make` target.
+redis/valkey + minio) — this is why a single `make` target was deferred to the
+full-stack compose, which now carries it inline as a profile-gated service set.
 
 **Client-vs-server key boundary (do not conflate):** the mesh's
 `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` are **UI-generated per-project** keys
@@ -243,6 +246,97 @@ territory**. `LANGFUSE_HOST` is pinned to `http://localhost:3000` in `.env.examp
 for this self-host path. Mesh telemetry **loud-skips** when the keys are unset
 (existing behavior — no `src/` change), so the default lane stays green without a
 running Langfuse.
+
+## Full-stack local compose
+
+Brings the **whole mesh up as one local stack** — `api` + `worker` + `gui` +
+`postgres` + a one-shot `migrate` + a model backend + the full self-hosted Langfuse
+v3 plane — from a single `docker-compose.yml` (COMPOSE-01/02). Like the inference and
+data-plane run-targets above, `make compose-up` / `compose-down` are **best-effort,
+operator-run, and DELIBERATELY never wired into `make test` or any CI path**: they
+require Docker and may fail on a bare box (no Docker, or no GPU for the default vLLM
+profile), which is acceptable. The lone CI-wired Phase-10 piece is the static
+`tests/test_compose_config.py` (`docker compose config` parse — runs under `make
+test`, loud-skips when the `docker` binary is absent).
+
+### One-command bring-up
+
+```bash
+make compose-up                          # default: vLLM model backend (needs a GPU) + Langfuse
+MODEL_PROFILE=cpu make compose-up        # non-GPU boxes: Ollama (CPU) instead of vLLM
+make compose-down                        # tear down all profiles (vllm cpu langfuse); data survives
+make compose-down ARGS=                  # (no -v by default; see volume-wipe note below)
+```
+
+`compose-up` runs `docker compose --profile $(MODEL_PROFILE) --profile langfuse up -d
+--build` (`MODEL_PROFILE ?= vllm`). `compose-down` runs the **enumerated** teardown
+`docker compose --profile vllm --profile cpu --profile langfuse down` so it cleans up
+deterministically regardless of which profile brought the stack up. A raw `docker
+compose up` (no `--profile`) stays **lean** — core services only, no model backend or
+Langfuse.
+
+### Dev-only disclosures (read before relying on the stack)
+
+These are honest dev-only postures, exactly like the pinned `.env.example` DSNs above
+— **never a production posture**:
+
+- **The worker's docker-socket mount is DEV-ONLY.** The `worker` service binds
+  `/var/run/docker.sock` so the real Phase-2 DooD sandbox runs in-stack (the worker
+  shells out to the host `docker` daemon to launch the code-execution sandbox). This
+  grants the worker **effective host-root** and is **NEVER** a production posture —
+  production runs the sandbox as isolated Cloud Run Jobs, not over a mounted host
+  socket. The `MESH_SBX_DIR` (default `/tmp/agent-mesh-sbx`, identical-path host bind)
+  and `DOCKER_GID` (default `999`, the host socket gid) knobs are host-dependent
+  dev-only overrides — set them in your untracked `.env` if your host differs (e.g.
+  Docker Desktop on macOS vs Linux).
+- **Langfuse keys are UI-minted, not env-provided.** On first bring-up
+  `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` are **blank**, so mesh tracing
+  **loud-skips** (existing behavior — no `src/` change). To enable tracing, open the
+  Langfuse UI at <http://localhost:3000>, create a project, **mint** a key pair, and
+  set `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` in your untracked `.env`, then
+  recreate the api/worker (`make compose-up` again). These are the same UI-generated
+  per-project keys described in the client-vs-server key boundary note above — they
+  are **NOT** Langfuse server env vars.
+- **vLLM is the default and needs a GPU.** The `vllm` profile reserves an NVIDIA GPU;
+  on a non-GPU box use `MODEL_PROFILE=cpu make compose-up` to run **Ollama** (CPU)
+  instead. A wrong/unavailable model image tag fails at pull time, not at config time.
+- **LiteLLM runs EMBEDDED in api/worker — there is no litellm proxy container.** The
+  in-process `litellm.Router` inside the api/worker IS the model control plane, which
+  mirrors the deploy topology (no standalone litellm image). `tests/test_compose_config.py`
+  asserts **no `litellm` service** is present, by design.
+- **Langfuse server `# CHANGEME` secrets are local-only dev defaults.** The inline
+  `NEXTAUTH_SECRET` / `SALT` / `ENCRYPTION_KEY` and the ClickHouse / Redis / MinIO
+  credentials in the `langfuse` profile are dev-only placeholders (each marked
+  `# CHANGEME` in `docker-compose.yml`). **Replace every one for any non-local use.**
+  Langfuse uses its OWN postgres (`langfuse-postgres`, distinct volume) — the mesh DSN
+  points only at the pgvector `postgres`, never at Langfuse's store.
+
+### Volume wipe (data loss)
+
+`compose-down` does **not** pass `-v`, so the named volumes (`mesh_pgdata`,
+`langfuse_pgdata`, `clickhouse_data`, `minio_data`, `ollama_data`) survive a teardown.
+To wipe all stack data (a clean slate — **irreversible data loss**), run the teardown
+with `-v` explicitly:
+
+```bash
+docker compose --profile vllm --profile cpu --profile langfuse down -v
+```
+
+### Verify migrations applied (non-static runtime proof)
+
+The static `docker compose config` test cannot prove the schema is actually applied
+at runtime — only that the `migrate` service is *declared*. After `make compose-up`,
+the one-shot `migrate` service applies migrations `0001`–`0004` (gated so api/worker/gui
+wait for it via `service_completed_successfully`). Confirm the schema is live before
+relying on any durable call:
+
+```bash
+docker compose exec postgres psql -U postgres -d agent_mesh -c '\dt'
+```
+
+The migration-created tables (tasks, sessions, tool_calls, the self-improvement and
+active-version objects, …) should be listed. If they are absent, inspect the `migrate`
+service logs (`docker compose logs migrate`) before proceeding.
 
 ## Credentials & live lane
 
