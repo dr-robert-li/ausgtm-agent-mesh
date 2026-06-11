@@ -164,3 +164,33 @@ def test_guard_denies_anthropic_async_positive_control():
         assert "OFFLINE deny" in str(ei.value) or "anthropic.com" in str(ei.value)
 
     asyncio.run(go())
+
+
+# ---------------------------------------------------------------------------
+# Representative default-lane path (Pitfall 5) — makes the proof NON-VACUOUS.
+# `build_router` is lazy (no provider call at construction, verified litellm
+# 1.83.7), so without driving a completion the guard asserts nothing. Here we
+# build the Router from the ACTIVE LOCAL profile (loopback api_base) and drive ONE
+# completion under the guard. A connection-refused / timeout to http://localhost:8000
+# is ACCEPTABLE (it proves egress targeted loopback, not a cloud host); the ONLY
+# failure condition is "OFFLINE deny" in the error (a cloud-LLM host was contacted).
+# ---------------------------------------------------------------------------
+
+
+def test_default_lane_local_profile_does_not_trip_guard():
+    from agent_mesh.worker.model_gateway import build_router
+
+    router = build_router("config/model_gateway.vllm.yaml")  # loopback api_base
+    try:
+        router.completion(
+            model="low-complexity",
+            messages=[{"role": "user", "content": "hi"}],
+        )
+    except Exception as e:  # noqa: BLE001 — any connection-level failure is fine here
+        # Acceptable: connection refused / timeout to http://localhost:8000 (no
+        # local vLLM server running in the default lane). NOT acceptable: the guard
+        # firing — that would mean a cloud-LLM host was contacted from the local
+        # profile, the exact OFFLINE-03 violation this test exists to catch.
+        assert "OFFLINE deny" not in str(e), (
+            f"local profile reached a cloud-LLM host: {e}"
+        )
