@@ -291,4 +291,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 (v1.0) �
 | 8. Local Inference Lane | 1/2 | In Progress | - |
 | 9. Local Data & Telemetry Plane | 1/1 | Complete | 2026-06-10 |
 | 10. Full-Stack Local Compose | 3/3 | Complete    | 2026-06-10 |
-| 11. Offline / No-Egress Posture | 0/3 | Planned | - |
+| 11. Offline / No-Egress Posture | 2/3 | In Progress | - |
