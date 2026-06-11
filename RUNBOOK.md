@@ -337,6 +337,78 @@ The migration-created tables (tasks, sessions, tool_calls, the self-improvement 
 active-version objects, …) should be listed. If they are absent, inspect the `migrate`
 service logs (`docker compose logs migrate`) before proceeding.
 
+## Offline / no-egress posture
+
+A concrete, copy-pasteable, **testable** expression of the offline posture
+(OFFLINE-01). Ship `.env.offline.example` + the `use-vllm`/`use-ollama` profile
+swap and the mesh runs with **no cloud-hosted LLM egress**.
+
+### What the posture is (and is NOT)
+
+**Offline = no cloud-hosted LLM inference egress** — Vertex AI, Anthropic-direct,
+and the Cloudflare AI Gateway model path. It is **NOT** a blanket no-network
+block: local Postgres, self-hosted Langfuse, in-stack service-DNS model backends
+(`vllm:8000`, `ollama:11434`), and SaaS tool-pack adapters reaching their own APIs
+are all **legitimate** and out of scope for restriction. The posture zeroes
+**only** the cloud-LLM/gateway creds — SaaS/tool-pack creds
+(`COMPOSIO_API_KEY`, `BITSCALE_API_KEY`) and the local data plane stay normal.
+
+> **Scope caveat (verbatim):** offline = no cloud-hosted LLM, not blanket
+> no-network.
+
+The local model `api_base` is **not** a new env var — zero-`src/` forbids a new
+runtime env read, so OFFLINE is **asserted-over-config + documented**, never a
+runtime switch. The local endpoint comes from the `make use-vllm` / `make
+use-ollama` profile **file-swap** (it copies the loopback `model_gateway.vllm.yaml`
+/ `.ollama.yaml` over the active config).
+
+### How to express it
+
+```bash
+cp .env.offline.example .env          # cloud-LLM/gateway creds blank; SaaS normal
+make use-vllm                         # local model api_base via profile file-swap
+# or, on a non-GPU box:
+make use-ollama
+```
+
+`.env.offline.example` blanks the cloud-LLM/gateway creds
+(`CF_AIG_WRAPPER_URL=`, `ANTHROPIC_API_KEY=`, `VERTEX_PROJECT_ID=`,
+`VERTEX_LOCATION=`, `MODEL_GATEWAY_MASTER_KEY=`, `MODEL_GATEWAY_SHARED_SECRET=`,
+`GOOGLE_APPLICATION_CREDENTIALS=`), keeps `MODEL_GATEWAY_BASE_URL` local
+(`http://localhost:4000`), and leaves the SaaS/tool-pack creds and the local
+`DATABASE_URL`/`TEST_DATABASE_URL`/`LANGFUSE_HOST` as normal.
+
+### How to verify it
+
+```bash
+make test     # .venv/bin/python -m pytest -q -m "not live"
+```
+
+The default `make test` lane runs the Phase-11 sweeps without any cloud creds:
+
+- **profile sweep** (`tests/test_local_profiles.py`) — the 4 local model-gateway
+  profiles carry only loopback/service-DNS `api_base`, no cloud markers.
+- **compose-env sweep** (`tests/test_offline_compose_env.py`) — the assembled
+  stack's `api`/`worker` env blocks carry no valued cloud-LLM key, no cloud host.
+- **posture-env sweep** (`tests/test_offline_posture_env.py`) — `.env.offline.example`
+  carries every named cloud-LLM key **present-but-blank** (valued = violation).
+- **model-host deny-guard** (`tests/test_offline_deny_guard.py`) — the default
+  creds-free lane resolves no cloud-LLM host.
+
+The durable zero-`src/` guardrail (`tests/test_zero_src_invariant.py`)
+**loud-skips** by default (mirroring the `TEST_DATABASE_URL` convention). Run it
+ENFORCING by exporting the phase-base SHA:
+
+```bash
+ZERO_SRC_BASE=<phase-base-sha> make test
+# direct cross-check:
+git diff <phase-base-sha>..HEAD -- src/      # must print nothing
+```
+
+When `ZERO_SRC_BASE` is set the test asserts `git diff $ZERO_SRC_BASE..HEAD --
+src/` is empty (no `src/` change since the phase base); when unset it loud-skips
+so the default lane stays green on any box.
+
 ## Credentials & live lane
 
 The default smoke/test lane above is **creds-free** — it never touches a real SaaS
