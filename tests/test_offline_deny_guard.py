@@ -144,7 +144,12 @@ def test_guard_denies_anthropic_sync_positive_control():
             api_key="sk-ant-fake",
             max_retries=0,
         )
-    assert "OFFLINE deny" in str(ei.value) or "anthropic.com" in str(ei.value)
+    # Assert on the guard's UNIQUE message — "OFFLINE deny" can ONLY originate from
+    # _cloud_llm_deny_guard. A laxer `or "anthropic.com"` would let a plain 401 /
+    # connection error to api.anthropic.com carry the pass even with the guard
+    # removed (the wrong-reason pass T-11-07 warns against). Empirically the message
+    # survives litellm's InternalServerError wrapping on both sync and async paths.
+    assert "OFFLINE deny" in str(ei.value)
 
 
 def test_guard_denies_anthropic_async_positive_control():
@@ -161,7 +166,8 @@ def test_guard_denies_anthropic_async_positive_control():
                 api_key="sk-ant-fake",
                 max_retries=0,
             )
-        assert "OFFLINE deny" in str(ei.value) or "anthropic.com" in str(ei.value)
+        # Unique guard message only — see the sync control for why the OR is unsafe.
+        assert "OFFLINE deny" in str(ei.value)
 
     asyncio.run(go())
 
