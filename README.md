@@ -47,21 +47,31 @@ model-traffic governance.
 
 ## Clone-and-run readiness
 
-This repo ships a **runnable POC scaffold**. The contract layer, shared task
-service, ingress, worker, approval gating, self-improvement loop, GUI admin
-read-model, and prompt-to-code sandbox are importable and exercised by tests
-without any cloud dependencies — heavy deps (`langchain`, `langgraph`, `deepagents`,
-`langfuse`, `streamlit`, `google-cloud-pubsub`, `mcp`) are lazy-imported and
-degrade to in-process stubs.
+This repo is a **locally-validated reference implementation**, not a hollow
+scaffold. Across milestone **v1.0** the stubbed components were replaced with real,
+test-backed implementations; milestone **v1.1** then made the whole mesh runnable
+**fully local and offline** (local inference, local data + telemetry, a one-command
+full-stack compose, and a test-asserted no-egress posture) with **zero production
+code change**. Everything is exercised creds-free by the default test lane — heavy
+deps (`langchain`, `langgraph`, `deepagents`, `langfuse`, `streamlit`,
+`google-cloud-pubsub`, `mcp`) are lazy-imported so the creds-free lane stays green,
+and a live lane (`make test-live`) opts in real providers when credentials exist.
+
+The repo is **deploy-ready, not production-ready**: ready for MVP/POC deployment
+configuration after local validation, with production hardening still owed (see the
+caveats doc). Do not overclaim.
 
 ```bash
 make install-dev   # editable install + dev extras (pytest, ruff, streamlit)
 make schemas       # export JSON Schema from the Pydantic contracts -> schemas/contracts/
-make test          # contracts, approval gating, self-improvement, stack/toolpacks, importability, slack verify
+make test          # default lane (-m "not live"): contracts, approval gating, orchestration,
+                   #   self-improvement, gateway/profiles, compose config, offline posture
+make test-pg       # adds the Postgres-backed lanes (needs TEST_DATABASE_URL; loud-skips otherwise)
+make test-live     # opt-in live lane — real providers/SaaS (needs creds; never in CI)
 make lint          # ruff
 make smoke         # end-to-end: write-gated Slack task + read-only MCP task, in-process
 make run-api       # uvicorn FastAPI ingress (Slack/MCP/API) on localhost
-make run-worker    # in-process worker draining the dispatch queue
+make run-worker    # worker draining the dispatch queue
 make run-gui       # Streamlit admin/operator console
 ```
 
@@ -69,16 +79,41 @@ make run-gui       # Streamlit admin/operator console
 approval-pause → decision → resume → completion loop in a single process, proving
 the write-approval gate and the read path without GCP.
 
-### Scaffolded vs. needs development
+### Run it fully local & offline (v1.1)
+
+Run the entire mesh on your machine with **no cloud-hosted LLM egress** — local
+inference behind the same LiteLLM seam, local Postgres(pgvector) + self-hosted
+Langfuse, and a no-egress posture that tests enforce. Deployment names
+(`low/medium/high-complexity`) stay constant, so agent and gateway code are
+untouched. Full operator detail in [RUNBOOK.md](./RUNBOOK.md).
+
+```bash
+# Local inference (pick a backend), then swap the active model-gateway profile to it
+make run-vllm   ;  make use-vllm      # GPU box: vLLM on :8000
+make run-ollama ;  make use-ollama    # CPU box: Ollama on :11434
+make use-cloud                        # swap back to the cloud profile
+
+make run-pg        # local Postgres(pgvector) for the durable + telemetry lane
+make compose-up    # one-command full stack: api + worker + gui + pgvector + Langfuse + local model backend
+make compose-down
+
+cp .env.offline.example .env          # offline posture: cloud-LLM/gateway creds blank, SaaS creds normal
+```
+
+The offline posture is **asserted, not hoped**: `make test` fails if any local
+model profile, the assembled compose stack, or the default creds-free lane could
+reach a cloud LLM provider or model gateway. "Offline" here means **no cloud-hosted
+LLM inference** (Vertex / Anthropic-direct / the Cloudflare AI Gateway model path);
+local Postgres, Langfuse, in-stack service-DNS backends, and SaaS tool adapters
+reaching their own APIs remain legitimate.
+
+### What's implemented
 
 | Status | Component |
 | :--- | :--- |
-| **Scaffolded & tested** | Pydantic contracts + JSON Schema export, lifecycle state machine, in-memory repository, in-process dispatch, task service, FastAPI ingress (health/tasks/Slack/MCP/approvals), Slack signature verify, MCP server stub, approval gating with payload-hash binding, LangGraph + Deep Agents orchestration adapter (stub path), model-gateway routing profile, Langfuse observability seam, budget tracker, prompt-to-code sandbox skeleton, tool-pack loader, GUI admin read-model + Streamlit app, self-improvement loop (Option C: inert proposals → evaluate → approve → versioned promotion → rollback). |
-| **Needs development** | Real LangGraph + Deep Agents multi-agent orchestration with a Postgres checkpointer, Postgres-backed repository (migrations are provided; the repo layer is in-memory), Pub/Sub wiring at runtime, live LiteLLM-compatible gateway + Cloudflare AI Gateway integration, real SaaS tool adapters, Langfuse/OTLP telemetry wiring, hardened sandbox isolation, real evaluation harness + runtime promotion wiring for the self-improvement loop. See [docs/production-readiness-caveats.md](./docs/production-readiness-caveats.md). |
-
-The POC is **not production-ready**; it is ready for MVP/POC deployment
-configuration after local validation. Do not overclaim. See the caveats doc for
-the full hardening list.
+| **Implemented & locally validated (v1.0)** | Postgres-backed repository over `0001`–`0004` migrations with tenant-scoped reads; runtime dispatch with in-process fallback; authenticated / replay-proof approval gate (signed token + payload-hash binding); real LangGraph supervisor delegating to a bounded Deep Agents roster (planner, researcher/tool-router, code-writer, reviewer) with a durable Postgres checkpointer and interrupt-based HITL pause/resume; a real LiteLLM-compatible gateway (routing/cascades/budgets) with Cloudflare AI Gateway as the upstream chokepoint and Langfuse telemetry + prompt/eval management (real-provider lanes are opt-in via `make test-live`; the default lane is creds-free); Tool Gateway framework (execution-time credential resolution, JSON-Schema in/out validation, tool-event OTel spans) with HubSpot + Google Workspace direct adapters, Composio + Nango aggregators, and Webflow/Bitscale/Cal.com/Clockify/Beehiiv/Xero reference adapters; self-improvement loop (Option C: real held-out eval harness → inert proposal → human approval → versioned non-hot promotion → rollback) with CycloneDX ML-BOM; full E2E proofs + idempotent deploy-script validation. |
+| **Local & offline (v1.1)** | vLLM + Ollama local-inference profiles behind the LiteLLM seam (`make run-vllm`/`run-ollama`, `use-*` profile swap); documented local Postgres(pgvector) + self-hosted Langfuse run path (`make run-pg`, migration-on-local-DSN test); one-command full-stack `docker-compose.yml` (`make compose-up/down`) with compose-config validation; offline / no-egress posture — `.env.offline.example` + RUNBOOK + tests asserting no cloud `api_base`/key across all local profiles + the compose stack, and a connect-level deny-guard proving the default lane makes no cloud-LLM call. All of v1.1 is config / compose / docs / tests only — **zero `src/` change** (a durable test enforces it). |
+| **Remaining for production** | Live cloud provisioning (GCP) and FinOps review; Cloud SQL HA; immutable/externalized approval + audit ledger; broader egress controls and short-lived/rotated credentials; signed images + dependency scanning in CI; kill switches / incident response; memory-retrieval governance and data-deletion policy; self-improvement loop runtime hardening. See [docs/production-readiness-caveats.md](./docs/production-readiness-caveats.md) for the full 15-item list. |
 
 ## Ingress & MCP clients
 
@@ -97,11 +132,13 @@ the same MCP/tool boundary.
 | `src/agent_mesh/worker/` | LangGraph + Deep Agents orchestration adapter, model gateway, task runner with approval pause/resume, budget tracker, worker entrypoint. |
 | `src/agent_mesh/observability.py` | Langfuse seam (callback handler, shared trace metadata). |
 | `src/agent_mesh/gui/` | Streamlit admin/operator console: pure read-model helpers + the app. |
-| `src/agent_mesh/sandbox/` | Prompt-to-code executor skeleton (isolated subprocess, resource limits; production needs hardened isolation). |
+| `src/agent_mesh/sandbox/` | Prompt-to-code executor (isolated subprocess, resource limits; production needs stronger isolation — caveat #1). |
 | `src/agent_mesh/tools/` | Tool gateway + per-client tool-pack manifest loader. |
 | `schemas/` | Exported contract JSON Schema (`contracts/`) and sample read/write tool schemas. |
-| `migrations/` | Cloud SQL PostgreSQL + `pgvector` SQL: `0001_init.sql` (tasks, sessions, memory/evidence chunks kept separate, tool calls, approvals, AI-BOM, budget, gateway events) and `0002_self_improvement.sql` (proposals, evaluations, promotions). |
-| `config/model_gateway.config.yaml` | LiteLLM-compatible routing/cascades/budgets, routed through the Cloudflare AI Gateway wrapper, with Langfuse + OTel callbacks. |
+| `migrations/` | Cloud SQL PostgreSQL + `pgvector` SQL: `0001_init.sql` (tasks, sessions, memory/evidence chunks kept separate, tool calls, approvals, AI-BOM, budget, gateway events), `0002_self_improvement.sql` (proposals, evaluations, promotions), `0003_tool_call_fields.sql`, and `0004_active_version.sql` (active-version pointer). |
+| `config/model_gateway.*.yaml` | LiteLLM-compatible routing/cascades/budgets through the Cloudflare AI Gateway wrapper, with Langfuse + OTel callbacks. `config.yaml` is the active (mutable) profile; `cloud.yaml` the pristine cloud reference; `vllm.yaml`/`ollama.yaml` (loopback) and `vllm.compose.yaml`/`cpu.compose.yaml` (in-stack service-DNS) are the local-inference profiles selected via `make use-vllm`/`use-ollama`/`use-cloud`. |
+| `docker-compose.yml` / `.env.offline.example` | One-command full-stack local bring-up (`make compose-up/down`) and the offline / no-egress posture template (cloud-LLM creds blank, SaaS creds normal). |
+| `tests/` | Creds-free default lane (`-m "not live"`) + opt-in `-m live` lane; includes the offline-posture, deny-guard, compose-config, and durable zero-`src/` invariant suites. |
 | `docker/` | Dockerfiles for api / worker / code-executor / gui. |
 | `manifests/deployment.manifest.yaml` | Per-environment deployment manifest (stack, tenant, region, model routes, MCP clients, GUI, tool packs, retention). |
 | `manifests/tool_pack_manifest.yaml` | Per-client tool pack manifest for replaceable SaaS adapters (Xero, HubSpot, Webflow, Bitscale, Cal.com, Clockify, Beehiiv, Google Workspace) with integration styles. |

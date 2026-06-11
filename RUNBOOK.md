@@ -40,7 +40,7 @@ export REUSE_EXISTING_CLOUDFLARE_GATEWAY="true"
 
 ## Local Smoke Checks (before cloud provisioning)
 
-The POC scaffold runs end-to-end in a single process with no GCP, Cloudflare, or
+The mesh runs end-to-end in a single process with no GCP, Cloudflare, or
 SaaS dependencies. Run these first to confirm the contract, ingress, worker, and
 approval gate are healthy before provisioning anything.
 
