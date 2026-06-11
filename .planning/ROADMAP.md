@@ -50,7 +50,7 @@ resources.
 - [x] **Phase 8: Local Inference Lane** - vLLM + Ollama model-gateway profiles behind LiteLLM; `make run-vllm`/`run-ollama`; RUNBOOK local-inference section; config-validation tests _(completed 2026-06-08; LOCAL-01/02/03/04)_
 - [x] **Phase 9: Local Data & Telemetry Plane** - documented local Postgres(pgvector) + self-hosted Langfuse run path wired to make/RUNBOOK/conftest; migration-on-local-DSN test _(LDATA-01/02/03)_
 - [x] **Phase 10: Full-Stack Local Compose** - one-command docker-compose (api+worker+gui+Postgres(pgvector)+Langfuse+LiteLLM+local model backend); `make compose-up/down`; compose-config validation _(COMPOSE-01/02/03)_ (completed 2026-06-10)
-- [ ] **Phase 11: Offline / No-Egress Posture** - OFFLINE env posture over config; tests assert no cloud api_base / no Vertex/Anthropic/CF egress / local .env secrets across the assembled local stack _(OFFLINE-01/02/03)_
+- [x] **Phase 11: Offline / No-Egress Posture** - OFFLINE env posture over config; tests assert no cloud api_base / no Vertex/Anthropic/CF egress / local .env secrets across the assembled local stack _(OFFLINE-01/02/03)_ (completed 2026-06-11)
 
 ## Phase Details
 
@@ -269,9 +269,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 11-01-PLAN.md — D-01+D-04 cloud-LLM marker sweep: extend test_local_profiles.py to all 4 local profiles (whole-file + service-DNS allowlist + cloud.yaml negative control) + new docker-compose api/worker env-block sweep (OFFLINE-02) [wave 1]
-- [ ] 11-02-PLAN.md — D-02 socket.getaddrinfo autouse deny-guard: raises only on cloud-LLM hosts; anthropic/ sync+async positive controls + representative local-profile path (OFFLINE-03) [wave 1]
-- [ ] 11-03-PLAN.md — D-03 .env.offline.example + RUNBOOK offline section + valued-key sweep, plus durable env-gated zero-src invariant test + [BLOCKING] enforcing run (OFFLINE-01) [wave 2, depends 11-01/11-02]
+- [x] 11-01-PLAN.md — D-01+D-04 cloud-LLM marker sweep: extend test_local_profiles.py to all 4 local profiles (whole-file + service-DNS allowlist + cloud.yaml negative control) + new docker-compose api/worker env-block sweep (OFFLINE-02) [wave 1]
+- [x] 11-02-PLAN.md — D-02 socket.getaddrinfo autouse deny-guard: raises only on cloud-LLM hosts; anthropic/ sync+async positive controls + representative local-profile path (OFFLINE-03) [wave 1]
+- [x] 11-03-PLAN.md — D-03 .env.offline.example + RUNBOOK offline section + valued-key sweep, plus durable env-gated zero-src invariant test + [BLOCKING] enforcing run (OFFLINE-01) [wave 2, depends 11-01/11-02]
 
 ## Progress
 
@@ -288,7 +288,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 (v1.0) �
 | 6. Self-Improvement (real loop) | 6/6 | Complete | 2026-06-08 |
 | 7. E2E Validation & Deploy-Readiness | 5/5 | Complete | 2026-06-08 |
 | — v1.1 Local / Offline Deployability — | | | |
-| 8. Local Inference Lane | 1/2 | In Progress | - |
+| 8. Local Inference Lane | 2/2 | Complete | 2026-06-08 |
 | 9. Local Data & Telemetry Plane | 1/1 | Complete | 2026-06-10 |
 | 10. Full-Stack Local Compose | 3/3 | Complete    | 2026-06-10 |
-| 11. Offline / No-Egress Posture | 2/3 | In Progress | - |
+| 11. Offline / No-Egress Posture | 3/3 | Complete    | 2026-06-11 |

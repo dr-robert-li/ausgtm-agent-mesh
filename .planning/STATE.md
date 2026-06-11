@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: — Local / Offline Deployability
-status: executing
-stopped_at: Phase 11 planned (3 plans, 2 waves; research + pattern-map + plan-check all passed)
-last_updated: "2026-06-11T01:06:47.774Z"
-last_activity: 2026-06-11 — Phase 11 execution started
+status: milestone_complete
+stopped_at: Phase 11 complete — v1.1 (Local / Offline Deployability) milestone complete
+last_updated: "2026-06-11T01:48:00.000Z"
+last_activity: 2026-06-11 — Phase 11 complete (Offline / No-Egress Posture); v1.1 milestone complete
 progress:
-  total_phases: 7
-  completed_phases: 7
-  total_plans: 37
-  completed_plans: 37
+  total_phases: 4
+  completed_phases: 4
+  total_plans: 9
+  completed_plans: 9
   percent: 100
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-08)
 
 **Core value:** A long-running agent mesh takes a client request through ingress, durable orchestration, and a write-gated tool action — the write blocked until a human approves — and the whole run is observable and auditable.
-**Current focus:** Phase 11 — Offline / No-Egress Posture (EXECUTING)
+**Current focus:** v1.1 milestone (Local / Offline Deployability) COMPLETE — Phase 11 (Offline / No-Egress Posture) done. Run `/gsd:complete-milestone` to archive v1.0 (phases 01–07 still in place) and reset the SDK frontmatter counters.
 
 ## Current Position
 
-Phase: 11 (offline-no-egress-posture) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 11
-Last activity: 2026-06-11 — Phase 11 execution started
+Phase: 11 (offline-no-egress-posture) — COMPLETE
+Plan: 3 of 3 complete
+Status: v1.1 milestone complete
+Last activity: 2026-06-11 — Phase 11 complete (3/3 plans; verified 11/11 must-haves)
 
-Progress: [███████▒▒▒] 75% (3/4 phases)
+Progress: [██████████] 100% (4/4 v1.1 phases: 8, 9, 10, 11)
 
 **Milestone v1.1 scope:** run the whole mesh fully local + offline — vLLM + Ollama behind LiteLLM (Phase 8), local Postgres(pgvector) + self-hosted Langfuse (Phase 9), full-stack docker-compose (Phase 10), offline no-egress posture (Phase 11). Config/compose/docs/tests ONLY — zero `src/` change; deployment names unchanged so agent + gateway code are untouched.
 
@@ -40,7 +40,7 @@ Progress: [███████▒▒▒] 75% (3/4 phases)
 
 **Velocity:**
 
-- Total plans completed: 22
+- Total plans completed: 25
 - Average duration: — min
 - Total execution time: 0.0 hours
 
@@ -54,6 +54,7 @@ Progress: [███████▒▒▒] 75% (3/4 phases)
 | 07 | 5 | - | - |
 | 08 | 2 | - | - |
 | 10 | 3 | - | - |
+| 11 | 3 | - | - |
 
 **Recent Trend:**
 
@@ -110,9 +111,11 @@ Items acknowledged and carried forward:
 ## Session Continuity
 
 Last session: --stopped-at
-Stopped at: Phase 11 planned (3 plans, 2 waves; research + pattern-map + plan-check all passed)
+Stopped at: Phase 11 complete (3/3 plans; verified 11/11 must-haves; status: passed) — v1.1 milestone complete
 
-**Next:** `/gsd:execute-phase 11` — Offline / No-Egress Posture. 3 plans in 2 waves: **11-01** (D-01+D-04 whole-file cloud-LLM marker sweep across 4 local profiles + docker-compose api/worker env; `cloud.yaml` negative control) ∥ **11-02** (D-02 `socket.getaddrinfo` autouse deny-guard; sync+async `anthropic/` positive controls; creds-gated, not pytest-socket) in Wave 1; **11-03** (D-03 `.env.offline.example` + RUNBOOK offline section + valued-key sweep + durable env-gated zero-`src/` invariant with [BLOCKING] enforcing run) in Wave 2. Executor must export `ZERO_SRC_BASE=5092323` for the [BLOCKING] zero-src enforcing run. All CI-wired tests slot into `make test -m "not live"`; `.venv/bin/python` interpreter. Plan-checker: VERIFICATION PASSED (0 blockers; 1 warning fixed in-plan — deny-guard fixture clarified function-scoped). **Before executing, consider `/gsd:complete-milestone` to archive v1.0** so the SDK analyzer stops clobbering STATE frontmatter (progress block still reads 7/7/100 = v1.0 carryover; body is truth).
+**Phase 11 result (2026-06-11):** offline / no-egress posture is an ASSERTED property, zero `src/` change. **11-01** (D-01+D-04, OFFLINE-02) extended `tests/test_local_profiles.py` to a whole-file cloud-LLM marker sweep across all 4 local profiles (loopback + service-DNS allowlist) + new `tests/test_offline_compose_env.py` for the docker-compose api/worker env blocks; `config/model_gateway.cloud.yaml` is the negative control that TRIPS the sweep (non-vacuous). **11-02** (D-02, OFFLINE-03) new `tests/test_offline_deny_guard.py` — function-scoped autouse `socket.getaddrinfo` deny-guard raising only on cloud-LLM hosts (anthropic/Vertex `aiplatform.googleapis.com`/CF), passing through Postgres/Langfuse/service-DNS/SaaS; sync+async `anthropic/` positive controls assert on the guard's unique `OFFLINE deny` message (hardened from a wrong-reason `anthropic.com` match); creds-gated; `LITELLM_LOCAL_MODEL_COST_MAP=True`. **11-03** (D-03, OFFLINE-01) `.env.offline.example` (cloud-LLM/gateway creds blanked incl. `VERTEX_LOCATION`, SaaS creds normal) + RUNBOOK "Offline / no-egress posture" section + valued-key sweep `tests/test_offline_posture_env.py` + durable env-gated zero-`src/` invariant `tests/test_zero_src_invariant.py` (loud-skips unless `ZERO_SRC_BASE` set; [BLOCKING] enforcing run at base `5092323` passed non-vacuously, `git diff 5092323..HEAD -- src/` byte-empty). Full lane `make test -m "not live"` → 346 passed / 11 skipped. Verifier: 11/11 must-haves, status passed.
+
+**Next:** v1.1 (Local / Offline Deployability, phases 8–11) is COMPLETE. Run `/gsd:complete-milestone` to archive v1.0 (phases 01–07 still in place) and reset the SDK frontmatter counters (the analyzer clobbers them otherwise — `phase.complete` had set an impossible 8/7/114% this run). Security gate: `workflow.security_enforcement` is on and no `11-SECURITY.md` exists — run `/gsd:secure-phase 11` to record the offline-egress threat model (the verification already exercised the assertion-integrity threats). Code review for Phase 11 was advisory and its reviewer returned truncated (no `11-REVIEW.md`); re-run `/gsd:code-review 11` if a written record is wanted — the highest-value bug class (assertion vacuity) was already caught + fixed in execution.
 
 **Phase 10 result (2026-06-10):** one-command full-stack `docker-compose.yml` (api+worker+gui+pgvector postgres+migrate+Langfuse-v3-profile+vLLM/Ollama backends; no litellm container per D-06); shared command-parameterized `Dockerfile` (carries docker-cli for worker DooD) + `.dockerignore`; compose-variant model profiles with service-DNS api_base (Finding #1); `make compose-up/down` (best-effort, not in `make test`); RUNBOOK full-stack section with dev-only disclosures; `tests/test_compose_config.py` (the only CI-wired P10 artifact — static `docker compose config` validation, docker loud-skip). Code review found + fixed 2 real bring-up Criticals (api `/health`→`/healthz`, redis healthcheck NOAUTH) in `cd5de7a`. 318 tests green; zero `src/` change confirmed.
 
