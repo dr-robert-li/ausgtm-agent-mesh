@@ -148,21 +148,23 @@ Production hardening should not collapse these responsibilities into one layer.
 
 ## 15. Self-improvement loop hardening (Option C)
 
-The scaffolded self-improvement loop ([self-improvement-loop.md](./self-improvement-loop.md))
-is intentionally inert in the POC. Before it carries weight in production:
+The self-improvement loop ([self-improvement-loop.md](./self-improvement-loop.md))
+is implemented (v1.0, Option C) and **intentionally inert** — proposals never mutate
+the running system. Already real: a held-out evaluation harness (`services/eval_harness.py`:
+Langfuse `run_experiment` + aggregate/item no-regression gate) replacing the boolean
+stub, a GEPA-style offline proposer, and CycloneDX ML-BOM generation on promotion
+(`services/ai_bom.py`). Before it carries weight in production:
 
-- A **real evaluation harness** must replace the deterministic stub in
-  `evaluate_proposal` (eval sets, regression suites, red-team checks), so a passing
-  evaluation is meaningful — not just "patch is non-empty".
+- The **evaluation harness** needs production depth — broader versioned eval sets,
+  regression suites, and red-team checks — beyond the held-out frozen-context snapshots
+  proven creds-free today.
 - **Promotion → runtime** must be wired through versioned config with a controlled
-  reload/rollout, never a hot in-place rewrite of live prompts/tools/routes. The POC
-  records a versioned `PromotionRecord` but does not apply it to the running system.
-- **AI-BOM snapshot generation on promotion** must be implemented so every promoted
-  change is reflected in the approved capability bundle (the `ai_bom_snapshot_id`
-  link field exists; the generator is future work).
-- The **reflection/governance subagent** must be wired into the live LangGraph +
-  Deep Agents supervisor so proposals are emitted from real run telemetry via the
-  `reflect_on_task` seam.
+  reload/rollout, never a hot in-place rewrite of live prompts/tools/routes. The loop
+  records a versioned `PromotionRecord` (and ML-BOM) but, by Option-C design, does not
+  apply it to the running system — production needs the controlled-rollout wiring.
+- The **reflection/governance proposer** is offline and inert by design; wiring it to
+  emit proposals from live run telemetry via the `reflect_on_task` seam (rather than
+  mined durable traces) is future work.
 - Retain the **hard boundary**: no runtime autonomous self-modification of active
   instructions; high/critical proposals always require human approval.
 

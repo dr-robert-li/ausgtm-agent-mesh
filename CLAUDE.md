@@ -15,11 +15,12 @@
 > - **Model gateway** — LiteLLM-compatible: routing, budgets, cascades/fallbacks, provider abstraction, with Anthropic-direct and Vertex AI paths.
 > - **Cloudflare AI Gateway** — integration-ready model-traffic governance. Observability *consumes* gateway decisions; it does not replace policy.
 
-> **Implementation status (POC scaffold).** This document is the normative
-> design pattern. A runnable Python-first scaffold of it lives in `src/agent_mesh/`
-> and is exercised by `make test` / `make smoke` with no cloud dependencies — see
-> [README.md](./README.md) for clone-and-run readiness and the scaffolded-vs-needs-development
-> matrix, [docs/ecosystem-decision.md](./docs/ecosystem-decision.md) for the
+> **Implementation status.** This document is the normative
+> design pattern. A runnable, locally-validated Python-first implementation of it lives
+> in `src/agent_mesh/` and is exercised creds-free by `make test` / `make smoke` — see
+> [README.md](./README.md) for clone-and-run readiness and the what's-implemented
+> matrix (v1.0 replaced every stubbed component with real code across 7 phases; v1.1
+> added a fully local + offline lane), [docs/ecosystem-decision.md](./docs/ecosystem-decision.md) for the
 > LangChain/LangGraph/Deep Agents/Langfuse and Python-first/TS-at-edge rationale,
 > [RUNBOOK.md](./RUNBOOK.md) for local smoke checks and deployment,
 > [docs/self-improvement-loop.md](./docs/self-improvement-loop.md) for the
@@ -237,20 +238,24 @@
 | :--- | :--- |
 | `.planning/PROJECT.md` | Living project context: What This Is, Core Value, Validated/Active/Out-of-Scope requirements, constraints, key decisions. Evolves at phase/milestone boundaries. |
 | `.planning/REQUIREMENTS.md` | Checkable v1 requirements with REQ-IDs (DUR/SEC/ORCH/SBX/GW/OBS/TOOL/SI/E2E/DEP), v2 deferrals, out-of-scope, and phase traceability. |
-| `.planning/ROADMAP.md` | 5 coarse phases (horizontal layers), each with goal, dependencies, mapped REQ-IDs, observable success criteria, and plan stubs. |
+| `.planning/ROADMAP.md` | Coarse phases by horizontal layer (v1.0: phases 1–7; v1.1: phases 8–11), each with goal, dependencies, mapped REQ-IDs, observable success criteria, and plan stubs. |
 | `.planning/STATE.md` | Project memory: current position, velocity, decisions, blockers, deferred items, session continuity. |
 | `.planning/config.json` | Workflow config: YOLO mode, coarse granularity, parallel execution, quality model profile, research+plan-check+verifier on. |
 | `.planning/codebase/` | Mapped brownfield analysis (ARCHITECTURE/CONCERNS/CONVENTIONS/STACK/STRUCTURE/TESTING). |
 
-**Milestone goal** (this cycle): complete the runnable scaffold — replace every stubbed
-component with a real, locally-validated implementation, then prove the platform
-end-to-end and validate deploy-readiness. **Scope = full-vertical** (finish all stubs);
-**structure = horizontal layers** (durability → orchestration → model/observability →
-tools/self-improvement → E2E+deploy-readiness). Deploy-ready only — **no live GCP
-provisioning** this milestone.
+**Milestone goal** (v1.0 — COMPLETE 2026-06-08): completed the runnable scaffold —
+replaced every stubbed component with a real, locally-validated implementation, then
+proved the platform end-to-end and validated deploy-readiness across 7 phases
+(durability → orchestration → model/observability → tool framework → adapter breadth →
+self-improvement → E2E+deploy-readiness). **v1.1 — Local / Offline Deployability
+(COMPLETE 2026-06-11):** local inference (vLLM/Ollama), local Postgres+Langfuse,
+full-stack compose, and a test-asserted no-egress posture — config/compose/docs/tests
+only, **zero `src/` change**. Deploy-ready only — **no live GCP provisioning** in
+either milestone (deferred to v2). Next: `/gsd:complete-milestone` to archive v1.0.
 
-**Phase order:** 1 → 2 → 3 → 4 → 5, each depending on the prior. See `ROADMAP.md` for
-per-phase goals, REQ mappings, and success criteria.
+**Phase order:** v1.0 ran 1 → 2 → 3 → 4 → 5 → 6 → 7; v1.1 continued 8 → 9 → 10 → 11,
+each depending on the prior (all complete). See `ROADMAP.md` for per-phase goals, REQ
+mappings, and success criteria.
 
 **Driving the workflow (slash commands):**
 - `/gsd:plan-phase <N>` — create the detailed `PLAN.md` for phase N (spawns gsd-planner + gsd-plan-checker).

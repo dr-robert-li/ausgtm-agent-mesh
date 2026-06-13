@@ -12,10 +12,13 @@ This document records the design decision for how the agent mesh improves itself
 over time, why **Option C** was selected, how it maps onto LangGraph + Deep Agents,
 and the safety boundaries, approval-gated promotion, rollback, and AI-BOM implications.
 
-It is the normative reference for the scaffolded implementation in
-`src/agent_mesh/services/self_improvement.py`, the contract models in
-`src/agent_mesh/contracts/`, and the migration in
-`migrations/0002_self_improvement.sql`.
+It is the normative reference for the implementation in
+`src/agent_mesh/services/self_improvement.py` (loop orchestration),
+`src/agent_mesh/services/eval_harness.py` (held-out scoring engine),
+`src/agent_mesh/services/reflective_proposer.py` (offline GEPA-style proposer),
+`src/agent_mesh/services/ai_bom.py` (CycloneDX ML-BOM on promotion), the contract
+models in `src/agent_mesh/contracts/`, and the migrations
+`migrations/0002_self_improvement.sql` + `0004_active_version.sql`.
 
 ## 1. The options considered
 
@@ -168,12 +171,17 @@ appear in the AI-BOM:
 
 ## 9. What is NOT in this POC
 
-- No hot reload of prompts/tools/routes from a promoted artifact at runtime.
-- No real eval harness — `evaluate_proposal` runs simple deterministic checks or
-  marks `pending`. Production needs a real evaluation/eval-set harness.
-- No automatic AI-BOM snapshot generation on promotion (the link field exists; the
-  generator is future work, tracked alongside the existing AI-BOM roadmap item).
-- No live reflection subagent — the orchestration stub does not yet emit
-  proposals automatically; `reflect_on_task` is the seam a real LangGraph + Deep
-  Agents reflection subagent calls. See
+- No hot reload of prompts/tools/routes from a promoted artifact at runtime — **by
+  Option-C design**, not a gap. Promotion records a versioned `PromotionRecord`; it is
+  never applied to the running system.
+- The held-out eval harness (`eval_harness.py`) is real (Langfuse `run_experiment` +
+  aggregate/item no-regression gate); `evaluate_proposal` routes through it or marks
+  `pending` when it cannot run. Production needs broader versioned eval sets and
+  red-team coverage, not a first harness.
+- AI-BOM (CycloneDX ML-BOM) **is** generated on promotion via `ai_bom.py` and linked
+  through `ai_bom_snapshot_id`. External signing/attestation is the remaining hardening.
+- No live reflection subagent: orchestration is real (LangGraph + Deep Agents), but the
+  proposer is **offline and inert by design** and mines durable traces rather than
+  auto-emitting from live run telemetry. `reflect_on_task` is the seam a future
+  live-telemetry reflection subagent would call. See
   [production-readiness-caveats.md](./production-readiness-caveats.md).
